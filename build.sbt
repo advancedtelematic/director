@@ -23,7 +23,7 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-    "org.genivi" %% "sota-common" % "0.1.201",
+    "org.genivi" %% "sota-common" % "0.2.30",
 
     "com.typesafe.slick" %% "slick" % slickV,
     "com.typesafe.slick" %% "slick-hikaricp" % slickV,

@@ -1,16 +1,14 @@
 package com.advancedtelematic.service_blueprint
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.{Directives, Route}
-import akka.stream.{ActorMaterializer, Materializer}
+import akka.stream.Materializer
 import com.advancedtelematic.service_blueprint.http.ServiceBlueprintRoutes
 import com.typesafe.config.ConfigFactory
-import org.genivi.sota.db.BootMigrations
+import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
+import org.genivi.sota.http.BootApp
 import org.genivi.sota.http.LogDirectives.logResponseMetrics
 import org.genivi.sota.http.VersionDirectives.versionHeaders
-import org.slf4j.LoggerFactory
-import slick.driver.MySQLDriver.api._
 
 
 trait Settings {
@@ -20,18 +18,16 @@ trait Settings {
   val port = config.getInt("server.port")
 }
 
-object Boot extends App with Directives with Settings with VersionInfo with BootMigrations {
+object Boot extends BootApp
+  with Directives
+  with Settings
+  with VersionInfo
+  with DatabaseConfig
+  with BootMigrations {
 
-  val _log = LoggerFactory.getLogger(this.getClass)
+  implicit val _db = db
 
-  implicit val _db = Database.forConfig("database")
-
-  implicit val _system = ActorSystem()
-  implicit val _mat = ActorMaterializer()
-
-  import _system.dispatcher
-
-  _log.info(s"Starting $version on http://$host:$port")
+  log.info(s"Starting $version on http://$host:$port")
 
   val routes: Route =
     (versionHeaders(version) & logResponseMetrics(projectName)) {

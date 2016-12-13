@@ -9,6 +9,7 @@ import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
 import org.genivi.sota.http.BootApp
 import org.genivi.sota.http.LogDirectives.logResponseMetrics
 import org.genivi.sota.http.VersionDirectives.versionHeaders
+import org.genivi.sota.monitoring.{DatabaseMetrics, MetricsSupport}
 
 
 trait Settings {
@@ -23,7 +24,9 @@ object Boot extends BootApp
   with Settings
   with VersionInfo
   with DatabaseConfig
-  with BootMigrations {
+  with BootMigrations
+  with MetricsSupport
+  with DatabaseMetrics {
 
   implicit val _db = db
 

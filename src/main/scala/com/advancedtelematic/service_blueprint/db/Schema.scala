@@ -12,5 +12,5 @@ object Schema {
     override def * = (id, value) <> ((Blueprint.apply _).tupled, Blueprint.unapply)
   }
 
-  val blueprints = TableQuery[BlueprintTable]
+  protected [db] val blueprints = TableQuery[BlueprintTable]
 }

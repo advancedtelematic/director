@@ -25,6 +25,7 @@ docker run -d \
 
 function mysqladmin_alive {
     docker run \
+           --rm \
            --link service_blueprint-mariadb \
            mariadb:10.1 \
            mysqladmin ping --protocol=TCP -h service_blueprint-mariadb -P 3306 -u root -proot

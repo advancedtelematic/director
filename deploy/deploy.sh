@@ -12,15 +12,14 @@ export VAULT_ENDPOINT=${VAULT_ENDPOINT-$(echo $JOB_NAME | tr "-" "_")}
 export IMAGE_NAME="service_blueprint"
 export REGISTRY="advancedtelematic"
 export IMAGE_ARTIFACT=${REGISTRY}/${IMAGE_NAME}:${DOCKER_TAG}
-export HOST="0.0.0.0"
-export PORT="8084"
 
 # Merge service environment variables with secrets from this vault endpoint.
 export CATALOG_ADDR="http://catalog.gw.prod01.internal.advancedtelematic.com"
 
-REQ=$(envsubst < deploy/service.json)
-curl --show-error --silent --fail \
-     --header "X-Vault-Token: ${VAULT_TOKEN}" \
-     --request POST \
-     --data "$REQ" \
-     ${CATALOG_ADDR}/service/${VAULT_ENDPOINT}
+cat deploy/service.json |
+    envsubst |
+    curl --show-error --silent --fail \
+         --header "X-Vault-Token: ${VAULT_TOKEN}" \
+         --request POST \
+         --data @- \
+         ${CATALOG_ADDR}/service/${VAULT_ENDPOINT}

@@ -24,9 +24,7 @@
     "SERVICE_SCOPE": "internal",
     "SERVICE_TYPE": "http",
     "SERVICE_IMAGE": "${IMAGE_ARTIFACT}",
-    "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health",
-    "HOST": "${HOST}",
-    "PORT": "${PORT}"
+    "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health"
   },
   "healthChecks": [{
     "protocol": "HTTP",

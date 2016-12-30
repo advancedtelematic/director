@@ -4,6 +4,8 @@
 */
 package com.advancedtelematic.util
 
+import java.util.TimeZone
+
 import com.typesafe.config.{Config, ConfigFactory}
 import org.flywaydb.core.Flyway
 import org.scalatest.{BeforeAndAfterAll, Suite}
@@ -13,6 +15,8 @@ import scala.collection.JavaConverters._
 
 trait DatabaseSpec extends BeforeAndAfterAll {
   self: Suite =>
+
+  TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
 
   implicit lazy val db = Database.forConfig("", slickDbConfig)
 

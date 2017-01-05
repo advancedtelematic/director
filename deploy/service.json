@@ -2,8 +2,8 @@
   "id": "${JOB_NAME}",
   "uris": ["/root/docker.tar.gz"],
   "constraints": [["rack_id", "CLUSTER", "stateless"]],
-  "cpus": 0.2,
-  "mem": 1024.0,
+  "cpus": $USE_CPU,
+  "mem": $USE_MEM,
   "instances": 1,
   "container": {
     "type": "DOCKER",
@@ -24,7 +24,8 @@
     "SERVICE_SCOPE": "internal",
     "SERVICE_TYPE": "http",
     "SERVICE_IMAGE": "${IMAGE_ARTIFACT}",
-    "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health"
+    "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health",
+    "JAVA_OPTS": "${JAVA_OPTS}"
   },
   "healthChecks": [{
     "protocol": "HTTP",

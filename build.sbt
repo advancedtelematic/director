@@ -13,6 +13,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.0.0"
   val scalaTestV = "3.0.0"
   val slickV = "3.1.1"
+  val sotaV = "0.2.51"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -24,7 +25,8 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-    "org.genivi" %% "sota-common" % "0.2.32",
+    "org.genivi" %% "sota-common" % sotaV,
+    "org.genivi" %% "sota-common-db-test" % sotaV % "test",
 
     "com.typesafe.slick" %% "slick" % slickV,
     "com.typesafe.slick" %% "slick-hikaricp" % slickV,

@@ -2,6 +2,7 @@ package com.advancedtelematic.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.advancedtelematic.service_blueprint.http.ServiceBlueprintRoutes
+import org.genivi.sota.core.DatabaseSpec
 import org.scalatest.Suite
 
 trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {

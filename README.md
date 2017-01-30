@@ -1,8 +1,4 @@
-# ATS service Blueprint
-
-Someone did it so you don't have to.
-
-Build up on this template to create a new service in the ATS infrastructure.
+# ATS Director 
 
 ## Running tests
 

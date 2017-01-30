@@ -1,5 +1,5 @@
 #!/bin/bash
 
-docker rm --force service_blueprint-mariadb || true
+docker rm --force director-mariadb || true
 
 

@@ -1,0 +1,60 @@
+package com.advancedtelematic.director.manifest
+
+import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.Codecs._
+import io.circe.Encoder
+import io.circe.syntax._
+import org.genivi.sota.marshalling.CirceMarshallingSupport._
+
+import scala.annotation.tailrec
+import scala.util.{Failure, Success, Try}
+
+object Verify {
+  type Verifier = (Signature, Array[Byte]) => Try[Boolean]
+  val alwaysAccept: Verifier = (_,_) => Success(true)
+  val alwaysReject: Verifier = (_,_) => Success(false)
+
+  def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
+    val data = what.signed.asJson.getCanonicalBytes
+
+    @tailrec
+    def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {
+      case Seq() => Success(what.signed)
+      case sig +: xs => checkSignature(sig.toSignature, data) match {
+        case Success(b) if b => go(xs)
+        case Success(b) => Failure(Errors.SignatureNotValid)
+        case Failure(err) => Failure(err)
+      }
+    }
+
+    what.signatures match {
+      case Seq() => Failure(Errors.EmptySignatureList)
+      case xs => go(xs)
+    }
+  }
+
+  def tryCondition(cond: Boolean, err: => Throwable): Try[Unit] =
+    if (cond) {
+      Success(())
+    } else {
+      Failure(err)
+    }
+
+  def deviceManifest(ecusForDevice: Seq[Ecu],
+                     verifier: Crypto => Verifier,
+                     signedDevMan: SignedPayload[DeviceManifest]): Try[Seq[EcuManifest]] = {
+    val ecuMap = ecusForDevice.groupBy(_.ecuSerial).mapValues(_.head)
+    for {
+      primaryEcu <- ecuMap.get(signedDevMan.signed.primary_ecu_serial)
+                          .fold[Try[Ecu]](Failure(Errors.EcuNotFound))(Success(_))
+      _ <- tryCondition(primaryEcu.primary, Errors.EcuNotPrimary)
+      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.crypto))
+      verifiedEcu = devMan.ecu_version_manifest.map{ case sEcu =>
+        ecuMap.get(sEcu.signed.ecu_serial) match {
+          case None => Failure(Errors.EcuNotFound)
+          case Some(ecu) => checkSigned(sEcu, verifier(ecu.crypto))
+        }
+      }
+    } yield verifiedEcu.collect { case Success(x) => x}
+  }
+}

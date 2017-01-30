@@ -1,10 +1,12 @@
-package com.advancedtelematic.service_blueprint
+package com.advancedtelematic.director
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.{Directives, Route}
-import akka.stream.Materializer
-import com.advancedtelematic.service_blueprint.http.ServiceBlueprintRoutes
+import com.advancedtelematic.director.http.DirectorRoutes
+import com.advancedtelematic.director.manifest.SignatureVerification
 import com.typesafe.config.ConfigFactory
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
 import org.genivi.sota.http.BootApp
 import org.genivi.sota.http.LogDirectives.logResponseMetrics
@@ -32,9 +34,11 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
+  Security.addProvider(new BouncyCastleProvider())
+
   val routes: Route =
     (versionHeaders(version) & logResponseMetrics(projectName)) {
-      new ServiceBlueprintRoutes().routes
+      new DirectorRoutes(SignatureVerification.verify).routes
     }
 
   Http().bindAndHandle(routes, host, port)

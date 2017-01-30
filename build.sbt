@@ -1,4 +1,4 @@
-name := "service_blueprint"
+name := "director"
 organization := "com.advancedtelematic.com"
 scalaVersion := "2.11.8"
 
@@ -14,6 +14,7 @@ libraryDependencies ++= {
   val scalaTestV = "3.0.0"
   val slickV = "3.1.1"
   val sotaV = "0.2.53"
+  val bouncyCastleV = "1.56"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -26,7 +27,12 @@ libraryDependencies ++= {
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
     "org.genivi" %% "sota-common" % sotaV,
+    "org.genivi" %% "sota-common-client" % sotaV,
+    "org.genivi" %% "sota-common-test" % sotaV % "test",
     "org.genivi" %% "sota-common-db-test" % sotaV % "test",
+
+    "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,
+    "org.bouncycastle" % "bcpkix-jdk15on" % bouncyCastleV,
 
     "com.typesafe.slick" %% "slick" % slickV,
     "com.typesafe.slick" %% "slick-hikaricp" % slickV,
@@ -35,6 +41,23 @@ libraryDependencies ++= {
   )
 }
 
+scalacOptions in Compile ++= Seq(
+  "-deprecation",
+  "-feature",
+  "-Xlog-reflective-calls",
+  "-Xlint",
+  "-Ywarn-unused-import",
+  "-Ywarn-dead-code",
+  "-Yno-adapted-args"
+)
+
+scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
+
+testOptions in Test ++= Seq(
+  Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
+  Tests.Argument(TestFrameworks.ScalaTest, "-oDS")
+)
+
 enablePlugins(BuildInfoPlugin)
 
 buildInfoOptions += BuildInfoOption.ToMap
@@ -42,11 +65,11 @@ buildInfoOptions += BuildInfoOption.ToMap
 buildInfoOptions += BuildInfoOption.BuildTime
 
 
-flywayUrl := sys.env.getOrElse("DB_URL", "jdbc:mysql://localhost:3306/ota_service_blueprint")
+flywayUrl := sys.env.getOrElse("DB_URL", "jdbc:mysql://localhost:3306/director")
 
-flywayUser := sys.env.getOrElse("DB_USER", "service_blueprint")
+flywayUser := sys.env.getOrElse("DB_USER", "director")
 
-flywayPassword := sys.env.getOrElse("DB_PASSWORD", "service_blueprint")
+flywayPassword := sys.env.getOrElse("DB_PASSWORD", "director")
 
 
 import com.typesafe.sbt.packager.docker._

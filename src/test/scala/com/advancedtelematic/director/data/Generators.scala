@@ -6,13 +6,14 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import java.time.Instant
 import org.scalacheck.Gen
 
+
 trait Generators {
   lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
 
-  lazy val GenHexString: Gen[HexString] = Gen.containerOf[List, Char](GenHexChar).map(_.mkString).refine
+  lazy val GenHexString: Gen[HexString] = GenRefinedStringByChar(GenHexChar)
 
   lazy val GenEcuSerial: Gen[EcuSerial]
-    = Gen.choose(10,64).flatMap(Gen.containerOfN[List,Char](_, Gen.alphaChar)).map(_.mkString).refine
+    = Gen.choose(10,64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
 
   lazy val GenSignatureMethod: Gen[SignatureMethod]
     = Gen.const(RSASSA_PSS)
@@ -27,7 +28,7 @@ trait Generators {
     crypto <- GenCrypto
   } yield RegisterEcu(ecu, crypto)
 
-  lazy val GenKeyId: Gen[KeyId]= Gen.containerOfN[List,Char](64, GenHexChar).map(_.mkString).refine
+  lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
 
   lazy val GenClientSignature: Gen[ClientSignature] = for {
     method <- GenSignatureMethod
@@ -43,8 +44,8 @@ trait Generators {
     genT.flatMap(GenSignedValue)
 
 
-  lazy val GenSha256: Gen[Sha256] = Gen.containerOfN[List,Char](64, GenHexChar).map(_.mkString).refine
-  lazy val GenSha512: Gen[Sha512] = Gen.containerOfN[List,Char](128, GenHexChar).map(_.mkString).refine
+  lazy val GenSha256: Gen[Sha256] = GenRefinedStringByCharN(64, GenHexChar)
+  lazy val GenSha512: Gen[Sha512] = GenRefinedStringByCharN(128, GenHexChar)
 
   lazy val GenHashes: Gen[Hashes] = for {
     sha256 <- GenSha256

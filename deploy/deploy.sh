@@ -14,7 +14,7 @@ export REGISTRY="advancedtelematic"
 export IMAGE_ARTIFACT=${REGISTRY}/${IMAGE_NAME}:${DOCKER_TAG}
 export USE_MEM="1024.0"
 export USE_CPU="0.5"
-export JVM_OPTS="-Xmx512m"
+export JAVA_OPTS="-Xmx800m"
 
 # Merge service environment variables with secrets from this vault endpoint.
 export CATALOG_ADDR="http://catalog.gw.prod01.internal.advancedtelematic.com"

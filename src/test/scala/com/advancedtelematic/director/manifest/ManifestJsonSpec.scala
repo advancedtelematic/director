@@ -3,6 +3,7 @@ package com.advancedtelematic.director.manifest
 import cats.data.Xor
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.SignatureMethod.RSASSA_PSS
 import com.advancedtelematic.director.data.RefinedUtils._
 import com.advancedtelematic.director.util.DirectorSpec
@@ -22,7 +23,7 @@ class ManifestJsonSpec extends DirectorSpec {
                             sig = "df043006d4322a386cf85a6761a96bb8c92b2a41f4a4201badb8aae6f6dc17ef930addfa96a3d17f20533a01c158a7a33e406dd8291382a1bbab772bd2fa9804".refineTry[ValidHexString].get,
                             keyid = "49309f114b857e4b29bfbff1c1c75df59f154fbc45539b2eb30c8a867843b2cb".refineTry[ValidKeyId].get)),
       signed = EcuManifest(timeserver_time = Instant.ofEpochSecond(1476461163),
-                           installed_image = InstalledImage(
+                           installed_image = Image(
                              filepath = "/file2.txt",
                              fileinfo = FileInfo(
                                hashes = Hashes(

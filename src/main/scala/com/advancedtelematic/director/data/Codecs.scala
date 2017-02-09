@@ -7,6 +7,8 @@ import org.genivi.sota.marshalling.CirceInstances._
 
 object Codecs {
   import DataType._
+  import AdminRequest._
+  import DeviceRequest._
 
   implicit val decoderCrypto: Decoder[Crypto] = deriveDecoder
   implicit val encoderCrypto: Encoder[Crypto] = deriveEncoder
@@ -17,8 +19,8 @@ object Codecs {
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder
 
-  implicit val decoderInsalledImage: Decoder[InstalledImage] = deriveDecoder
-  implicit val encoderInsalledImage: Encoder[InstalledImage] = deriveEncoder
+  implicit val decoderImage: Decoder[Image] = deriveDecoder
+  implicit val encoderImage: Encoder[Image] = deriveEncoder
 
   /*** Device Request ***/
 

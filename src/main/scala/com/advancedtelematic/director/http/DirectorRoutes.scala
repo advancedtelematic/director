@@ -18,12 +18,12 @@ class DirectorRoutes(verifier: Crypto => Verify.Verifier)
 
   val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor.map(_.namespace)
 
-
   val routes: Route =
     handleRejections(rejectionHandler) {
       ErrorHandler.handleErrors {
         pathPrefix("api" / "v1") {
-            new DeviceResource(extractNamespace, verifier).route
+          new AdminResource(extractNamespace).route ~
+          new DeviceResource(extractNamespace, verifier).route
         } ~ new HealthResource(db, versionMap).route
       }
     }

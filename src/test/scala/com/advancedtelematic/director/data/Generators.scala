@@ -1,6 +1,8 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.SignatureMethod._
 import com.advancedtelematic.director.data.GeneratorOps._
 import java.time.Instant
@@ -57,10 +59,10 @@ trait Generators {
     len <- Gen.posNum[Int]
   } yield FileInfo(hs, len)
 
-  lazy val GenInstalledImage: Gen[InstalledImage] = for {
+  lazy val GenInstalledImage: Gen[Image] = for {
     fp <- Gen.alphaStr
     fi <- GenFileInfo
-  } yield InstalledImage(fp, fi)
+  } yield Image(fp, fi)
 
   def GenEcuManifest(ecuSerial: EcuSerial): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)

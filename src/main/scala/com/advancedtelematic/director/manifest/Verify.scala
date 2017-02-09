@@ -1,7 +1,9 @@
 package com.advancedtelematic.director.manifest
 
-import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DataType.{Crypto, Ecu, Signature}
+import com.advancedtelematic.director.data.DeviceRequest.{ClientSignature, DeviceManifest, EcuManifest, SignedPayload}
 import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.Utility._
 import io.circe.Encoder
 import io.circe.syntax._
 import org.genivi.sota.marshalling.CirceMarshallingSupport._

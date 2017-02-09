@@ -27,7 +27,7 @@ object Schema {
   protected [db] val ecu = TableQuery[EcuTable]
 
   type CurrentImageRow = (EcuSerial, String, Int, Sha256, Sha512)
-  class CurrentImageTable(tag: Tag) extends Table[(EcuSerial, InstalledImage)](tag, "CurrentImage") {
+  class CurrentImageTable(tag: Tag) extends Table[(EcuSerial, Image)](tag, "CurrentImage") {
     def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
@@ -37,8 +37,8 @@ object Schema {
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     override def * = (id, filepath, length, sha256, sha512) <>
-      ((p: CurrentImageRow) => (p._1, InstalledImage(p._2, FileInfo(Hashes(p._4, p._5), p._3))),
-      (x: (EcuSerial, InstalledImage)) => Some((x._1, x._2.filepath, x._2.fileinfo.length, x._2.fileinfo.hashes.sha256, x._2.fileinfo.hashes.sha512)))
+      ((p: CurrentImageRow) => (p._1, Image(p._2, FileInfo(Hashes(p._4, p._5), p._3))),
+      (x: (EcuSerial, Image)) => Some((x._1, x._2.filepath, x._2.fileinfo.length, x._2.fileinfo.hashes.sha256, x._2.fileinfo.hashes.sha512)))
   }
 
   protected [db] val currentImage = TableQuery[CurrentImageTable]

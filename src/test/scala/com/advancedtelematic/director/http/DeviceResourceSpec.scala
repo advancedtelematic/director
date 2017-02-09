@@ -2,7 +2,9 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
+import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.manifest.Verify
 import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
@@ -143,7 +145,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
       status shouldBe StatusCodes.OK
 
       val mImages = {
-        val images = responseAs[Seq[(EcuSerial, InstalledImage)]]
+        val images = responseAs[Seq[(EcuSerial, Image)]]
         val start = images.groupBy(_._1).mapValues(_.map(_._2))
         start.values.foreach { x =>
           x.length shouldBe 1

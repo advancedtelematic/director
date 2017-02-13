@@ -1,20 +1,33 @@
 package com.advancedtelematic.director.data
 
-import io.circe._
-import io.circe.generic.semiauto._
+import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 
-import org.genivi.sota.marshalling.CirceInstances._
+import org.genivi.sota.marshalling.CirceInstances.{refinedMapEncoder => _, refinedMapDecoder => _, _}
+import org.genivi.sota.marshalling.CirceInstances.{refinedDecoder, refinedEncoder}
+import org.genivi.sota.marshalling.CirceInstances.{dateTimeDecoder, dateTimeEncoder}
+
+import scala.util.Try
 
 object Codecs {
-  import DataType._
   import AdminRequest._
+  import DataType._
   import DeviceRequest._
+  import HashMethod._
+  import RefinedUtils._
+  import io.circe.generic.semiauto._
 
   implicit val decoderCrypto: Decoder[Crypto] = deriveDecoder
   implicit val encoderCrypto: Encoder[Crypto] = deriveEncoder
 
-  implicit val decoderHashes: Decoder[Hashes] = deriveDecoder
-  implicit val encoderHashes: Encoder[Hashes] = deriveEncoder
+  implicit val keyDecoderHashMethodKey: KeyDecoder[HashMethod] = KeyDecoder.instance { value =>
+    Try(HashMethod.withName(value)).toOption
+  }
+  implicit val keyEncoderHashMethodKey: KeyEncoder[HashMethod] = KeyEncoder[String].contramap(_.toString)
+
+  implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>
+    value.refineTry[ValidEcuSerial].toOption
+  }
+  implicit val keyEncoderEcuSerial: KeyEncoder[EcuSerial] = KeyEncoder[String].contramap(_.toString)
 
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder
@@ -28,7 +41,7 @@ object Codecs {
   implicit val encoderClientSignature: Encoder[ClientSignature] = deriveEncoder
 
   implicit def decoderSignedPayload[T](implicit decoderT: Decoder[T]): Decoder[SignedPayload[T]] = deriveDecoder
-  implicit def encoderSignedPayload[T](implicit decoderT: Encoder[T]): Encoder[SignedPayload[T]] = deriveEncoder
+  implicit def encoderSignedPayload[T](implicit encoderT: Encoder[T]): Encoder[SignedPayload[T]] = deriveEncoder
 
   implicit val decoderEcuManifest: Decoder[EcuManifest] = deriveDecoder
   implicit val encoderEcuManifest: Encoder[EcuManifest] = deriveEncoder
@@ -42,4 +55,7 @@ object Codecs {
 
   implicit val decoderRegisterDevice: Decoder[RegisterDevice] = deriveDecoder
   implicit val encoderRegisterDevice: Encoder[RegisterDevice] = deriveEncoder
+
+  implicit val decoderSetTarget: Decoder[SetTarget] = deriveDecoder
+  implicit val encoderSetTarget: Encoder[SetTarget] = deriveEncoder
 }

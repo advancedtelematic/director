@@ -4,7 +4,7 @@ import java.time.Instant
 import org.genivi.sota.data.Uuid
 
 object DeviceRequest {
-  import DataType.{EcuSerial, HexString, KeyId, Image, Signature}
+  import DataType.{EcuSerial, Hashes, HexString, KeyId, Image, Signature}
   import SignatureMethod.SignatureMethod
 
   final case class ClientSignature(method: SignatureMethod, sig: HexString, keyid: KeyId) {
@@ -22,4 +22,15 @@ object DeviceRequest {
   final case class DeviceManifest(vin: Uuid,
                                   primary_ecu_serial: EcuSerial,
                                   ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
+
+
+  // this should come from ota-tuf
+
+
+  final case class MetaItem(hashes: Hashes, length: Long)
+
+  final case class SnapshotRole(meta: Map[String, MetaItem],
+                                expirers: Instant,
+                                version: Int,
+                                _type: String = "Snapshot")
 }

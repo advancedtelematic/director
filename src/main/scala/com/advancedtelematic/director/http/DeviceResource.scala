@@ -7,6 +7,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors, FileCacheRepositorySupport}
+import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.Verify
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
@@ -21,7 +22,7 @@ import slick.driver.MySQLDriver.api._
 
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
-                     verifier: Crypto => Verify.Verifier)
+                     verifier: Crypto => Verifier)
                     (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends DeviceRepositorySupport
     with AdminRepositorySupport

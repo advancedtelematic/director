@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.{Directives, _}
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.VersionInfo
-import com.advancedtelematic.director.manifest.Verify
+import com.advancedtelematic.director.manifest.Verifier.Verifier
 import org.genivi.sota.http.{ErrorHandler, NamespaceDirectives, HealthResource}
 import org.genivi.sota.rest.SotaRejectionHandler._
 
@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext
 import slick.driver.MySQLDriver.api._
 
 
-class DirectorRoutes(verifier: Crypto => Verify.Verifier)
+class DirectorRoutes(verifier: Crypto => Verifier)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,

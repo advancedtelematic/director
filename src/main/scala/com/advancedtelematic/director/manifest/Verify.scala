@@ -12,10 +12,15 @@ import org.genivi.sota.marshalling.CirceMarshallingSupport._
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
-object Verify {
+object Verifier {
   type Verifier = (Signature, Array[Byte]) => Try[Boolean]
   val alwaysAccept: Verifier = (_,_) => Success(true)
   val alwaysReject: Verifier = (_,_) => Success(false)
+
+}
+
+object Verify {
+  import Verifier.Verifier
 
   def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
     val data = what.signed.asJson.getCanonicalBytes

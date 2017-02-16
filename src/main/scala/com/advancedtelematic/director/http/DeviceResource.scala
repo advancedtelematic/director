@@ -5,9 +5,11 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Crypto
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, SignedPayload}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors, FileCacheRepositorySupport}
 import com.advancedtelematic.director.manifest.Verify
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import org.genivi.sota.data.{Namespace, Uuid}
 import org.genivi.sota.http.UuidDirectives.extractUuid
 import org.genivi.sota.marshalling.CirceMarshallingSupport._

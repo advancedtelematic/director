@@ -3,7 +3,6 @@ package com.advancedtelematic.director.http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.{Directives, _}
 import akka.stream.Materializer
-import com.advancedtelematic.director.client.TufClient
 import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.manifest.Verify
@@ -22,8 +21,6 @@ class DirectorRoutes(verifier: Crypto => Verify.Verifier)
   import Directives._
 
   val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor.map(_.namespace)
-
-  val tufClient = new TufClient()
 
   val routes: Route =
     handleRejections(rejectionHandler) {

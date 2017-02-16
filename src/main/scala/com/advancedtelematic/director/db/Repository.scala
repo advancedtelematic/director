@@ -2,7 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, Snapshot}
 import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.director.data.Role
+import com.advancedtelematic.libtuf.data.TufDataType.RoleType
 import org.genivi.sota.data.{Namespace, Uuid}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
@@ -154,7 +154,7 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
   import SlickCirceMapper._
   import DataType.FileCache
 
-  private def fetchRole(role: Role.Role, err: => Throwable)(device: Uuid, version: Int): Future[Json] = db.run {
+  private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: Uuid, version: Int): Future[Json] = db.run {
     Schema.fileCache
       .filter(_.role === role)
       .filter(_.version === version)
@@ -164,18 +164,18 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .failIfNotSingle(err)
   }
 
-  def fetchTarget(device: Uuid, version: Int): Future[Json] = fetchRole(Role.TARGETS, MissingTarget)(device, version)
+  def fetchTarget(device: Uuid, version: Int): Future[Json] = fetchRoleType(RoleType.TARGETS, MissingTarget)(device, version)
 
-  def fetchSnapshot(device: Uuid, version: Int): Future[Json] = fetchRole(Role.SNAPSHOT, MissingSnapshot)(device, version)
+  def fetchSnapshot(device: Uuid, version: Int): Future[Json] = fetchRoleType(RoleType.SNAPSHOT, MissingSnapshot)(device, version)
 
-  private def storeRole(role: Role.Role, err: => Throwable)(device: Uuid, version: Int, file: Json): Future[Unit] = db.run {
+  private def storeRoleType(role: RoleType.RoleType, err: => Throwable)(device: Uuid, version: Int, file: Json): Future[Unit] = db.run {
     (Schema.fileCache += FileCache(role, version, device, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
   }
 
-  def storeTargets(device: Uuid, version: Int, file: Json): Future[Unit] = storeRole(Role.TARGETS, ConflictingTarget)(device, version, file)
-  def storeSnapshot(device: Uuid, version: Int, file: Json): Future[Unit] = storeRole(Role.SNAPSHOT, ConflictingSnapshot)(device, version, file)
+  def storeTargets(device: Uuid, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.TARGETS, ConflictingTarget)(device, version, file)
+  def storeSnapshot(device: Uuid, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
 }
 
 

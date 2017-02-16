@@ -15,6 +15,7 @@ libraryDependencies ++= {
   val slickV = "3.1.1"
   val sotaV = "0.2.53"
   val bouncyCastleV = "1.56"
+  val tufV = "0.0.1-21-g8528135"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -30,6 +31,8 @@ libraryDependencies ++= {
     "org.genivi" %% "sota-common-client" % sotaV,
     "org.genivi" %% "sota-common-test" % sotaV % "test",
     "org.genivi" %% "sota-common-db-test" % sotaV % "test",
+
+    "com.advancedtelematic" %% "libtuf" % tufV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,
     "org.bouncycastle" % "bcpkix-jdk15on" % bouncyCastleV,

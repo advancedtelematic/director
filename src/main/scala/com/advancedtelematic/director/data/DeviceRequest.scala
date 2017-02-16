@@ -1,17 +1,12 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+
 import java.time.Instant
 import org.genivi.sota.data.Uuid
 
 object DeviceRequest {
-  import DataType.{EcuSerial, HexString, KeyId, Image, Signature}
-  import SignatureMethod.SignatureMethod
-
-  final case class ClientSignature(method: SignatureMethod, sig: HexString, keyid: KeyId) {
-    def toSignature: Signature = Signature(method = method, sig = sig)
-  }
-
-  final case class SignedPayload[T](signatures: Seq[ClientSignature], signed: T)
+  import DataType.{EcuSerial, Image}
 
   final case class EcuManifest(timeserver_time: Instant,
                                installed_image: Image,

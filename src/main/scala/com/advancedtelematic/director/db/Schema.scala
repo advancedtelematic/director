@@ -1,10 +1,10 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.SignatureMethod._
-import com.advancedtelematic.director.data.HashMethod
 import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.director.data.Role.Role
+import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
+import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
+import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import io.circe.Json
 import org.genivi.sota.data.{Namespace, Uuid}
 import slick.driver.MySQLDriver.api._
@@ -14,13 +14,13 @@ object Schema {
   import org.genivi.sota.refined.SlickRefined._
   import SlickCirceMapper._
 
-  type EcuRow = (EcuSerial, Uuid, Namespace, Boolean, SignatureMethod, String)
+  type EcuRow = (EcuSerial, Uuid, Namespace, Boolean, KeyType, String)
   class EcuTable(tag: Tag) extends Table[Ecu](tag, "Ecu") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def device = column[Uuid]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
-    def cryptoMethod = column[SignatureMethod]("cryptographic_method")
+    def cryptoMethod = column[KeyType]("cryptographic_method")
     def publicKey = column[String]("public_key")
 
     override def * = (ecuSerial, device, namespace, primary, cryptoMethod, publicKey) <>
@@ -83,7 +83,7 @@ object Schema {
   protected [db] val snapshots = TableQuery[SnapshotTable]
 
   class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "FileCache") {
-    def role    = column[Role]("role")
+    def role    = column[RoleType]("role")
     def version = column[Int]("version")
     def device  = column[Uuid]("device")
     def fileEntity = column[Json]("fileEntity")

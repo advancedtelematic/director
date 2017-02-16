@@ -2,7 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, Snapshot}
 import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.libtuf.data.TufDataType.RoleType
+import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
 import org.genivi.sota.data.{Namespace, Uuid}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
@@ -211,7 +211,7 @@ trait RepoNameRepositorySupport {
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
   import org.genivi.sota.db.SlickExtensions._
 
-  def getRepo(ns: Namespace): Future[Uuid] = db.run {
+  def getRepo(ns: Namespace): Future[RepoId] = db.run {
     Schema.repoNameMapping
       .filter(_.ns === ns)
       .map(_.repo)

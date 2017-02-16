@@ -2,8 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.libtuf.data.TufDataType.Checksum
-import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import io.circe.Json
@@ -47,9 +46,9 @@ object Schema {
   }
   protected [db] val currentImage = TableQuery[CurrentImageTable]
 
-  class RepoNameTable(tag: Tag) extends Table[(Namespace, Uuid)](tag, "RepoNameMapping") {
+  class RepoNameTable(tag: Tag) extends Table[(Namespace, RepoId)](tag, "RepoNameMapping") {
     def ns = column[Namespace]("namespace", O.PrimaryKey)
-    def repo = column[Uuid]("repoName")
+    def repo = column[RepoId]("repoName")
 
     override def * = (ns, repo)
   }

@@ -78,11 +78,9 @@ object DataType {
 
   final case class EcuTarget(version: Int, ecuIdentifier: EcuSerial, image: Image)
 
-  final case class Snapshot(version: Int, device: Uuid)
+  final case class Snapshot(device: Uuid, device_version: Int, target_version: Int)
 
   final case class FileCache(role: Role.Role, version: Int, device: Uuid, file: Json)
 
-  final case class FileCacheRequest(version: Int, device: Uuid, status: FileCacheRequestStatus.Status)
-
-  final case class DeviceCurrentSnapshot(device: Uuid, version: Int)
+  final case class FileCacheRequest(namespace: Namespace, version: Int, device: Uuid, status: FileCacheRequestStatus.Status)
 }

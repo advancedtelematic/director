@@ -5,12 +5,14 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Crypto
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, SignedPayload}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, SignedPayload}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors, FileCacheRepositorySupport}
 import com.advancedtelematic.director.manifest.Verify
 import org.genivi.sota.data.{Namespace, Uuid}
 import org.genivi.sota.http.UuidDirectives.extractUuid
 import org.genivi.sota.marshalling.CirceMarshallingSupport._
+import org.slf4j.LoggerFactory
+import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._
@@ -20,29 +22,59 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: Crypto => Verify.Verifier)
                     (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends DeviceRepositorySupport
+    with AdminRepositorySupport
     with FileCacheRepositorySupport {
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
 
+  private lazy val _log = LoggerFactory.getLogger(this.getClass)
+
+  def updateCurrentTarget(namespace: Namespace, device: Uuid, ecuManifests: Seq[EcuManifest]): Future[Unit] =
+    deviceRepository.getNextVersion(device).flatMap { next_version =>
+      async {
+        val next_version = await(deviceRepository.getNextVersion(device))
+
+        val targets = await(db.run(adminRepository.fetchTargetVersion(namespace, device, next_version)))
+
+        val translatedManifest = ecuManifests.groupBy(_.ecu_serial).mapValues(_.head.installed_image)
+
+        if (targets == translatedManifest) {
+          await(deviceRepository.updateDeviceVersion(device, next_version))
+        } else {
+          _log.error(s"Device $device updated to the wrong target")
+          await(FastFuture.failed(Errors.DeviceUpdatedToWrongTarget))
+        }
+      }
+    }.recoverWith {
+      case DBErrors.MissingSnapshot =>
+        deviceRepository.updateDeviceVersion(device, 0)
+    }
+
   def setDeviceManifest(namespace: Namespace, signedDevMan: SignedPayload[DeviceManifest]): Route = {
-    import akka.http.scaladsl.marshalling.ToResponseMarshallable
-    val action: Future[ToResponseMarshallable] =
-      deviceRepository.findEcus(namespace, signedDevMan.signed.vin).flatMap { case ecus =>
+    val device = signedDevMan.signed.vin
+    val action =
+      deviceRepository.findEcus(namespace, device).flatMap { case ecus =>
         Verify.deviceManifest(ecus, verifier, signedDevMan) match {
           case Failure(reason) => FastFuture.failed(reason)
-          case Success(ecuImages) => deviceRepository.persistAll(ecuImages).map(_ => ())
+          case Success(ecuImages) =>
+            deviceRepository.persistAll(ecuImages).flatMap(_ => updateCurrentTarget(namespace, device, ecuImages))
         }
       }
     complete(action)
   }
 
-  def fetchTargets(ns: Namespace, device: Uuid, version: Int): Route = {
-    complete(fileCacheRepository.fetchTarget(device, version))
-
+  def fetchTargets(ns: Namespace, device: Uuid): Route = {
+    val action = deviceRepository.getNextVersion(device).flatMap { version =>
+      fileCacheRepository.fetchTarget(device, version)
+    }
+    complete(action)
   }
 
-  def fetchSnapshots(ns: Namespace, device: Uuid, version: Int): Route = {
-    complete(fileCacheRepository.fetchSnapshot(device, version))
+  def fetchSnapshots(ns: Namespace, device: Uuid): Route = {
+    val action = deviceRepository.getNextVersion(device).flatMap { version =>
+      fileCacheRepository.fetchSnapshot(device, version)
+    }
+    complete(action)
   }
 
   val route = extractNamespace { ns =>
@@ -54,11 +86,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       } ~
       extractUuid { device =>
         get {
-          path(IntNumber ~ ".targets.json") { version =>
-            fetchTargets(ns, device, version)
+          path("targets.json") {
+            fetchTargets(ns, device)
           } ~
-          path(IntNumber ~ ".snapshots.json") { version =>
-            fetchSnapshots(ns, device, version)
+          path("snapshots.json") {
+            fetchSnapshots(ns, device)
           }
         }
       }

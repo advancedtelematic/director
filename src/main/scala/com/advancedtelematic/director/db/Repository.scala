@@ -4,17 +4,14 @@ import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, Snapshot}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.director.data.Role
 import org.genivi.sota.data.{Namespace, Uuid}
-import org.genivi.sota.http.Errors.{EntityAlreadyExists, MissingEntity}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
+import Errors._
+
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
-}
-
-object AdminRepository {
-  val MissingSnapshot = MissingEntity(classOf[Snapshot])
 }
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
@@ -23,7 +20,6 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import org.genivi.sota.db.SlickExtensions._
   import org.genivi.sota.db.SlickAnyVal._
   import org.genivi.sota.refined.SlickRefined._
-  import AdminRepository._
 
   private def byDevice(namespace: Namespace, device: Uuid): Query[Schema.EcuTable, Ecu, Seq] =
     Schema.ecu
@@ -45,15 +41,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
 
     def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.crypto)
 
-    val act = clean.andThen(DBIO.seq(ecus.map(register) :_*))
+    val snapshot = Schema.snapshots.insertOrUpdate(Snapshot(device, 0, 0))
+
+    val act = clean.andThen(snapshot).andThen(DBIO.seq(ecus.map(register) :_*))
 
     db.run(act.transactionally)
   }
 
   def getLatestVersion(namespace: Namespace, device: Uuid): DBIO[Int] =
-    Schema.deviceCurrentSnapshot
+    Schema.snapshots
       .filter(_.device === device)
-      .map(_.snapshot)
+      .map(_.target_version)
       .result
       .failIfNotSingle(MissingSnapshot)
 
@@ -74,13 +72,15 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   }
 
   def storeTargetVersion(namespace: Namespace, device: Uuid, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
-    val act = {
-        (Schema.ecuTargets
+    val act = (Schema.ecuTargets
            ++= targets.toSeq.map{case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
-        .andThen(Schema.snapshots += Snapshot(version, device))
-    }.map(_ => ())
 
-    act.transactionally
+    val updateSnapshot = Schema.snapshots
+      .filter(_.device === device)
+      .map(_.target_version)
+      .update(version)
+
+    act.andThen(updateSnapshot).map(_ => ()).transactionally
   }
 
   def updateTarget(namespace: Namespace, device: Uuid, targets: Map[EcuSerial, Image]): Future[Int] = {
@@ -123,23 +123,34 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: Uuid): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
+  def getNextVersion(device: Uuid): Future[Int] = {
+    val act = db.run {
+      Schema.snapshots
+        .filter(_.device === device)
+        .result
+        .failIfNotSingle(MissingSnapshot)
+    }
+
+    act.map { snapshot =>
+      scala.math.min(snapshot.device_version + 1, snapshot.target_version)
+    }
+  }
+
+  def updateDeviceVersion(device: Uuid, device_version: Int): Future[Unit] = db.run {
+    Schema.snapshots
+      .insertOrUpdateWithKey(Snapshot(device, device_version, 0),
+                             _.filter(_.device === device),
+                             _.copy(device_version = device_version))
+      .map(_ => ())
+  }
 }
 
 trait FileCacheRepositorySupport {
   def fileCacheRepository(implicit db: Database, ec: ExecutionContext) = new FileCacheRepository()
 }
 
-object FileCacheRepository {
-  val MissingTarget = MissingEntity(classOf[EcuTarget])
-  val MissingSnapshot = MissingEntity(classOf[Snapshot])
-
-  val ConflictingTarget = EntityAlreadyExists(classOf[EcuTarget])
-  val ConflictingSnapshot = EntityAlreadyExists(classOf[Snapshot])
-}
-
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
   import org.genivi.sota.db.SlickExtensions._
-  import FileCacheRepository._
   import SlickCirceMapper._
   import DataType.FileCache
 
@@ -172,18 +183,10 @@ trait FileCacheRequestRepositorySupport {
   def fileCacheRequestRepository(implicit db: Database, ec: ExecutionContext) = new FileCacheRequestRepository()
 }
 
-object FileCacheRequestRepository {
-  import DataType.FileCacheRequest
-
-  val ConflictingFileCacheRequest = EntityAlreadyExists(classOf[FileCacheRequest])
-  val MissingFileCacheRequest = MissingEntity(classOf[FileCacheRequest])
-}
-
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.FileCacheRequestStatus._
   import org.genivi.sota.db.SlickExtensions._
   import DataType.FileCacheRequest
-  import FileCacheRequestRepository._
 
   def persist(req: FileCacheRequest): Future[Unit] = db.run {
     (Schema.fileCacheRequest += req)
@@ -207,13 +210,8 @@ trait RepoNameRepositorySupport {
   def repoNameRepository(implicit db: Database, ec: ExecutionContext) = new RepoNameRepository()
 }
 
-object RepoNameRepository {
-  val MissingNamespaceRepo = MissingEntity(classOf[Namespace])
-}
-
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
   import org.genivi.sota.db.SlickExtensions._
-  import RepoNameRepository._
 
   def getRepo(ns: Namespace): Future[Uuid] = db.run {
     Schema.repoNameMapping

@@ -50,7 +50,7 @@ class AdminResource(extractNamespace: Directive1[Namespace])
 
       val new_version = await(adminRepository.updateTarget(namespace, device, targets.updates))
 
-      await(fileCacheRequestRepository.persist(FileCacheRequest(new_version, device, FileCacheRequestStatus.PENDING)))
+      await(fileCacheRequestRepository.persist(FileCacheRequest(namespace, new_version, device, FileCacheRequestStatus.PENDING)))
 
     }
     complete(act)

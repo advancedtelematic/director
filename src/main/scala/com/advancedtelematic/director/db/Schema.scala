@@ -60,9 +60,8 @@ object Schema {
     def id = column[EcuSerial]("ecu_serial")
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
-    def sha256 = column[HexString]("sha_256")
+    def sha256 = column[HexString]("sha256")
 
-    def snapshotFK = foreignKey("snapshot_FK", version, snapshots)(_.version)
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (version, id))
@@ -74,10 +73,11 @@ object Schema {
   protected [db] val ecuTargets = TableQuery[EcuTargetTable]
 
   class SnapshotTable(tag: Tag) extends Table[Snapshot](tag, "Snapshot") {
-    def version = column[Int]("version")
-    def device = column[Uuid]("device")
+    def device = column[Uuid]("device", O.PrimaryKey)
+    def device_version = column[Int]("device_version")
+    def target_version = column[Int]("target_version")
 
-    override def * = (version, device) <>
+    override def * = (device, device_version, target_version) <>
       ((Snapshot.apply _).tupled, Snapshot.unapply)
   }
   protected [db] val snapshots = TableQuery[SnapshotTable]
@@ -86,7 +86,7 @@ object Schema {
     def role    = column[Role]("role")
     def version = column[Int]("version")
     def device  = column[Uuid]("device")
-    def fileEntity = column[Json]("file")
+    def fileEntity = column[Json]("fileEntity")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 
@@ -96,24 +96,15 @@ object Schema {
   protected [db] val fileCache = TableQuery[FileCacheTable]
 
   class FileCacheRequestTable(tag: Tag) extends Table[FileCacheRequest](tag, "FileCacheRequest") {
+    def namespace = column[Namespace]("namespace")
     def version = column[Int]("version")
     def device = column[Uuid]("device")
     def status = column[FileCacheRequestStatus.Status]("status")
 
     def primKey = primaryKey("file_cache_request_pk", (version, device))
 
-    override def * = (version, device, status) <>
+    override def * = (namespace, version, device, status) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestTable]
-
-  class DeviceCurrentSnapshotTable(tag: Tag) extends Table[DeviceCurrentSnapshot](tag, "DeviceCurrentSnapshot") {
-    def device = column[Uuid]("device", O.PrimaryKey)
-    def snapshot = column[Int]("snapshot_version")
-    // updateRequest here
-
-    override def * = (device, snapshot) <>
-      ((DeviceCurrentSnapshot.apply _).tupled, DeviceCurrentSnapshot.unapply)
-  }
-  protected [db] val deviceCurrentSnapshot = TableQuery[DeviceCurrentSnapshotTable]
 }

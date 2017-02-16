@@ -41,7 +41,9 @@ class SignatureVerificationSpec extends DirectorSpec {
     val sig = {
       val orig = sign(keys.getPrivate, data)
       val origHex = orig.hex.get
-      val newHead = if (origHex.head == 'f') '0' else (origHex.head + 1).toChar
+      val newHead = if (origHex.head == 'f') '0'
+                    else if (origHex.head == '0') 'a'
+                    else (origHex.head + 1).toChar
       val newHex = (newHead +: origHex.tail).refineTry[ValidSignature].get
       orig.copy(hex = newHex)
     }

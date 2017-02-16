@@ -4,6 +4,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 
 import com.advancedtelematic.director.{Settings, VersionInfo}
+import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreHttpClient
 
 import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
 import org.genivi.sota.http.{BootApp, HealthResource}
@@ -23,7 +24,9 @@ object DaemonBoot extends BootApp
 
   log.info("Starting director daemon")
 
-  val fileCacheDaemon = system.actorOf(FileCacheDaemon.props, "filecache-daemon")
+  val tuf = new RoleKeyStoreHttpClient(tufUri)
+
+  val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(tuf), "filecache-daemon")
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

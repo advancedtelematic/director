@@ -41,9 +41,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
 
     def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.crypto)
 
-    val snapshot = Schema.snapshots.insertOrUpdate(Snapshot(device, 0, 0))
-
-    val act = clean.andThen(snapshot).andThen(DBIO.seq(ecus.map(register) :_*))
+    val act = clean.andThen(DBIO.seq(ecus.map(register) :_*))
 
     db.run(act.transactionally)
   }

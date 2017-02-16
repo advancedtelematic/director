@@ -1,7 +1,8 @@
 ALTER TABLE `CurrentImage`
   DROP COLUMN `sha256`,
   DROP COLUMN `sha512`,
-  ADD COLUMN `checksum` varchar(254) NOT NULL
+  ADD COLUMN `checksum` varchar(254) NOT NULL,
+  ADD COLUMN `attacks_detected` varchar(4096)
 ;
 
 CREATE TABLE `RepoNameMapping` (

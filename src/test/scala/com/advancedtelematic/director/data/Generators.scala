@@ -1,29 +1,37 @@
 package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.AdminRequest._
+import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
-import com.advancedtelematic.director.data.SignatureMethod._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
+import io.circe.Encoder
 import java.time.Instant
+import org.genivi.sota.data.Uuid
 import org.scalacheck.Gen
 
 
 trait Generators {
-  lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
+  import KeyType._
+  import SignatureMethod._
 
-  lazy val GenHexString: Gen[HexString] = GenRefinedStringByChar(GenHexChar)
+  lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
 
   lazy val GenEcuSerial: Gen[EcuSerial]
     = Gen.choose(10,64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
 
+  lazy val GenKeyType: Gen[KeyType]
+    = Gen.const(RSA)
+
   lazy val GenSignatureMethod: Gen[SignatureMethod]
-    = Gen.const(RSASSA_PSS)
+    = Gen.const(SignatureMethod.RSASSA_PSS)
 
   lazy val GenCrypto: Gen[Crypto] = for {
-    method <- GenSignatureMethod
+    keyType <- GenKeyType
     pubKey <- Gen.identifier
-  } yield Crypto(method, pubKey)
+  } yield Crypto(keyType, pubKey)
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
@@ -33,26 +41,21 @@ trait Generators {
   lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
 
   lazy val GenClientSignature: Gen[ClientSignature] = for {
-    method <- GenSignatureMethod
-    sig <- GenHexString
     keyid <- GenKeyId
-  } yield ClientSignature(method, sig, keyid)
+    method <- GenSignatureMethod
+    sig <- GenRefinedStringByCharN[ValidSignature](256, GenHexChar)
+  } yield ClientSignature(keyid, method, sig)
 
-  def GenSignedValue[T](value: T): Gen[SignedPayload[T]] = for {
+  def GenSignedValue[T : Encoder](value: T): Gen[SignedPayload[T]] = for {
     signature <- Gen.nonEmptyContainerOf[List, ClientSignature](GenClientSignature)
   } yield SignedPayload(signature, value)
 
-  def GenSigned[T](genT: Gen[T]): Gen[SignedPayload[T]] =
-    genT.flatMap(GenSignedValue)
+  def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =
+    genT.flatMap(t => GenSignedValue(t))
 
-
-  lazy val GenSha256: Gen[Sha256] = GenRefinedStringByCharN(64, GenHexChar)
-  lazy val GenSha512: Gen[Sha512] = GenRefinedStringByCharN(128, GenHexChar)
-
-  lazy val GenHashes: Gen[Hashes] = for {
-    sha256 <- GenSha256
-    sha512 <- GenSha512
-  } yield Hashes(sha256, sha512)
+  lazy val GenHashes: Gen[ClientHashes] = for {
+    hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
+  } yield Map(HashMethod.SHA256 -> hash)
 
   lazy val GenFileInfo: Gen[FileInfo] = for {
     hs <- GenHashes
@@ -70,4 +73,7 @@ trait Generators {
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks)
+
+  def GenSignedEcuManifest(ecuSerial: EcuSerial): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial))
+  def GenSignedDeviceManifest(device: Uuid, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
 }

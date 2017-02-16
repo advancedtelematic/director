@@ -15,7 +15,7 @@ libraryDependencies ++= {
   val slickV = "3.1.1"
   val sotaV = "0.2.53"
   val bouncyCastleV = "1.56"
-  val tufV = "0.0.1-21-g8528135"
+  val tufV = "0.0.1-23-g406f9bc"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,

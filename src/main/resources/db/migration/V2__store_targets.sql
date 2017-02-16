@@ -1,5 +1,7 @@
 ALTER TABLE `CurrentImage`
-  DROP COLUMN `sha256`
+  DROP COLUMN `sha256`,
+  DROP COLUMN `sha512`,
+  ADD COLUMN `checksum` varchar(254) NOT NULL
 ;
 
 CREATE TABLE `RepoNameMapping` (
@@ -14,7 +16,7 @@ CREATE TABLE `EcuTarget` (
   `ecu_serial` varchar(64) NOT NULL REFERENCES ECU(ecu_serial),
   `filepath` varchar(4096) NOT NULL,
   `length` int NOT NULL,
-  `sha256` varchar(64) NOT NULL,
+  `checksum` varchar(254) NOT NULL,
 
   PRIMARY KEY (`version`, `ecu_serial`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;

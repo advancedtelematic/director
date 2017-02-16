@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.libtuf.data.TufDataType.{HashMethod, KeyType, RoleType}
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RoleType}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
 import org.genivi.sota.data.{Namespace, Uuid}
@@ -14,19 +15,11 @@ object FileCacheRequestStatus extends CirceEnum with SlickEnum {
 
 object DataType {
   import KeyType.KeyType
-  import HashMethod.HashMethod
   import RoleType.RoleType
 
   final case class ValidEcuSerial()
   type EcuSerial = Refined[String, ValidEcuSerial]
   implicit val validEcuSerial: Validate.Plain[String, ValidEcuSerial] = ValidationUtils.validInBetween(min = 1, max = 64, ValidEcuSerial())
-
-
-  final case class ValidHexString()
-  type HexString = Refined[String, ValidHexString]
-  implicit val validHexString: Validate.Plain[String, ValidHexString] = ValidationUtils.validHexValidation(specificLength = None, ValidHexString())
-
-  type Hashes = Map[HashMethod, HexString]
 
   final case class FileInfo(hashes: Hashes, length: Int)
   final case class Image(filepath: String, fileinfo: FileInfo)

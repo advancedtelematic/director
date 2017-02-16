@@ -2,6 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libtuf.data.TufDataType.Checksum
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -12,7 +13,7 @@ import slick.driver.MySQLDriver.api._
 object Schema {
   import org.genivi.sota.db.SlickAnyVal._
   import org.genivi.sota.refined.SlickRefined._
-  import SlickCirceMapper._
+  import com.advancedtelematic.libtuf.data.SlickCirceMapper.{checksumMapper, jsonMapper}
 
   type EcuRow = (EcuSerial, Uuid, Namespace, Boolean, KeyType, String)
   class EcuTable(tag: Tag) extends Table[Ecu](tag, "Ecu") {
@@ -30,19 +31,19 @@ object Schema {
   }
   protected [db] val ecu = TableQuery[EcuTable]
 
-  type CurrentImageRow = (EcuSerial, String, Int, HexString, String)
+  type CurrentImageRow = (EcuSerial, String, Int, Checksum, String)
   class CurrentImageTable(tag: Tag) extends Table[CurrentImage](tag, "CurrentImage") {
     def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
-    def sha256 = column[HexString]("sha256")
+    def checksum = column[Checksum]("checksum")
     def attacksDetected = column[String]("attacks_detected")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    override def * = (id, filepath, length, sha256, attacksDetected) <>
-      ((p: CurrentImageRow) => CurrentImage(p._1, Image(p._2, FileInfo(Map(HashMethod.SHA256 -> p._4), p._3)), p._5),
-      (x: CurrentImage) => Some((x.ecuSerial, x.image.filepath, x.image.fileinfo.length, x.image.fileinfo.hashes(HashMethod.SHA256), x.attacksDetected)))
+    override def * = (id, filepath, length, checksum, attacksDetected) <>
+      ((p: CurrentImageRow) => CurrentImage(p._1, Image(p._2, FileInfo(Map(p._4.method -> p._4.hash), p._3)), p._5),
+      (x: CurrentImage) => Some((x.ecuSerial, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected)))
   }
   protected [db] val currentImage = TableQuery[CurrentImageTable]
 
@@ -54,21 +55,21 @@ object Schema {
   }
   protected [db] val repoNameMapping = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Int, EcuSerial, String, Int, HexString)
+  type EcuTargetRow = (Int, EcuSerial, String, Int, Checksum)
   class EcuTargetTable(tag: Tag) extends Table[EcuTarget](tag, "EcuTarget") {
     def version = column[Int]("version")
     def id = column[EcuSerial]("ecu_serial")
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
-    def sha256 = column[HexString]("sha256")
+    def checksum = column[Checksum]("checksum")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (version, id))
 
-    override def * = (version, id, filepath, length, sha256) <>
-      ((x: EcuTargetRow) => EcuTarget(x._1, x._2, Image(x._3, FileInfo(Map(HashMethod.SHA256 -> x._5), x._4))),
-       (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, x.image.fileinfo.hashes(HashMethod.SHA256))))
+    override def * = (version, id, filepath, length, checksum) <>
+      ((x: EcuTargetRow) => EcuTarget(x._1, x._2, Image(x._3, FileInfo(Map(x._5.method -> x._5.hash), x._4))),
+       (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)))))
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetTable]
 

@@ -27,8 +27,6 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-    "org.genivi" %% "sota-common" % sotaV,
-    "org.genivi" %% "sota-common-client" % sotaV,
     "org.genivi" %% "sota-common-test" % sotaV % "test",
     "org.genivi" %% "sota-common-db-test" % sotaV % "test",
 

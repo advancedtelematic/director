@@ -62,14 +62,14 @@ trait Generators {
     len <- Gen.posNum[Int]
   } yield FileInfo(hs, len)
 
-  lazy val GenInstalledImage: Gen[Image] = for {
+  lazy val GenImage: Gen[Image] = for {
     fp <- Gen.alphaStr
     fi <- GenFileInfo
   } yield Image(fp, fi)
 
   def GenEcuManifest(ecuSerial: EcuSerial): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)
-    image <- GenInstalledImage
+    image <- GenImage
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks)

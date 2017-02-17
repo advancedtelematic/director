@@ -5,6 +5,7 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import org.genivi.sota.data.{GeneratorOps, Uuid}
 import org.scalacheck.Gen
 
@@ -139,4 +140,48 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
       }
     }
   }
+
+  test("Can set target for device") {
+    val device = Uuid.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenCrypto.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val targets = SetTarget(Map(primEcu -> GenImage.generate))
+
+    setTargetsOk(device, targets)
+  }
+
+  test("Device can update to set target") {
+    val device = Uuid.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenCrypto.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val targetImage = GenImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    setTargetsOk(device, targets)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(device, primEcu, ecuManifests).generate
+
+    updateManifestOk(deviceManifest)
+
+    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { sig =>
+      sig.copy(signed = sig.signed.copy(installed_image = targetImage))
+    }
+    val deviceManifestTarget = GenSignedDeviceManifest(device, primEcu, ecuManifestsTarget).generate
+
+    updateManifestOk(deviceManifestTarget)
+  }
+
 }

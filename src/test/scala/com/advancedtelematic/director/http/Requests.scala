@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.{HttpRequest, StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Route
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
+import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{EcuSerial, Image}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
@@ -54,6 +54,14 @@ trait Requests extends DirectorSpec with ResourceSpec {
     getInstalledImages(device) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[(EcuSerial, Image)]]
+    }
+
+  def setTargets(device: Uuid, targets: SetTarget): HttpRequest =
+    Put(apiUri(s"admin/${device.show}/set_targets"), targets)
+
+  def setTargetsOk(device: Uuid, targets: SetTarget): Unit =
+    setTargets(device, targets) ~> routes ~> check {
+      status shouldBe StatusCodes.OK
     }
 
 }

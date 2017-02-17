@@ -35,21 +35,25 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   def updateCurrentTarget(namespace: Namespace, device: Uuid, ecuManifests: Seq[EcuManifest]): Future[Unit] =
     deviceRepository.getNextVersion(device).flatMap { next_version =>
       async {
-        val next_version = await(deviceRepository.getNextVersion(device))
+        val version = await(deviceRepository.getNextVersion(device))
 
-        val targets = await(db.run(adminRepository.fetchTargetVersion(namespace, device, next_version)))
+        val targets = await(adminRepository.fetchTargetVersion(namespace, device, next_version))
 
         val translatedManifest = ecuManifests.groupBy(_.ecu_serial).mapValues(_.head.installed_image)
 
         if (targets == translatedManifest) {
           await(deviceRepository.updateDeviceVersion(device, next_version))
         } else {
+          println(s"version : $version")
+          println(s"targets : $targets")
+          println(s"manifest: $translatedManifest")
+
           _log.error(s"Device $device updated to the wrong target")
           await(FastFuture.failed(Errors.DeviceUpdatedToWrongTarget))
         }
       }
     }.recoverWith {
-      case DBErrors.MissingSnapshot =>
+      case DBErrors.MissingCurrentTarget =>
         deviceRepository.updateDeviceVersion(device, 0)
     }
 

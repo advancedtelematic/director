@@ -98,7 +98,7 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
     val version = fcr.version
     val repo = await(repoNameRepository.getRepo(namespace))
 
-    val targets = await(db.run(adminRepository.fetchTargetVersion(namespace, device, version)))
+    val targets = await(adminRepository.fetchTargetVersion(namespace, device, version))
 
     val clientsTarget = targets.toSeq.map {case (ecu_serial, image) =>
       (image.filepath, ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson)))

@@ -38,13 +38,17 @@ class SignatureVerificationSpec extends DirectorSpec {
     val keys = generate(size = 1024)
     val data = "0123456789abcdef".getBytes
 
+    // We change only one bit so lets just increment it like gray code
+    // https://en.wikipedia.org/wiki/Gray_code
+    val grayCodedChar = {
+      val seq = "01326754cdfeab980"
+      seq.zip(seq.tail).toMap
+    }
+
     val sig = {
       val orig = sign(keys.getPrivate, data)
       val origHex = orig.hex.get
-      val newHead = if (origHex.head == 'f') '0'
-                    else if (origHex.head == '0') 'a'
-                    else (origHex.head + 1).toChar
-      val newHex = (newHead +: origHex.tail).refineTry[ValidSignature].get
+      val newHex = (grayCodedChar(origHex.head) +: origHex.tail).refineTry[ValidSignature].get
       orig.copy(hex = newHex)
     }
     val crypto = Crypto(RSA, keys.getPublic.show)

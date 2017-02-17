@@ -72,15 +72,23 @@ object Schema {
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetTable]
 
-  class SnapshotTable(tag: Tag) extends Table[Snapshot](tag, "Snapshot") {
+  class DeviceTargetsTable(tag: Tag) extends Table[DeviceTargets](tag, "DeviceTargets") {
     def device = column[Uuid]("device", O.PrimaryKey)
-    def device_version = column[Int]("device_version")
-    def target_version = column[Int]("target_version")
+    def latestScheduledTarget = column[Int]("latest_scheduled_target")
 
-    override def * = (device, device_version, target_version) <>
-      ((Snapshot.apply _).tupled, Snapshot.unapply)
+    override def * = (device, latestScheduledTarget) <>
+      ((DeviceTargets.apply _).tupled, DeviceTargets.unapply)
   }
-  protected [db] val snapshots = TableQuery[SnapshotTable]
+  protected [db] val deviceTargets = TableQuery[DeviceTargetsTable]
+
+  class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "DeviceCurrentTarget") {
+    def device = column[Uuid]("device", O.PrimaryKey)
+    def deviceCurrentTarget = column[Int]("device_current_target")
+
+    override def * = (device, deviceCurrentTarget) <>
+      ((DeviceCurrentTarget.apply _).tupled, DeviceCurrentTarget.unapply)
+  }
+  protected [db] val deviceCurrentTarget = TableQuery[DeviceCurrentTargetTable]
 
   class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "FileCache") {
     def role    = column[RoleType]("role")

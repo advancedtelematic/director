@@ -22,12 +22,18 @@ CREATE TABLE `EcuTarget` (
   PRIMARY KEY (`version`, `ecu_serial`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
-CREATE TABLE `Snapshot` (
+CREATE TABLE `DeviceTargets` (
   `device` varchar(36) NOT NULL,
-  `device_version` int NOT NULL,
-  `target_version` int NOT NULL,
+  `latest_scheduled_target` int NOT NULL,
 
   PRIMARY KEY (`device`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE `DeviceCurrentTarget` (
+`device` varchar(36) NOT NULL,
+`device_current_target` int NOT NULL,
+
+PRIMARY KEY (`device`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE `FileCache` (

@@ -32,7 +32,9 @@ object DataType {
 
   final case class EcuTarget(version: Int, ecuIdentifier: EcuSerial, image: Image)
 
-  final case class Snapshot(device: Uuid, device_version: Int, target_version: Int)
+  final case class DeviceTargets(device: Uuid, latestVersion: Int)
+
+  final case class DeviceCurrentTarget(device: Uuid, targetVersion: Int)
 
   final case class FileCache(role: RoleType, version: Int, device: Uuid, file: Json)
 

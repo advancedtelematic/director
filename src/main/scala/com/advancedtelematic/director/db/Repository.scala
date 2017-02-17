@@ -1,12 +1,15 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, Snapshot}
+import akka.http.scaladsl.util.FastFuture
+import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
 import org.genivi.sota.data.{Namespace, Uuid}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
+
+import scala.util.{Success, Failure}
 
 import Errors._
 
@@ -16,7 +19,7 @@ trait AdminRepositorySupport {
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
-  import com.advancedtelematic.director.data.DataType.{EcuSerial, Image}
+  import com.advancedtelematic.director.data.DataType.{DeviceTargets, EcuSerial, Image}
   import org.genivi.sota.db.SlickExtensions._
   import org.genivi.sota.db.SlickAnyVal._
   import org.genivi.sota.refined.SlickRefined._
@@ -47,13 +50,13 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   }
 
   def getLatestVersion(namespace: Namespace, device: Uuid): DBIO[Int] =
-    Schema.snapshots
+    Schema.deviceTargets
       .filter(_.device === device)
-      .map(_.target_version)
+      .map(_.latestScheduledTarget)
       .result
-      .failIfNotSingle(MissingSnapshot)
+      .failIfNotSingle(NoTargetsScheduled)
 
-  def fetchTargetVersion(namespace: Namespace, device: Uuid, version: Int): DBIO[Map[EcuSerial, Image]] =
+  private def fetchTargetVersionDB(namespace: Namespace, device: Uuid, version: Int): DBIO[Map[EcuSerial, Image]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -62,29 +65,26 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
 
-  def fetchLatestTarget(namespace: Namespace, device: Uuid): Future[Map[EcuSerial, Image]] = {
-    val act = getLatestVersion(namespace, device).flatMap { version =>
-      fetchTargetVersion(namespace, device, version)
-    }
-    db.run(act.transactionally)
-  }
+  def fetchTargetVersion(namespace: Namespace, device: Uuid, version: Int): Future[Map[EcuSerial, Image]] =
+    db.run(fetchTargetVersionDB(namespace, device, version))
 
   def storeTargetVersion(namespace: Namespace, device: Uuid, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
            ++= targets.toSeq.map{case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
 
-    val updateSnapshot = Schema.snapshots
-      .filter(_.device === device)
-      .map(_.target_version)
-      .update(version)
+    val updateDeviceTargets = Schema.deviceTargets.insertOrUpdate(DeviceTargets(device, version))
 
-    act.andThen(updateSnapshot).map(_ => ()).transactionally
+    act.andThen(updateDeviceTargets).map(_ => ()).transactionally
   }
 
   def updateTarget(namespace: Namespace, device: Uuid, targets: Map[EcuSerial, Image]): Future[Int] = {
     val dbAct = for {
-      version <- getLatestVersion(namespace, device)
-      previousMap <- fetchTargetVersion(namespace, device, version)
+      version <- getLatestVersion(namespace, device).asTry.flatMap {
+        case Success(x) => DBIO.successful(x)
+        case Failure(NoTargetsScheduled) => DBIO.successful(0)
+        case Failure(ex) => DBIO.failed(ex)
+      }
+      previousMap <- fetchTargetVersionDB(namespace, device, version)
       new_version = version + 1
       new_targets = previousMap ++ targets
       _ <- storeTargetVersion(namespace, device, new_version, new_targets)
@@ -103,7 +103,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   import org.genivi.sota.db.SlickExtensions._
   import org.genivi.sota.db.SlickAnyVal._
   import org.genivi.sota.refined.SlickRefined._
-  import DataType.CurrentImage
+  import DataType.{CurrentImage, DeviceCurrentTarget}
 
   private def byDevice(namespace: Namespace, device: Uuid): Query[Schema.EcuTable, Ecu, Seq] =
     Schema.ecu
@@ -121,24 +121,29 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: Uuid): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  def getNextVersion(device: Uuid): Future[Int] = {
-    val act = db.run {
-      Schema.snapshots
-        .filter(_.device === device)
-        .result
-        .failIfNotSingle(MissingSnapshot)
-    }
+  private def getCurrentVersionDB(device: Uuid): DBIO[Int] =
+    Schema.deviceCurrentTarget
+      .filter(_.device === device)
+      .map(_.deviceCurrentTarget)
+      .result
+      .failIfNotSingle(MissingCurrentTarget)
 
-    act.map { snapshot =>
-      scala.math.min(snapshot.device_version + 1, snapshot.target_version)
+  def getNextVersion(device: Uuid): Future[Int] = {
+    val devVer = getCurrentVersionDB(device)
+
+    val targetVer = Schema.deviceTargets
+      .filter(_.device === device)
+      .map(_.latestScheduledTarget)
+      .result
+      .failIfNotSingle(NoTargetsScheduled)
+
+    db.run(devVer.zip(targetVer)).map { case (device_version, target_version) =>
+      scala.math.min(device_version + 1, target_version)
     }
   }
 
   def updateDeviceVersion(device: Uuid, device_version: Int): Future[Unit] = db.run {
-    Schema.snapshots
-      .insertOrUpdateWithKey(Snapshot(device, device_version, 0),
-                             _.filter(_.device === device),
-                             _.copy(device_version = device_version))
+    Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())
   }
 }

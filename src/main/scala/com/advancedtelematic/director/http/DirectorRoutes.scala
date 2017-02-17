@@ -6,6 +6,7 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.manifest.Verifier.Verifier
+import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
 import org.genivi.sota.http.{ErrorHandler, NamespaceDirectives, HealthResource}
 import org.genivi.sota.rest.SotaRejectionHandler._
 
@@ -13,7 +14,7 @@ import scala.concurrent.ExecutionContext
 import slick.driver.MySQLDriver.api._
 
 
-class DirectorRoutes(verifier: Crypto => Verifier)
+class DirectorRoutes(verifier: Crypto => Verifier, tuf: RoleKeyStoreClient)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,
@@ -26,7 +27,7 @@ class DirectorRoutes(verifier: Crypto => Verifier)
     handleRejections(rejectionHandler) {
       ErrorHandler.handleErrors {
         pathPrefix("api" / "v1") {
-          new AdminResource(extractNamespace).route ~
+          new AdminResource(extractNamespace, tuf).route ~
           new DeviceResource(extractNamespace, verifier).route
         } ~ new HealthResource(db, versionMap).route
       }

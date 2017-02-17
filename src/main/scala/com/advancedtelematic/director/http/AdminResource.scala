@@ -11,7 +11,9 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
-  FileCacheRequestRepositorySupport}
+  FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
+import com.advancedtelematic.libtuf.data.TufDataType.RepoId
+import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
 import org.genivi.sota.data.{Namespace, Uuid}
 import org.genivi.sota.marshalling.CirceMarshallingSupport._
 import org.genivi.sota.http.UuidDirectives.extractUuid
@@ -19,11 +21,12 @@ import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace])
+class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreClient)
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
-    with FileCacheRequestRepositorySupport {
+    with FileCacheRequestRepositorySupport
+    with RepoNameRepositorySupport {
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {
     val primEcu = regDev.primary_ecu_serial
@@ -56,16 +59,31 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     complete(act)
   }
 
+  def registerNamespace(namespace: Namespace): Route = {
+    val repo = RepoId.generate
+    val act = for {
+      _ <- tuf.createRoot(repo)
+      _ <- repoNameRepository.storeRepo(namespace, repo)
+    } yield repo
+
+    complete(act)
+  }
+
   val route = extractNamespace { ns =>
     pathPrefix("admin") {
-      (post & pathEnd & entity(as[RegisterDevice]))  { regDev =>
+      pathEnd {
+        post { registerNamespace(ns) }
+      } ~
+      (post & path("add_device") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)
       } ~
-      (get & extractUuid & path("installed_images")) { dev =>
-        listInstalledImages(ns, dev)
-      } ~
-      (put & extractUuid & path("set_targets") & entity(as[SetTarget])) { (dev, targets) =>
-        setTargets(ns, dev, targets)
+      extractUuid { dev =>
+        (get & path("installed_images")) {
+          listInstalledImages(ns, dev)
+        } ~
+        (put & path("set_targets") & entity(as[SetTarget])) { targets =>
+          setTargets(ns, dev, targets)
+        }
       }
     }
   }

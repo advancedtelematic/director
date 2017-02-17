@@ -14,7 +14,7 @@ import org.genivi.sota.data.Uuid
 import org.genivi.sota.marshalling.CirceMarshallingSupport._
 
 trait Requests extends DirectorSpec with ResourceSpec {
-  private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin"), regDev)
+  private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/add_device"), regDev)
 
   def registerDeviceOk(regDev: RegisterDevice): Unit =
     registerDeviceOkWith(regDev, routes)

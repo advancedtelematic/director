@@ -18,6 +18,7 @@ object Errors {
   val ConflictingFileCacheRequest = EntityAlreadyExists(classOf[FileCacheRequest])
   val MissingFileCacheRequest = MissingEntity(classOf[FileCacheRequest])
 
+  val ConflictNamespaceRepo = EntityAlreadyExists(classOf[Namespace])
   val MissingNamespaceRepo = MissingEntity(classOf[Namespace])
 
   val ConflictingTarget = RawError(ErrorCodes.ConflictingTarget, StatusCodes.Conflict, "The target already exists")

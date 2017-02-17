@@ -10,12 +10,12 @@ resolvers += "ATS Snapshots" at "http://nexus.prod01.internal.advancedtelematic.
 
 libraryDependencies ++= {
   val akkaV = "2.4.14"
-  val akkaHttpV = "10.0.0"
+  val akkaHttpV = "10.0.3"
   val scalaTestV = "3.0.0"
   val slickV = "3.1.1"
   val sotaV = "0.2.53"
   val bouncyCastleV = "1.56"
-  val tufV = "0.0.1-23-g406f9bc"
+  val tufV = "0.0.1-31-g3c2ace0"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -27,6 +27,7 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
+    "org.genivi" %% "sota-common" % sotaV,
     "org.genivi" %% "sota-common-test" % sotaV % "test",
     "org.genivi" %% "sota-common-db-test" % sotaV % "test",
 

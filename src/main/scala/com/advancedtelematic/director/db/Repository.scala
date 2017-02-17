@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.db
 
-import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
@@ -222,5 +221,11 @@ protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext
       .map(_.repo)
       .result
       .failIfNotSingle(MissingNamespaceRepo)
+  }
+
+  def storeRepo(ns: Namespace, repoId: RepoId): Future[Unit] = db.run {
+    (Schema.repoNameMapping += ((ns, repoId)))
+      .handleIntegrityErrors(ConflictNamespaceRepo)
+      .map(_ => ())
   }
 }

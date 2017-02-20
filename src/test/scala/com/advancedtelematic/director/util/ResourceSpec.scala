@@ -5,7 +5,7 @@ import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
-import org.genivi.sota.core.DatabaseSpec
+import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
 
 object FakeRoleStore extends RoleKeyStoreClient {

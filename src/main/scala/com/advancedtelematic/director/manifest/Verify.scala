@@ -7,7 +7,6 @@ import com.advancedtelematic.director.data.Utility._
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
 import io.circe.Encoder
 import io.circe.syntax._
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}

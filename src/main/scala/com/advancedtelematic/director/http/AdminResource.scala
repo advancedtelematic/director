@@ -8,15 +8,14 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.FileCacheRequest
+import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
   FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
 import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
-import org.genivi.sota.data.{Namespace, Uuid}
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
-import org.genivi.sota.http.UuidDirectives.extractUuid
+import com.advancedtelematic.libats.codecs.AkkaCirce._
+import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
@@ -39,11 +38,11 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
     }
   }
 
-  def listInstalledImages(namespace: Namespace, device: Uuid): Route = {
+  def listInstalledImages(namespace: Namespace, device: DeviceId): Route = {
     complete(adminRepository.findImages(namespace, device))
   }
 
-  def setTargets(namespace: Namespace, device: Uuid, targets: SetTarget): Route = {
+  def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
     val act = async {
       val ecus = await(deviceRepository.findEcus(namespace, device)).map(_.ecuSerial).toSet
 
@@ -77,7 +76,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
       (post & path("add_device") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)
       } ~
-      extractUuid { dev =>
+      pathPrefix(DeviceId.Path) { dev =>
         (get & path("installed_images")) {
           listInstalledImages(ns, dev)
         } ~

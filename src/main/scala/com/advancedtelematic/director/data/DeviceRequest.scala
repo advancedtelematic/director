@@ -3,10 +3,9 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 
 import java.time.Instant
-import org.genivi.sota.data.Uuid
 
 object DeviceRequest {
-  import DataType.{EcuSerial, Image}
+  import DataType.{DeviceId, EcuSerial, Image}
 
   final case class EcuManifest(timeserver_time: Instant,
                                installed_image: Image,
@@ -14,7 +13,7 @@ object DeviceRequest {
                                ecu_serial: EcuSerial,
                                attacks_detected: String)
 
-  final case class DeviceManifest(vin: Uuid,
+  final case class DeviceManifest(vin: DeviceId,
                                   primary_ecu_serial: EcuSerial,
                                   ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
 }

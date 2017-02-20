@@ -5,13 +5,13 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{EcuSerial, Image}
+import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, Image}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
-import org.genivi.sota.data.Uuid
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
+import de.heikoseeberger.akkahttpcirce.CirceSupport._
 
 trait Requests extends DirectorSpec with ResourceSpec {
   private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/add_device"), regDev)
@@ -47,19 +47,19 @@ trait Requests extends DirectorSpec with ResourceSpec {
       status shouldBe expected
     }
 
-  def getInstalledImages(device: Uuid): HttpRequest =
+  def getInstalledImages(device: DeviceId): HttpRequest =
     Get(apiUri(s"admin/${device.show}/installed_images"))
 
-  def getInstalledImagesOkWith(device: Uuid, withRoutes: Route): Seq[(EcuSerial, Image)] =
+  def getInstalledImagesOkWith(device: DeviceId, withRoutes: Route): Seq[(EcuSerial, Image)] =
     getInstalledImages(device) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[(EcuSerial, Image)]]
     }
 
-  def setTargets(device: Uuid, targets: SetTarget): HttpRequest =
+  def setTargets(device: DeviceId, targets: SetTarget): HttpRequest =
     Put(apiUri(s"admin/${device.show}/set_targets"), targets)
 
-  def setTargetsOk(device: Uuid, targets: SetTarget): Unit =
+  def setTargetsOk(device: DeviceId, targets: SetTarget): Unit =
     setTargets(device, targets) ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }

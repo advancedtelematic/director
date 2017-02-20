@@ -1,9 +1,8 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, Namespace}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
-import org.genivi.sota.data.{Namespace, Uuid}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
@@ -19,16 +18,16 @@ trait AdminRepositorySupport {
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DataType.{DeviceTargets, EcuSerial, Image}
-  import org.genivi.sota.db.SlickExtensions._
-  import org.genivi.sota.db.SlickAnyVal._
-  import org.genivi.sota.refined.SlickRefined._
+  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.codecs.SlickRefined._
 
-  private def byDevice(namespace: Namespace, device: Uuid): Query[Schema.EcuTable, Ecu, Seq] =
+  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcuTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  def findImages(namespace: Namespace, device: Uuid): Future[Seq[(EcuSerial, Image)]] = db.run {
+  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuSerial, Image)]] = db.run {
     byDevice(namespace, device)
       .map(_.ecuSerial)
       .join(Schema.currentImage).on(_ === _.id)
@@ -37,7 +36,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .map(_.map{ case cim => (cim.ecuSerial, cim.image)})
   }
 
-  def createDevice(namespace: Namespace, device: Uuid, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
+  def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
     val toClean = byDevice(namespace, device)
     val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
 
@@ -48,14 +47,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     db.run(act.transactionally)
   }
 
-  def getLatestVersion(namespace: Namespace, device: Uuid): DBIO[Int] =
+  def getLatestVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
     Schema.deviceTargets
       .filter(_.device === device)
       .map(_.latestScheduledTarget)
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
-  private def fetchTargetVersionDB(namespace: Namespace, device: Uuid, version: Int): DBIO[Map[EcuSerial, Image]] =
+  private def fetchTargetVersionDB(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -64,10 +63,10 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
 
-  def fetchTargetVersion(namespace: Namespace, device: Uuid, version: Int): Future[Map[EcuSerial, Image]] =
+  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, Image]] =
     db.run(fetchTargetVersionDB(namespace, device, version))
 
-  def storeTargetVersion(namespace: Namespace, device: Uuid, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
+  def storeTargetVersion(namespace: Namespace, device: DeviceId, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
            ++= targets.toSeq.map{case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
 
@@ -76,7 +75,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     act.andThen(updateDeviceTargets).map(_ => ()).transactionally
   }
 
-  def updateTarget(namespace: Namespace, device: Uuid, targets: Map[EcuSerial, Image]): Future[Int] = {
+  def updateTarget(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, Image]): Future[Int] = {
     val dbAct = for {
       version <- getLatestVersion(namespace, device).asTry.flatMap {
         case Success(x) => DBIO.successful(x)
@@ -99,12 +98,12 @@ trait DeviceRepositorySupport {
 
 protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
-  import org.genivi.sota.db.SlickExtensions._
-  import org.genivi.sota.db.SlickAnyVal._
-  import org.genivi.sota.refined.SlickRefined._
+  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.codecs.SlickRefined._
   import DataType.{CurrentImage, DeviceCurrentTarget}
 
-  private def byDevice(namespace: Namespace, device: Uuid): Query[Schema.EcuTable, Ecu, Seq] =
+  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcuTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -117,17 +116,17 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(DBIO.seq(ecuManifests.map(persistEcu(_)) :_*).transactionally)
   }
 
-  def findEcus(namespace: Namespace, device: Uuid): Future[Seq[Ecu]] =
+  def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  private def getCurrentVersionDB(device: Uuid): DBIO[Int] =
+  private def getCurrentVersionDB(device: DeviceId): DBIO[Int] =
     Schema.deviceCurrentTarget
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
       .result
       .failIfNotSingle(MissingCurrentTarget)
 
-  def getNextVersion(device: Uuid): Future[Int] = {
+  def getNextVersion(device: DeviceId): Future[Int] = {
     val devVer = getCurrentVersionDB(device)
 
     val targetVer = Schema.deviceTargets
@@ -141,7 +140,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     }
   }
 
-  def updateDeviceVersion(device: Uuid, device_version: Int): Future[Unit] = db.run {
+  def updateDeviceVersion(device: DeviceId, device_version: Int): Future[Unit] = db.run {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())
   }
@@ -152,11 +151,11 @@ trait FileCacheRepositorySupport {
 }
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
-  import org.genivi.sota.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickExtensions._
   import SlickCirceMapper._
   import DataType.FileCache
 
-  private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: Uuid, version: Int): Future[Json] = db.run {
+  private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int): Future[Json] = db.run {
     Schema.fileCache
       .filter(_.role === role)
       .filter(_.version === version)
@@ -166,18 +165,18 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .failIfNotSingle(err)
   }
 
-  def fetchTarget(device: Uuid, version: Int): Future[Json] = fetchRoleType(RoleType.TARGETS, MissingTarget)(device, version)
+  def fetchTarget(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TARGETS, MissingTarget)(device, version)
 
-  def fetchSnapshot(device: Uuid, version: Int): Future[Json] = fetchRoleType(RoleType.SNAPSHOT, MissingSnapshot)(device, version)
+  def fetchSnapshot(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.SNAPSHOT, MissingSnapshot)(device, version)
 
-  private def storeRoleType(role: RoleType.RoleType, err: => Throwable)(device: Uuid, version: Int, file: Json): Future[Unit] = db.run {
+  private def storeRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): Future[Unit] = db.run {
     (Schema.fileCache += FileCache(role, version, device, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
   }
 
-  def storeTargets(device: Uuid, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.TARGETS, ConflictingTarget)(device, version, file)
-  def storeSnapshot(device: Uuid, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
+  def storeTargets(device: DeviceId, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.TARGETS, ConflictingTarget)(device, version, file)
+  def storeSnapshot(device: DeviceId, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
 }
 
 
@@ -187,7 +186,7 @@ trait FileCacheRequestRepositorySupport {
 
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.FileCacheRequestStatus._
-  import org.genivi.sota.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickExtensions._
   import DataType.FileCacheRequest
 
   def persist(req: FileCacheRequest): Future[Unit] = db.run {
@@ -213,7 +212,8 @@ trait RepoNameRepositorySupport {
 }
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
-  import org.genivi.sota.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.db.SlickExtensions._
 
   def getRepo(ns: Namespace): Future[RepoId] = db.run {
     Schema.repoNameMapping

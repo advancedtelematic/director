@@ -27,10 +27,9 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-    "org.genivi" %% "sota-common" % sotaV,
-    "org.genivi" %% "sota-common-test" % sotaV % "test",
-    "org.genivi" %% "sota-common-db-test" % sotaV % "test",
+    "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
 
+    "com.advancedtelematic" %% "libats" % "0.0.1-1-gc138b11-SNAPSHOT",
     "com.advancedtelematic" %% "libtuf" % tufV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,

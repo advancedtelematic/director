@@ -6,18 +6,17 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, Repo
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import io.circe.Json
-import org.genivi.sota.data.{Namespace, Uuid}
 import slick.driver.MySQLDriver.api._
 
 object Schema {
-  import org.genivi.sota.db.SlickAnyVal._
-  import org.genivi.sota.refined.SlickRefined._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.codecs.SlickRefined._
   import com.advancedtelematic.libtuf.data.SlickCirceMapper.{checksumMapper, jsonMapper}
 
-  type EcuRow = (EcuSerial, Uuid, Namespace, Boolean, KeyType, String)
+  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, String)
   class EcuTable(tag: Tag) extends Table[Ecu](tag, "Ecu") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
-    def device = column[Uuid]("device")
+    def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
     def cryptoMethod = column[KeyType]("cryptographic_method")
@@ -73,7 +72,7 @@ object Schema {
   protected [db] val ecuTargets = TableQuery[EcuTargetTable]
 
   class DeviceTargetsTable(tag: Tag) extends Table[DeviceTargets](tag, "DeviceTargets") {
-    def device = column[Uuid]("device", O.PrimaryKey)
+    def device = column[DeviceId]("device", O.PrimaryKey)
     def latestScheduledTarget = column[Int]("latest_scheduled_target")
 
     override def * = (device, latestScheduledTarget) <>
@@ -82,7 +81,7 @@ object Schema {
   protected [db] val deviceTargets = TableQuery[DeviceTargetsTable]
 
   class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "DeviceCurrentTarget") {
-    def device = column[Uuid]("device", O.PrimaryKey)
+    def device = column[DeviceId]("device", O.PrimaryKey)
     def deviceCurrentTarget = column[Int]("device_current_target")
 
     override def * = (device, deviceCurrentTarget) <>
@@ -93,7 +92,7 @@ object Schema {
   class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "FileCache") {
     def role    = column[RoleType]("role")
     def version = column[Int]("version")
-    def device  = column[Uuid]("device")
+    def device  = column[DeviceId]("device")
     def fileEntity = column[Json]("fileEntity")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
@@ -106,7 +105,7 @@ object Schema {
   class FileCacheRequestTable(tag: Tag) extends Table[FileCacheRequest](tag, "FileCacheRequest") {
     def namespace = column[Namespace]("namespace")
     def version = column[Int]("version")
-    def device = column[Uuid]("device")
+    def device = column[DeviceId]("device")
     def status = column[FileCacheRequestStatus.Status]("status")
 
     def primKey = primaryKey("file_cache_request_pk", (version, device))

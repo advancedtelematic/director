@@ -4,16 +4,14 @@ import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.Crypto
+import com.advancedtelematic.director.data.DataType.{Crypto, DeviceId, Namespace}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors, FileCacheRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.Verify
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
-import org.genivi.sota.data.{Namespace, Uuid}
-import org.genivi.sota.http.UuidDirectives.extractUuid
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
+import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import org.slf4j.LoggerFactory
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,7 +30,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  def updateCurrentTarget(namespace: Namespace, device: Uuid, ecuManifests: Seq[EcuManifest]): Future[Unit] =
+  def updateCurrentTarget(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest]): Future[Unit] =
     deviceRepository.getNextVersion(device).flatMap { next_version =>
       async {
         val version = await(deviceRepository.getNextVersion(device))
@@ -70,14 +68,14 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     complete(action)
   }
 
-  def fetchTargets(ns: Namespace, device: Uuid): Route = {
+  def fetchTargets(ns: Namespace, device: DeviceId): Route = {
     val action = deviceRepository.getNextVersion(device).flatMap { version =>
       fileCacheRepository.fetchTarget(device, version)
     }
     complete(action)
   }
 
-  def fetchSnapshots(ns: Namespace, device: Uuid): Route = {
+  def fetchSnapshots(ns: Namespace, device: DeviceId): Route = {
     val action = deviceRepository.getNextVersion(device).flatMap { version =>
       fileCacheRepository.fetchSnapshot(device, version)
     }
@@ -91,7 +89,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
           setDeviceManifest(ns, devMan)
         }
       } ~
-      extractUuid { device =>
+      pathPrefix(DeviceId.Path) { device =>
         get {
           path("targets.json") {
             fetchTargets(ns, device)

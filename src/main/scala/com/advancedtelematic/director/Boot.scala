@@ -9,11 +9,11 @@ import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreHttpClient
 import com.typesafe.config.{Config, ConfigFactory}
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
-import org.genivi.sota.http.BootApp
-import org.genivi.sota.http.LogDirectives.logResponseMetrics
-import org.genivi.sota.http.VersionDirectives.versionHeaders
-import org.genivi.sota.monitoring.{DatabaseMetrics, MetricsSupport}
+import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.http.BootApp
+import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
+import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
+import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
 
 trait Settings {
   private def mkUri(config: Config, key: String): Uri = {

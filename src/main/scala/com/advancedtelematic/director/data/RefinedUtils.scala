@@ -2,7 +2,7 @@ package com.advancedtelematic.director.data
 
 import eu.timepit.refined
 import eu.timepit.refined.api.{Refined, Validate}
-import org.genivi.sota.marshalling.RefinementError
+import com.advancedtelematic.libats.codecs.RefinementError
 
 import scala.util.{Failure, Success, Try}
 

@@ -2,10 +2,9 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
-import org.genivi.sota.data.Namespace
 
-import org.genivi.sota.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
-import org.genivi.sota.rest.ErrorCode
+import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
+import com.advancedtelematic.libats.http.ErrorCode
 
 object ErrorCodes {
   val ConflictingSnapshot = ErrorCode("snapshot_already_exists")

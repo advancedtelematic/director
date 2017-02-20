@@ -3,17 +3,15 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import org.genivi.sota.data.{GeneratorOps, Uuid}
 import org.scalacheck.Gen
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
-  import GeneratorOps._
-
   test("Can register device") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
@@ -24,7 +22,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Can't register device with primary ECU not in `ecus`") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate.filter(_.ecu_serial != primEcu)
 
@@ -34,7 +32,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Device can update a registered device") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
@@ -51,7 +49,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Device must have the ecu given as primary") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val fakePrimEcu = GenEcuSerial.generate
@@ -70,7 +68,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Device need to have the correct primary") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val fakePrimEcu = GenEcuSerial.generate
@@ -99,7 +97,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val verifyRoutes = routesWithVerifier(testVerifier)
 
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val ecusWork = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
@@ -142,7 +140,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Can set target for device") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val ecus = List(RegisterEcu(primEcu, primCrypto))
@@ -157,7 +155,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Device can update to set target") {
-    val device = Uuid.generate()
+    val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenCrypto.generate
     val ecus = List(RegisterEcu(primEcu, primCrypto))

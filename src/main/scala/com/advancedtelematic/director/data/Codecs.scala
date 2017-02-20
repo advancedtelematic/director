@@ -4,9 +4,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 
-import org.genivi.sota.marshalling.CirceInstances.{refinedMapEncoder => _, refinedMapDecoder => _, _}
-import org.genivi.sota.marshalling.CirceInstances.{refinedDecoder, refinedEncoder}
-import org.genivi.sota.marshalling.CirceInstances.{dateTimeDecoder, dateTimeEncoder}
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
   import AdminRequest._

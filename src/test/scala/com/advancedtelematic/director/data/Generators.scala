@@ -9,7 +9,6 @@ import com.advancedtelematic.libtuf.data.TufDataType._
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import io.circe.Encoder
 import java.time.Instant
-import org.genivi.sota.data.Uuid
 import org.scalacheck.Gen
 
 
@@ -75,5 +74,5 @@ trait Generators {
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks)
 
   def GenSignedEcuManifest(ecuSerial: EcuSerial): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial))
-  def GenSignedDeviceManifest(device: Uuid, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
+  def GenSignedDeviceManifest(device: DeviceId, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
 }

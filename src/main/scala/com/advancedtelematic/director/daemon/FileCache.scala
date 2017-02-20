@@ -19,7 +19,7 @@ import io.circe.Json
 import io.circe.syntax._
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import org.genivi.sota.marshalling.CirceInstances.refinedEncoder
+import com.advancedtelematic.libats.codecs.AkkaCirce.refinedEncoder
 import scala.async.Async._
 import scala.concurrent.Future
 import scala.concurrent.duration._

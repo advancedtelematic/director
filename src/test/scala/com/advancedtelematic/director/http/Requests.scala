@@ -14,7 +14,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 
 trait Requests extends DirectorSpec with ResourceSpec {
-  private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/add_device"), regDev)
+  private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/devices"), regDev)
 
   def registerDeviceOk(regDev: RegisterDevice): Unit =
     registerDeviceOkWith(regDev, routes)
@@ -32,7 +32,7 @@ trait Requests extends DirectorSpec with ResourceSpec {
   }
 
   def updateManifest(manifest: SignedPayload[DeviceManifest]): HttpRequest =
-    Put(apiUri("mydevice/manifest"), manifest)
+    Put(apiUri("device/manifest"), manifest)
 
   def updateManifestOk(manifest: SignedPayload[DeviceManifest]): Unit =
     updateManifestOkWith(manifest, routes)
@@ -48,7 +48,7 @@ trait Requests extends DirectorSpec with ResourceSpec {
     }
 
   def getInstalledImages(device: DeviceId): HttpRequest =
-    Get(apiUri(s"admin/${device.show}/installed_images"))
+    Get(apiUri(s"admin/${device.show}/images"))
 
   def getInstalledImagesOkWith(device: DeviceId, withRoutes: Route): Seq[(EcuSerial, Image)] =
     getInstalledImages(device) ~> withRoutes ~> check {
@@ -57,11 +57,10 @@ trait Requests extends DirectorSpec with ResourceSpec {
     }
 
   def setTargets(device: DeviceId, targets: SetTarget): HttpRequest =
-    Put(apiUri(s"admin/${device.show}/set_targets"), targets)
+    Put(apiUri(s"admin/${device.show}/targets"), targets)
 
   def setTargetsOk(device: DeviceId, targets: SetTarget): Unit =
     setTargets(device, targets) ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
-
 }

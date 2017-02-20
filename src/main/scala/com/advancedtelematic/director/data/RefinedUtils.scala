@@ -7,6 +7,7 @@ import com.advancedtelematic.libats.codecs.RefinementError
 import scala.util.{Failure, Success, Try}
 
 object RefinedUtils {
+  // Like this, lets put it in libats
   implicit class RefineTry[T](value: T) {
     def refineTry[P](implicit ev: Validate[T, P]): Try[Refined[T, P]] = {
       refined.refineV(value) match {

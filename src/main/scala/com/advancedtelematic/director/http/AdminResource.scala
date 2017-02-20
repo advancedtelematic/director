@@ -32,7 +32,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
 
     regDev.ecus.find(_.ecu_serial == primEcu) match {
       case None => complete( StatusCodes.BadRequest ->
-                              s"The primary ecu: ${primEcu.get} isn't part of the list of ECUs")
+                              s"The primary ecu: ${primEcu.get} isn't part of the list of ECUs") // TODO: Should fail with a well known error code and just leave that to be thrown by akka
       case Some(_) => complete( StatusCodes.Created ->
                                  adminRepository.createDevice(namespace, regDev.vin, primEcu, regDev.ecus))
     }
@@ -73,14 +73,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
       pathEnd {
         post { registerNamespace(ns) }
       } ~
-      (post & path("add_device") & entity(as[RegisterDevice]))  { regDev =>
+      (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)
       } ~
       pathPrefix(DeviceId.Path) { dev =>
-        (get & path("installed_images")) {
+        (get & path("images")) {
           listInstalledImages(ns, dev)
         } ~
-        (put & path("set_targets") & entity(as[SetTarget])) { targets =>
+        (put & path("targets") & entity(as[SetTarget])) { targets =>
           setTargets(ns, dev, targets)
         }
       }

@@ -5,7 +5,7 @@ import com.advancedtelematic.libats.http.Errors.RawError
 import com.advancedtelematic.libats.http.ErrorCode
 
 object ErrorCodes {
-  val TargetsNotSubSetOfDevice = ErrorCode("targets-not-subset-of-device")
+  val TargetsNotSubSetOfDevice = ErrorCode("targets-not-subset-of-device")// we should probably use underscores
   val DeviceUpdatedToWrongTarget = ErrorCode("device-updated-to-wrong-target")
 }
 

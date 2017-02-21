@@ -85,6 +85,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     complete(action)
   }
 
+  def fetchTimestamp(ns: Namespace, device: DeviceId): Route = {
+    val action = deviceRepository.getNextVersion(device).flatMap { version =>
+      fileCacheRepository.fetchTimestamp(device, version)
+    }
+    complete(action)
+  }
+
   val route = extractNamespace { ns =>
     pathPrefix("device") {
       path("manifest") {
@@ -102,6 +109,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
           } ~
           path("snapshots.json") {
             fetchSnapshot(ns, device)
+          } ~
+          path("timestamp.json") {
+            fetchTimestamp(ns, device)
           }
         }
       }

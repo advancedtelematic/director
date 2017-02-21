@@ -10,7 +10,7 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCES
 import com.advancedtelematic.director.data.Utility.ToCanonicalJsonOps
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
@@ -122,17 +122,29 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
     await(tuf.sign(repoId, RoleType.SNAPSHOT, snapshotRole)).asJson
   }
 
+  def generateTimestampFile(repoId: RepoId, snapshotJson: Json, version: Int): Future[Json] = async {
+    val snapshotFile = snapshotJson.canonicalBytes
+    val snapshotChecksum = Sha256Digest.digest(snapshotFile)
+
+    val metaMap = Map(RoleType.SNAPSHOT.toMetaPath -> MetaItem(Map(snapshotChecksum.method -> snapshotChecksum.hash), snapshotFile.length))
+
+    val timestampRole = TimestampRole(meta = metaMap,
+                                      expires = Instant.now.plus(31, ChronoUnit.DAYS),
+                                      version = version)
+
+    await(tuf.sign(repoId, RoleType.TIMESTAMP, timestampRole)).asJson
+  }
+
   def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = async {
     val repo = await(repoNameRepository.getRepo(fcr.namespace))
 
     val targetsJson = await(generateTargetFile(repo, fcr))
     val snapshotJson = await(generateSnapshotFile(repo, targetsJson, fcr.version))
-
-    // What about timestamp.json?
-
+    val timestampJson = await(generateTimestampFile(repo, snapshotJson, fcr.version))
 
     val dbAct = fileCacheRepository.storeTargetsAction(fcr.device, fcr.version, targetsJson)
       .andThen(fileCacheRepository.storeSnapshotAction(fcr.device, fcr.version, snapshotJson))
+      .andThen(fileCacheRepository.storeTimestampAction(fcr.device, fcr.version, timestampJson))
 
     await(db.run(dbAct.transactionally))
   }

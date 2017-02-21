@@ -6,7 +6,6 @@ import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
-
 import scala.util.{Success, Failure}
 
 import Errors._
@@ -54,7 +53,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
-  private def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
+  def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -112,9 +111,11 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     Schema.currentImage.insertOrUpdate(CurrentImage(ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
   }
 
-  def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] = {
-    db.run(DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally)
-  }
+  def persistAllAction (ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
+    DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally
+
+  def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] =
+    db.run(persistAllAction(ecuManifests))
 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
@@ -126,7 +127,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .result
       .failIfNotSingle(MissingCurrentTarget)
 
-  def getNextVersion(device: DeviceId): Future[Int] = {
+  def getNextVersionAction(device: DeviceId): DBIO[Int] = {
     val devVer = getCurrentVersionAction(device)
 
     val targetVer = Schema.deviceTargets
@@ -135,15 +136,18 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
-    db.run(devVer.zip(targetVer)).map { case (device_version, target_version) =>
+    devVer.zip(targetVer).map { case (device_version, target_version) =>
       scala.math.min(device_version + 1, target_version)
     }
   }
 
-  def updateDeviceVersion(device: DeviceId, device_version: Int): Future[Unit] = db.run {
+  def getNextVersion(device: DeviceId): Future[Int] = db.run(getNextVersionAction(device))
+
+  def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())
   }
+
 }
 
 trait FileCacheRepositorySupport {

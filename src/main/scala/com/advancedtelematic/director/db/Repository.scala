@@ -22,7 +22,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
 
-  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcuTable, Ecu, Seq] =
+  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -103,7 +103,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   import com.advancedtelematic.libats.codecs.SlickRefined._
   import DataType.{CurrentImage, DeviceCurrentTarget}
 
-  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcuTable, Ecu, Seq] =
+  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)

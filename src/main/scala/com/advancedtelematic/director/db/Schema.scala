@@ -18,7 +18,7 @@ object Schema {
   import com.advancedtelematic.libats.db.SlickAnyVal._
 
   type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, PublicKey)
-  class EcuTable(tag: Tag) extends Table[Ecu](tag, "Ecu") {
+  class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
@@ -31,10 +31,10 @@ object Schema {
        (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.clientKey.keytype, x.clientKey.keyval))
        )
   }
-  protected [db] val ecu = TableQuery[EcuTable]
+  protected [db] val ecu = TableQuery[EcusTable]
 
   type CurrentImageRow = (EcuSerial, String, Int, Checksum, String)
-  class CurrentImageTable(tag: Tag) extends Table[CurrentImage](tag, "CurrentImage") { // TODO: Lets use snake case + plurarl for table names
+  class CurrentImagesTable(tag: Tag) extends Table[CurrentImage](tag, "current_images") {
     def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
@@ -43,7 +43,6 @@ object Schema {
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    // I think this might be more readable? I don't like so many underscores on tuples gets hard to read.
     override def * = (id, filepath, length, checksum, attacksDetected) <> (
       (_: CurrentImageRow) match {
         case (id, filepath, length, checksum, attacksDetected) =>
@@ -53,10 +52,9 @@ object Schema {
     )
   }
 
-  protected [db] val currentImage = TableQuery[CurrentImageTable]
+  protected [db] val currentImage = TableQuery[CurrentImagesTable]
 
-  // TODO: All relations are mapping, this should be repo_names (table name)?
-  class RepoNameTable(tag: Tag) extends Table[(Namespace, RepoId)](tag, "RepoNameMapping") {
+  class RepoNameTable(tag: Tag) extends Table[(Namespace, RepoId)](tag, "repo_names") {
     def ns = column[Namespace]("namespace", O.PrimaryKey)
     def repo = column[RepoId]("repoName")
 
@@ -65,7 +63,7 @@ object Schema {
   protected [db] val repoNameMapping = TableQuery[RepoNameTable]
 
   type EcuTargetRow = (Int, EcuSerial, String, Int, Checksum)
-  class EcuTargetTable(tag: Tag) extends Table[EcuTarget](tag, "EcuTarget") {
+  class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def version = column[Int]("version")
     def id = column[EcuSerial]("ecu_serial")
     def filepath = column[String]("filepath")
@@ -76,14 +74,16 @@ object Schema {
 
     def primKey = primaryKey("ecu_target_pk", (version, id))
 
-    // same here
-    override def * = (version, id, filepath, length, checksum) <>
-      ((x: EcuTargetRow) => EcuTarget(x._1, x._2, Image(x._3, FileInfo(Map(x._5.method -> x._5.hash), x._4))),
-       (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)))))
+    override def * = (version, id, filepath, length, checksum) <> (
+      (_: EcuTargetRow) match {
+        case (version, id, filepath, length, checksum) =>
+          EcuTarget(version, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)))
+      },
+      (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)))))
   }
-  protected [db] val ecuTargets = TableQuery[EcuTargetTable]
+  protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
-  class DeviceTargetsTable(tag: Tag) extends Table[DeviceTargets](tag, "DeviceTargets") {
+  class DeviceTargetsTable(tag: Tag) extends Table[DeviceTargets](tag, "device_targets") {
     def device = column[DeviceId]("device", O.PrimaryKey)
     def latestScheduledTarget = column[Int]("latest_scheduled_target")
 
@@ -92,7 +92,7 @@ object Schema {
   }
   protected [db] val deviceTargets = TableQuery[DeviceTargetsTable]
 
-  class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "DeviceCurrentTarget") {
+  class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "device_current_target") {
     def device = column[DeviceId]("device", O.PrimaryKey)
     def deviceCurrentTarget = column[Int]("device_current_target")
 
@@ -101,7 +101,7 @@ object Schema {
   }
   protected [db] val deviceCurrentTarget = TableQuery[DeviceCurrentTargetTable]
 
-  class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "FileCache") {
+  class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "file_cache") {
     def role    = column[RoleType]("role")
     def version = column[Int]("version")
     def device  = column[DeviceId]("device")
@@ -114,7 +114,7 @@ object Schema {
   }
   protected [db] val fileCache = TableQuery[FileCacheTable]
 
-  class FileCacheRequestTable(tag: Tag) extends Table[FileCacheRequest](tag, "FileCacheRequest") {
+  class FileCacheRequestsTable(tag: Tag) extends Table[FileCacheRequest](tag, "file_cache_requests") {
     def namespace = column[Namespace]("namespace")
     def version = column[Int]("version")
     def device = column[DeviceId]("device")
@@ -125,5 +125,5 @@ object Schema {
     override def * = (namespace, version, device, status) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
-  protected [db] val fileCacheRequest = TableQuery[FileCacheRequestTable]
+  protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]
 }

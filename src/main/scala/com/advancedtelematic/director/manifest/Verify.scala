@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.manifest
 
-import com.advancedtelematic.director.data.DataType.{Crypto, Ecu}
+import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.Utility._
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
 import io.circe.Encoder
 import io.circe.syntax._
@@ -48,18 +49,18 @@ object Verify {
     }
 
   def deviceManifest(ecusForDevice: Seq[Ecu],
-                     verifier: Crypto => Verifier,
+                     verifier: ClientKey => Verifier,
                      signedDevMan: SignedPayload[DeviceManifest]): Try[Seq[EcuManifest]] = {
     val ecuMap = ecusForDevice.groupBy(_.ecuSerial).mapValues(_.head)
     for {
       primaryEcu <- ecuMap.get(signedDevMan.signed.primary_ecu_serial)
                           .fold[Try[Ecu]](Failure(Errors.EcuNotFound))(Success(_))
       _ <- tryCondition(primaryEcu.primary, Errors.EcuNotPrimary)
-      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.crypto))
+      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.clientKey))
       verifiedEcu = devMan.ecu_version_manifest.map { sEcu =>
         ecuMap.get(sEcu.signed.ecu_serial) match {
           case None => Failure(Errors.EcuNotFound)
-          case Some(ecu) => checkSigned(sEcu, verifier(ecu.crypto))
+          case Some(ecu) => checkSigned(sEcu, verifier(ecu.clientKey))
         }
       }
     } yield verifiedEcu.collect { case Success(x) => x}

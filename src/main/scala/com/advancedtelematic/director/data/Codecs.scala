@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
@@ -12,9 +13,6 @@ object Codecs {
   import DeviceRequest._
   import RefinedUtils._
   import io.circe.generic.semiauto._
-
-  implicit val decoderCrypto: Decoder[Crypto] = deriveDecoder
-  implicit val encoderCrypto: Encoder[Crypto] = deriveEncoder
 
   implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>
     value.refineTry[ValidEcuSerial].toOption

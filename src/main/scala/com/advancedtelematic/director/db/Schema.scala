@@ -1,7 +1,10 @@
 package com.advancedtelematic.director.db
 
+import java.security.PublicKey
+
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -9,22 +12,23 @@ import io.circe.Json
 import slick.driver.MySQLDriver.api._
 
 object Schema {
-  import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
   import com.advancedtelematic.libtuf.data.SlickCirceMapper.{checksumMapper, jsonMapper}
+  import com.advancedtelematic.libtuf.data.SlickPublicKeyMapper._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
 
-  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, String)
+  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, PublicKey)
   class EcuTable(tag: Tag) extends Table[Ecu](tag, "Ecu") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
     def cryptoMethod = column[KeyType]("cryptographic_method")
-    def publicKey = column[String]("public_key")
+    def publicKey = column[PublicKey]("public_key")
 
     override def * = (ecuSerial, device, namespace, primary, cryptoMethod, publicKey) <>
-      ((x: EcuRow) => Ecu(x._1, x._2, x._3, x._4, Crypto(x._5, x._6)),
-       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.crypto.method, x.crypto.publicKey))
+      ((x: EcuRow) => Ecu(x._1, x._2, x._3, x._4, ClientKey(x._5, x._6)),
+       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.clientKey.keytype, x.clientKey.keyval))
        )
   }
   protected [db] val ecu = TableQuery[EcuTable]

@@ -1,5 +1,8 @@
 package com.advancedtelematic.director.http
 
+import java.util.concurrent.ConcurrentHashMap
+import java.security.PublicKey
+
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
@@ -7,13 +10,14 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import org.scalacheck.Gen
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
   test("Can register device") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
@@ -34,7 +38,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Device can update a registered device") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
@@ -51,7 +55,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Device must have the ecu given as primary") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
       (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
@@ -70,9 +74,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Device need to have the correct primary") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
-    val fakePrimCrypto = GenCrypto.generate
+    val fakePrimCrypto = GenClientKey.generate
     val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
       (RegisterEcu(primEcu, primCrypto) ::
        RegisterEcu(fakePrimEcu, fakePrimCrypto) ::
@@ -90,18 +94,26 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Device update will only update correct ecus") {
-    def testVerifier(c: Crypto): Verifier.Verifier = c.publicKey match {
-      case "REJECT ME" => Verifier.alwaysReject
-      case _           => Verifier.alwaysAccept
-    }
+    val taintedKeys = new ConcurrentHashMap[PublicKey, Unit]() // this is like a set
+    def testVerifier(c: ClientKey): Verifier.Verifier =
+      if (taintedKeys.contains(c.keyval)) {
+        Verifier.alwaysReject
+      } else {
+        Verifier.alwaysAccept
+      }
 
     val verifyRoutes = routesWithVerifier(testVerifier)
 
+
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val ecusWork = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
-    val ecusFail = Gen.nonEmptyContainerOf[List, EcuSerial](GenEcuSerial).generate.map(ecu => RegisterEcu(ecu, Crypto(GenKeyType.generate, "REJECT ME")))
+    val ecusFail = Gen.nonEmptyContainerOf[List, EcuSerial](GenEcuSerial).generate.map{ecu =>
+      val clientKey = GenClientKey.generate
+      taintedKeys.put(clientKey.keyval, Unit)
+      RegisterEcu(ecu, clientKey)
+    }
     val ecus = ecusWork ++ ecusFail
 
     val regDev = RegisterDevice(device, primEcu, ecus)
@@ -126,12 +138,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     }
 
     ecus.zip(ecuManifests.map(_.signed)).foreach { case (regEcu, ecuMan) =>
-      if (regEcu.crypto.publicKey == "REJECT ME") {
-        if (mImages.get(regEcu.ecu_serial).isDefined) {
-          println(s"The ecu that failed is: ${regEcu.ecu_serial}")
-          println(s"Ecu info: ${ecus.find(_.ecu_serial == regEcu.ecu_serial)}")
-          println(s"Manifest: ${ecuManifests.find(_.signed.ecu_serial == regEcu.ecu_serial)}")
-        }
+      if (regEcu.clientKey.keyval.getFormat() == "REJECT ME") {
         mImages.get(regEcu.ecu_serial) shouldBe None
         } else {
         mImages.get(regEcu.ecu_serial) shouldBe Some(ecuMan.installed_image)
@@ -142,7 +149,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Can set target for device") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val ecus = List(RegisterEcu(primEcu, primCrypto))
 
     val regDev = RegisterDevice(device, primEcu, ecus)
@@ -157,7 +164,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Device can update to set target") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val primCrypto = GenCrypto.generate
+    val primCrypto = GenClientKey.generate
     val ecus = List(RegisterEcu(primEcu, primCrypto))
 
     val regDev = RegisterDevice(device, primEcu, ecus)

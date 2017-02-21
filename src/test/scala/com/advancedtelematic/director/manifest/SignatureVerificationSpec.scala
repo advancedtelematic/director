@@ -1,12 +1,11 @@
 package com.advancedtelematic.director.manifest
 
-import cats.syntax.show._
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.RefinedUtils._
 import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.RSA
 import com.advancedtelematic.libtuf.data.TufDataType.ValidSignature
-import com.advancedtelematic.libtuf.crypt.RsaKeyPair.{generate, sign, keyShow}
+import com.advancedtelematic.libtuf.crypt.RsaKeyPair.{generate, sign}
 
 import scala.util.Success
 
@@ -18,9 +17,9 @@ class SignatureVerificationSpec extends DirectorSpec {
     val data = "0123456789abcdef".getBytes
 
     val sig = sign(keys.getPrivate, data)
-    val crypto = Crypto(RSA, keys.getPublic.show)
+    val clientKey = ClientKey(RSA, keys.getPublic)
 
-    verify(crypto)(sig, data) shouldBe Success(true)
+    verify(clientKey)(sig, data) shouldBe Success(true)
   }
 
   test("reject signature from different message") {
@@ -29,9 +28,9 @@ class SignatureVerificationSpec extends DirectorSpec {
     val data2 = "0123456789abcdfe".getBytes
 
     val sig = sign(keys.getPrivate, data1)
-    val crypto = Crypto(RSA, keys.getPublic.show)
+    val clientKey = ClientKey(RSA, keys.getPublic)
 
-    verify(crypto)(sig, data2) shouldBe Success(false)
+    verify(clientKey)(sig, data2) shouldBe Success(false)
   }
 
   test("reject changed signature from valid") {
@@ -51,9 +50,9 @@ class SignatureVerificationSpec extends DirectorSpec {
       val newHex = (grayCodedChar(origHex.head) +: origHex.tail).refineTry[ValidSignature].get
       orig.copy(hex = newHex)
     }
-    val crypto = Crypto(RSA, keys.getPublic.show)
+    val clientKey = ClientKey(RSA, keys.getPublic)
 
-    verify(crypto)(sig, data) shouldBe Success(false)
+    verify(clientKey)(sig, data) shouldBe Success(false)
   }
 
 }

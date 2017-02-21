@@ -1,9 +1,9 @@
 package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
 import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
@@ -13,7 +13,7 @@ object FakeRoleStore extends RoleKeyStoreClient {
   import cats.syntax.show._
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair._
-  import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, RoleKeys, RootRole}
+  import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType._
   import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -90,7 +90,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   def apiUri(path: String): String = "/api/v1/" + path
 
-  def routesWithVerifier(verifier: Crypto => Verifier.Verifier) = new DirectorRoutes(verifier, FakeRoleStore).routes
+  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeRoleStore).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

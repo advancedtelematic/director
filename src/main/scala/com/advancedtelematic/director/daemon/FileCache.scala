@@ -5,7 +5,7 @@ import akka.actor.{Actor, ActorLogging, Props, Status}
 import akka.pattern.pipe
 import cats.syntax.show.toShowOps
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
-import com.advancedtelematic.director.data.DataType.{EcuSerial, FileCacheRequest, Image}
+import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.crypt.Sha256Digest

@@ -40,7 +40,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     val toClean = byDevice(namespace, device)
     val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
 
-    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.crypto)
+    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
 
     val act = clean.andThen(DBIO.sequence(ecus.map(register)))
 

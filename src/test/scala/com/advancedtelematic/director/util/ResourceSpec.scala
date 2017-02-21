@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import com.advancedtelematic.director.data.Utility.ToCanonicalJsonOps
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
@@ -80,7 +81,7 @@ object FakeRoleStore extends RoleKeyStoreClient {
   private def signWithRoot[T : Encoder](repoId: RepoId, payload: T): ClientSignature = {
     val key = keyPair(repoId)
     RsaKeyPair
-      .sign(key.getPrivate, payload.asJson.noSpaces.getBytes) // WRONG!!! should use CanonicalJson
+      .sign(key.getPrivate, payload.asJson.canonicalBytes)
       .toClient(key.id)
   }
 }

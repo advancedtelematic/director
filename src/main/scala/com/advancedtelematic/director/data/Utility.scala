@@ -4,7 +4,6 @@ object Utility {
   import io.circe._
 
   implicit class ToCanonicalJsonOps(value: Json) {
-    // TODO: Get is from java ;)
     def canonicalBytes: Array[Byte] = canonical.getBytes
     def canonical: String = generate(value).noSpaces
 

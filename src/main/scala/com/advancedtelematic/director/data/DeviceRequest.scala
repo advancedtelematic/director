@@ -11,7 +11,7 @@ object DeviceRequest {
                                installed_image: Image,
                                previous_timeserver_time: Instant,
                                ecu_serial: EcuSerial,
-                               attacks_detected: String) // why is this string?
+                               attacks_detected: String)
 
   final case class DeviceManifest(vin: DeviceId,
                                   primary_ecu_serial: EcuSerial,

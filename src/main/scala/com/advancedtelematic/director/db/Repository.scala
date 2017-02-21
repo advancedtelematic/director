@@ -169,14 +169,16 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
 
   def fetchSnapshot(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.SNAPSHOT, MissingSnapshot)(device, version)
 
-  private def storeRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): Future[Unit] = db.run {
+  def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     (Schema.fileCache += FileCache(role, version, device, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
-  }
 
-  def storeTargets(device: DeviceId, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.TARGETS, ConflictingTarget)(device, version, file)
-  def storeSnapshot(device: DeviceId, version: Int, file: Json): Future[Unit] = storeRoleType(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
+  def storeTargetsAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+    storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, file)
+
+  def storeSnapshotAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+    storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
 }
 
 

@@ -7,12 +7,13 @@ import cats.syntax.show.toShowOps
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
+import com.advancedtelematic.director.data.Utility.ToCanonicalJsonOps
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.RoleType
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
 import io.circe.Json
 import io.circe.syntax._
@@ -90,23 +91,12 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
 
   implicit val ec = context.dispatcher
 
-  def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = async {
-
+  def generateTargetFile(repoId: RepoId, fcr: FileCacheRequest): Future[Json] = async {
     val namespace = fcr.namespace
     val device = fcr.device
     val version = fcr.version
-    val repo = await(repoNameRepository.getRepo(namespace))
 
-    val targets = await(adminRepository.fetchTargetVersion(namespace, device, version))
-
-    // This is kind of confusing. Could you extract a method here or something so it becomes more readable?
-    // Also, is this the same as clientsTarget below?
-    val clientsTarget_ = targets
-      .toSeq
-      .map { case (ecu_serial, image) =>
-        val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson))
-        image.filepath -> item
-      }.groupBy(_._1).mapValues(_.head._2)
+    val targets = await(adminRepository.fetchTargetVersion(fcr.namespace, fcr.device, fcr.version))
 
     val clientsTarget = targets.map { case (ecu_serial, image) =>
       val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson))
@@ -115,10 +105,12 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
 
     val targetsRole = TargetsRole(expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                   targets = clientsTarget,
-                                  version = version)
-    val targetsJson = await(tuf.sign(repo, RoleType.TARGETS, targetsRole)).asJson
+                                  version = fcr.version)
+    await(tuf.sign(repoId, RoleType.TARGETS, targetsRole)).asJson
+  }
 
-    val targetsFile = targetsJson.noSpaces.getBytes
+  def generateSnapshotFile(repoId: RepoId, targetsJson: Json, version: Int): Future[Json] = async {
+    val targetsFile = targetsJson.canonicalBytes
     val targetChecksum = Sha256Digest.digest(targetsFile)
 
     val metaMap = Map(RoleType.TARGETS.toMetaPath -> MetaItem(Map(targetChecksum.method -> targetChecksum.hash), targetsFile.length))
@@ -127,15 +119,22 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
                                     expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                     version = version)
 
-    // I thought this would sign the role with a ecu specific key? This just signs with the same key tuf already has? the repo key?
-    val snapshotJson = await(tuf.sign(repo, RoleType.SNAPSHOT, snapshotRole)).asJson
+    await(tuf.sign(repoId, RoleType.SNAPSHOT, snapshotRole)).asJson
+  }
+
+  def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = async {
+    val repo = await(repoNameRepository.getRepo(fcr.namespace))
+
+    val targetsJson = await(generateTargetFile(repo, fcr))
+    val snapshotJson = await(generateSnapshotFile(repo, targetsJson, fcr.version))
 
     // What about timestamp.json?
 
 
-    // This needs to be transactional or have one FileCacheRequest for each
-    await(fileCacheRepository.storeTargets(device, version, targetsJson))
-    await(fileCacheRepository.storeSnapshot(device, version, snapshotJson))
+    val dbAct = fileCacheRepository.storeTargetsAction(fcr.device, fcr.version, targetsJson)
+      .andThen(fileCacheRepository.storeSnapshotAction(fcr.device, fcr.version, snapshotJson))
+
+    await(db.run(dbAct.transactionally))
   }
 
   override def receive: Receive = {

@@ -31,7 +31,7 @@ object Schema {
   protected [db] val ecu = TableQuery[EcuTable]
 
   type CurrentImageRow = (EcuSerial, String, Int, Checksum, String)
-  class CurrentImageTable(tag: Tag) extends Table[CurrentImage](tag, "CurrentImage") {
+  class CurrentImageTable(tag: Tag) extends Table[CurrentImage](tag, "CurrentImage") { // TODO: Lets use snake case + plurarl for table names
     def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
@@ -40,17 +40,24 @@ object Schema {
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    override def * = (id, filepath, length, checksum, attacksDetected) <>
-      ((p: CurrentImageRow) => CurrentImage(p._1, Image(p._2, FileInfo(Map(p._4.method -> p._4.hash), p._3)), p._5),
-      (x: CurrentImage) => Some((x.ecuSerial, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected)))
+    // I think this might be more readable? I don't like so many underscores on tuples gets hard to read.
+    override def * = (id, filepath, length, checksum, attacksDetected) <> (
+      (_: CurrentImageRow) match {
+        case (id, filepath, length, checksum, attacksDetected) =>
+          CurrentImage(id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), attacksDetected)
+      },
+      (x: CurrentImage) => Some((x.ecuSerial, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected))
+    )
   }
+
   protected [db] val currentImage = TableQuery[CurrentImageTable]
 
+  // TODO: All relations are mapping, this should be repo_names (table name)?
   class RepoNameTable(tag: Tag) extends Table[(Namespace, RepoId)](tag, "RepoNameMapping") {
     def ns = column[Namespace]("namespace", O.PrimaryKey)
     def repo = column[RepoId]("repoName")
 
-    override def * = (ns, repo)
+    override def * = (ns, repo) // I'd avoid tuples, but might make sense here
   }
   protected [db] val repoNameMapping = TableQuery[RepoNameTable]
 
@@ -66,6 +73,7 @@ object Schema {
 
     def primKey = primaryKey("ecu_target_pk", (version, id))
 
+    // same here
     override def * = (version, id, filepath, length, checksum) <>
       ((x: EcuTargetRow) => EcuTarget(x._1, x._2, Image(x._3, FileInfo(Map(x._5.method -> x._5.hash), x._4))),
        (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)))))

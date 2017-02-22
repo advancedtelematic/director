@@ -17,7 +17,6 @@ import org.genivi.sota.marshalling.CirceMarshallingSupport._
 import org.slf4j.LoggerFactory
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._
 
 
@@ -32,9 +31,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
+  // This will not work with concurrent requests, because of the version increment
+  // getting and setting the version needs to be done on the same transaction
   def updateCurrentTarget(namespace: Namespace, device: Uuid, ecuManifests: Seq[EcuManifest]): Future[Unit] =
-    deviceRepository.getNextVersion(device).flatMap { next_version =>
       async {
+        val next_version = await(deviceRepository.getNextVersion(device))
         val version = await(deviceRepository.getNextVersion(device))
 
         val targets = await(adminRepository.fetchTargetVersion(namespace, device, next_version))
@@ -44,40 +45,43 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         if (targets == translatedManifest) {
           await(deviceRepository.updateDeviceVersion(device, next_version))
         } else {
-          println(s"version : $version")
-          println(s"targets : $targets")
-          println(s"manifest: $translatedManifest")
+          _log.info {
+            s"""version : $version
+               |targets : $targets
+               |manifest: $translatedManifest
+             """.stripMargin
+          }
 
           _log.error(s"Device $device updated to the wrong target")
           await(FastFuture.failed(Errors.DeviceUpdatedToWrongTarget))
         }
+      }.recoverWith {
+        case DBErrors.MissingCurrentTarget =>
+          deviceRepository.updateDeviceVersion(device, 0)
       }
-    }.recoverWith {
-      case DBErrors.MissingCurrentTarget =>
-        deviceRepository.updateDeviceVersion(device, 0)
-    }
 
   def setDeviceManifest(namespace: Namespace, signedDevMan: SignedPayload[DeviceManifest]): Route = {
     val device = signedDevMan.signed.vin
-    val action =
-      deviceRepository.findEcus(namespace, device).flatMap { case ecus =>
-        Verify.deviceManifest(ecus, verifier, signedDevMan) match {
-          case Failure(reason) => FastFuture.failed(reason)
-          case Success(ecuImages) =>
-            deviceRepository.persistAll(ecuImages).flatMap(_ => updateCurrentTarget(namespace, device, ecuImages))
-        }
-      }
+    val action = async {
+      val ecus = await(deviceRepository.findEcus(namespace, device))
+      val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
+
+      // TODO: These two should probably be transactional??
+      await(deviceRepository.persistAll(ecuImages))
+      await(updateCurrentTarget(namespace, device, ecuImages))
+    }
     complete(action)
   }
 
   def fetchTargets(ns: Namespace, device: Uuid): Route = {
+    // TODO: Assuming versions are monotonically increasing, then we should be able to just get the highest one?
     val action = deviceRepository.getNextVersion(device).flatMap { version =>
       fileCacheRepository.fetchTarget(device, version)
     }
     complete(action)
   }
 
-  def fetchSnapshots(ns: Namespace, device: Uuid): Route = {
+  def fetchSnapshot(ns: Namespace, device: Uuid): Route = {
     val action = deviceRepository.getNextVersion(device).flatMap { version =>
       fileCacheRepository.fetchSnapshot(device, version)
     }
@@ -85,10 +89,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   }
 
   val route = extractNamespace { ns =>
-    pathPrefix("mydevice") {
+    pathPrefix("device") {
       path("manifest") {
         (put & entity(as[SignedPayload[DeviceManifest]])) { devMan =>
           setDeviceManifest(ns, devMan)
+
+          // ^^ This will return an empty response to device
+          // When does the device receive an updated timestamp.json?
         }
       } ~
       extractUuid { device =>
@@ -97,7 +104,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
             fetchTargets(ns, device)
           } ~
           path("snapshots.json") {
-            fetchSnapshots(ns, device)
+            fetchSnapshot(ns, device)
           }
         }
       }

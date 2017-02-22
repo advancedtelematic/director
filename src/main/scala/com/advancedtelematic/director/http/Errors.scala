@@ -5,7 +5,7 @@ import org.genivi.sota.http.Errors.RawError
 import org.genivi.sota.rest.ErrorCode
 
 object ErrorCodes {
-  val TargetsNotSubSetOfDevice = ErrorCode("targets-not-subset-of-device")
+  val TargetsNotSubSetOfDevice = ErrorCode("targets-not-subset-of-device")// we should probably use underscores
   val DeviceUpdatedToWrongTarget = ErrorCode("device-updated-to-wrong-target")
 }
 

@@ -23,7 +23,7 @@ object Verify {
   import Verifier.Verifier
 
   def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
-    val data = what.signed.asJson.getCanonicalBytes
+    val data = what.signed.asJson.canonicalBytes
 
     @tailrec
     def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {
@@ -57,7 +57,7 @@ object Verify {
                           .fold[Try[Ecu]](Failure(Errors.EcuNotFound))(Success(_))
       _ <- tryCondition(primaryEcu.primary, Errors.EcuNotPrimary)
       devMan <- checkSigned(signedDevMan, verifier(primaryEcu.crypto))
-      verifiedEcu = devMan.ecu_version_manifest.map{ case sEcu =>
+      verifiedEcu = devMan.ecu_version_manifest.map { sEcu =>
         ecuMap.get(sEcu.signed.ecu_serial) match {
           case None => Failure(Errors.EcuNotFound)
           case Some(ecu) => checkSigned(sEcu, verifier(ecu.crypto))

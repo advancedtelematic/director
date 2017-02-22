@@ -4,7 +4,8 @@ object Utility {
   import io.circe._
 
   implicit class ToCanonicalJsonOps(value: Json) {
-    def getCanonicalBytes: Array[Byte] = canonical.getBytes
+    // TODO: Get is from java ;)
+    def canonicalBytes: Array[Byte] = canonical.getBytes
     def canonical: String = generate(value).noSpaces
 
     private def generate(value: Json): Json = value.arrayOrObject[Json](
@@ -25,7 +26,7 @@ protected[data] object ValidationUtils {
   import eu.timepit.refined.api.Validate
 
   def validHex(length: Option[Long], str: String): Boolean = {
-    length.map(str.length == _).getOrElse(true) && str.forall(h => ('0' to '9').contains(h) || ('a' to 'f').contains(h))
+    length.forall(str.length == _) && str.forall(h => ('0' to '9').contains(h) || ('a' to 'f').contains(h))
   }
 
   def validHexValidation[T](specificLength: Option[Long], proof: T): Validate.Plain[String, T] =
@@ -38,7 +39,7 @@ protected[data] object ValidationUtils {
   def validInBetween[T](min: Long, max: Long, proof: T): Validate.Plain[String, T] =
     Validate.fromPredicate(
       str => str.length >= min && str.length <= max,
-      str => s"$str is not between ${min} and $max chars long",
+      str => s"$str is not between $min and $max chars long",
       proof
     )
 

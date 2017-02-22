@@ -34,7 +34,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .join(Schema.currentImage).on(_ === _.id)
       .map(_._2)
       .result
-      .map(_.map{ case cim => (cim.ecuSerial, cim.image)})
+      .map(_.map(cim => cim.ecuSerial -> cim.image))
   }
 
   def createDevice(namespace: Namespace, device: Uuid, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
@@ -43,9 +43,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
 
     def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.crypto)
 
-    val act = clean.andThen(DBIO.seq(ecus.map(register) :_*))
+    val act = clean.andThen(DBIO.sequence(ecus.map(register)))
 
-    db.run(act.transactionally)
+    db.run(act.map(_ => ()).transactionally)
   }
 
   def getLatestVersion(namespace: Namespace, device: Uuid): DBIO[Int] =
@@ -55,7 +55,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
-  private def fetchTargetVersionDB(namespace: Namespace, device: Uuid, version: Int): DBIO[Map[EcuSerial, Image]] =
+  private def fetchTargetVersionAction(namespace: Namespace, device: Uuid, version: Int): DBIO[Map[EcuSerial, Image]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -65,11 +65,11 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
 
   def fetchTargetVersion(namespace: Namespace, device: Uuid, version: Int): Future[Map[EcuSerial, Image]] =
-    db.run(fetchTargetVersionDB(namespace, device, version))
+    db.run(fetchTargetVersionAction(namespace, device, version))
 
   def storeTargetVersion(namespace: Namespace, device: Uuid, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
-           ++= targets.toSeq.map{case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
+      ++= targets.map{ case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
 
     val updateDeviceTargets = Schema.deviceTargets.insertOrUpdate(DeviceTargets(device, version))
 
@@ -83,7 +83,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
         case Failure(NoTargetsScheduled) => DBIO.successful(0)
         case Failure(ex) => DBIO.failed(ex)
       }
-      previousMap <- fetchTargetVersionDB(namespace, device, version)
+      previousMap <- fetchTargetVersionAction(namespace, device, version)
       new_version = version + 1
       new_targets = previousMap ++ targets
       _ <- storeTargetVersion(namespace, device, new_version, new_targets)
@@ -114,13 +114,13 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   }
 
   def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] = {
-    db.run(DBIO.seq(ecuManifests.map(persistEcu(_)) :_*).transactionally)
+    db.run(DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally)
   }
 
   def findEcus(namespace: Namespace, device: Uuid): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  private def getCurrentVersionDB(device: Uuid): DBIO[Int] =
+  private def getCurrentVersionAction(device: Uuid): DBIO[Int] =
     Schema.deviceCurrentTarget
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
@@ -128,7 +128,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .failIfNotSingle(MissingCurrentTarget)
 
   def getNextVersion(device: Uuid): Future[Int] = {
-    val devVer = getCurrentVersionDB(device)
+    val devVer = getCurrentVersionAction(device)
 
     val targetVer = Schema.deviceTargets
       .filter(_.device === device)

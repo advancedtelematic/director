@@ -5,10 +5,9 @@ import akka.actor.{Actor, ActorLogging, Props, Status}
 import akka.pattern.pipe
 import cats.syntax.show.toShowOps
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
-import com.advancedtelematic.director.data.DataType.{FileCacheRequest}
+import com.advancedtelematic.director.data.DataType.{EcuSerial, FileCacheRequest, Image}
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport,
-  FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -19,7 +18,9 @@ import io.circe.Json
 import io.circe.syntax._
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+
 import org.genivi.sota.marshalling.CirceInstances.refinedEncoder
+
 import scala.async.Async._
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -100,9 +101,19 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
 
     val targets = await(adminRepository.fetchTargetVersion(namespace, device, version))
 
-    val clientsTarget = targets.toSeq.map {case (ecu_serial, image) =>
-      (image.filepath, ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson)))
-    }.groupBy(_._1).mapValues(_.head._2)
+    // This is kind of confusing. Could you extract a method here or something so it becomes more readable?
+    // Also, is this the same as clientsTarget below?
+    val clientsTarget_ = targets
+      .toSeq
+      .map { case (ecu_serial, image) =>
+        val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson))
+        image.filepath -> item
+      }.groupBy(_._1).mapValues(_.head._2)
+
+    val clientsTarget = targets.map { case (ecu_serial, image) =>
+      val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Json.obj("ecuSerial" -> ecu_serial.asJson))
+      image.filepath -> item
+    }
 
     val targetsRole = TargetsRole(expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                   targets = clientsTarget,
@@ -118,24 +129,28 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
                                     expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                     version = version)
 
+    // I thought this would sign the role with a ecu specific key? This just signs with the same key tuf already has? the repo key?
     val snapshotJson = await(tuf.sign(repo, RoleType.SNAPSHOT, snapshotRole)).asJson
 
+    // What about timestamp.json?
+
+
+    // This needs to be transactional or have one FileCacheRequest for each
     await(fileCacheRepository.storeTargets(device, version, targetsJson))
     await(fileCacheRepository.storeSnapshot(device, version, snapshotJson))
-
-    ()
   }
 
   override def receive: Receive = {
     case fcr: FileCacheRequest =>
       log.info("Received file cache request for {} version: {}", fcr.device.show, fcr.version)
 
-      processFileCacheRequest(fcr).flatMap{ res =>
-        fileCacheRequestRepository.updateRequest(fcr.copy(status = SUCCESS)).map(_ => Success(res))
-      }.recoverWith {
-        case ex =>
-          log.error("File cache failed: {}", ex.getMessage)
-          fileCacheRequestRepository.updateRequest(fcr.copy(status = ERROR)).map(_ => Failure(ex))
-      }.pipeTo(sender)
+      processFileCacheRequest(fcr)
+        .map(Success)
+        .flatMap { _ => fileCacheRequestRepository.updateRequest(fcr.copy(status = SUCCESS)) }
+        .recoverWith {
+          case ex =>
+            log.error("File cache failed: {}", ex.getMessage)
+            fileCacheRequestRepository.updateRequest(fcr.copy(status = ERROR)).map(_ => Failure(ex))
+        }.pipeTo(sender)
   }
 }

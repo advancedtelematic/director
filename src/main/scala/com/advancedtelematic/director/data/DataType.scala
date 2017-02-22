@@ -13,6 +13,7 @@ object FileCacheRequestStatus extends CirceEnum with SlickEnum {
   val SUCCESS, ERROR, PENDING = Value
 }
 
+// TODO: Use wrapper type for Uuids
 object DataType {
   import KeyType.KeyType
   import RoleType.RoleType
@@ -24,6 +25,7 @@ object DataType {
   final case class FileInfo(hashes: Hashes, length: Int)
   final case class Image(filepath: String, fileinfo: FileInfo)
 
+  // TODO: Crypto is maybe a too general name? Maybe keys? keyval.id -> {keytype, keyval} is used in tuf
   final case class Crypto(method: KeyType, publicKey: String) // String??
 
   final case class Ecu(ecuSerial: EcuSerial, device: Uuid, namespace: Namespace, primary: Boolean, crypto: Crypto)

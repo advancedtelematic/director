@@ -13,8 +13,8 @@ import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType, SignedPayload}
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import io.circe.Json
 import io.circe.syntax._
 import java.time.Instant
@@ -28,10 +28,10 @@ import slick.driver.MySQLDriver.api._
 object FileCacheDaemon {
   case object Tick
 
-  def props(tuf: RoleKeyStoreClient)(implicit db: Database):Props = Props(new FileCacheDaemon(tuf))
+  def props(tuf: KeyserverClient)(implicit db: Database):Props = Props(new FileCacheDaemon(tuf))
 }
 
-class FileCacheDaemon(tuf: RoleKeyStoreClient)(implicit val db: Database) extends Actor
+class FileCacheDaemon(tuf: KeyserverClient)(implicit val db: Database) extends Actor
     with ActorLogging
     with FileCacheRequestRepositorySupport {
 
@@ -79,10 +79,10 @@ class FileCacheDaemon(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
 }
 
 object FileCacheWorker {
-  def props(tuf: RoleKeyStoreClient)(implicit db: Database): Props = Props(new FileCacheWorker(tuf))
+  def props(tuf: KeyserverClient)(implicit db: Database): Props = Props(new FileCacheWorker(tuf))
 }
 
-class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extends Actor
+class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends Actor
     with ActorLogging
     with AdminRepositorySupport
     with FileCacheRepositorySupport
@@ -91,7 +91,7 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
 
   implicit val ec = context.dispatcher
 
-  def generateTargetFile(repoId: RepoId, fcr: FileCacheRequest): Future[Json] = async {
+  def generateTargetFile(repoId: RepoId, fcr: FileCacheRequest): Future[SignedPayload[TargetsRole]] = async {
     val namespace = fcr.namespace
     val device = fcr.device
     val version = fcr.version
@@ -106,11 +106,11 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
     val targetsRole = TargetsRole(expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                   targets = clientsTarget,
                                   version = fcr.version)
-    await(tuf.sign(repoId, RoleType.TARGETS, targetsRole)).asJson
+    await(tuf.sign(repoId, RoleType.TARGETS, targetsRole))
   }
 
-  def generateSnapshotFile(repoId: RepoId, targetsJson: Json, version: Int): Future[Json] = async {
-    val targetsFile = targetsJson.canonical.getBytes
+  def generateSnapshotFile(repoId: RepoId, targetsRole: SignedPayload[TargetsRole], version: Int): Future[SignedPayload[SnapshotRole]] = async {
+    val targetsFile = targetsRole.asJson.canonical.getBytes
     val targetChecksum = Sha256Digest.digest(targetsFile)
 
     val metaMap = Map(RoleType.TARGETS.toMetaPath -> MetaItem(Map(targetChecksum.method -> targetChecksum.hash), targetsFile.length))
@@ -119,11 +119,11 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
                                     expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                     version = version)
 
-    await(tuf.sign(repoId, RoleType.SNAPSHOT, snapshotRole)).asJson
+    await(tuf.sign(repoId, RoleType.SNAPSHOT, snapshotRole))
   }
 
-  def generateTimestampFile(repoId: RepoId, snapshotJson: Json, version: Int): Future[Json] = async {
-    val snapshotFile = snapshotJson.canonical.getBytes
+  def generateTimestampFile(repoId: RepoId, snapshotRole: SignedPayload[SnapshotRole], version: Int): Future[SignedPayload[TimestampRole]] = async {
+    val snapshotFile = snapshotRole.asJson.canonical.getBytes
     val snapshotChecksum = Sha256Digest.digest(snapshotFile)
 
     val metaMap = Map(RoleType.SNAPSHOT.toMetaPath -> MetaItem(Map(snapshotChecksum.method -> snapshotChecksum.hash), snapshotFile.length))
@@ -132,19 +132,19 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
                                       expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                       version = version)
 
-    await(tuf.sign(repoId, RoleType.TIMESTAMP, timestampRole)).asJson
+    await(tuf.sign(repoId, RoleType.TIMESTAMP, timestampRole))
   }
 
   def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = async {
     val repo = await(repoNameRepository.getRepo(fcr.namespace))
 
-    val targetsJson = await(generateTargetFile(repo, fcr))
-    val snapshotJson = await(generateSnapshotFile(repo, targetsJson, fcr.version))
-    val timestampJson = await(generateTimestampFile(repo, snapshotJson, fcr.version))
+    val targetsRole = await(generateTargetFile(repo, fcr))
+    val snapshotRole = await(generateSnapshotFile(repo, targetsRole, fcr.version))
+    val timestampRole = await(generateTimestampFile(repo, snapshotRole, fcr.version))
 
-    val dbAct = fileCacheRepository.storeTargetsAction(fcr.device, fcr.version, targetsJson)
-      .andThen(fileCacheRepository.storeSnapshotAction(fcr.device, fcr.version, snapshotJson))
-      .andThen(fileCacheRepository.storeTimestampAction(fcr.device, fcr.version, timestampJson))
+    val dbAct = fileCacheRepository.storeTargetsAction(fcr.device, fcr.version, targetsRole.asJson)
+      .andThen(fileCacheRepository.storeSnapshotAction(fcr.device, fcr.version, snapshotRole.asJson))
+      .andThen(fileCacheRepository.storeTimestampAction(fcr.device, fcr.version, timestampRole.asJson))
 
     await(db.run(dbAct.transactionally))
   }

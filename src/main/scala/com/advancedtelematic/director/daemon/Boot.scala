@@ -4,7 +4,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 
 import com.advancedtelematic.director.{Settings, VersionInfo}
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreHttpClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 
 import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
@@ -24,7 +24,7 @@ object DaemonBoot extends BootApp
 
   log.info("Starting director daemon")
 
-  val tuf = new RoleKeyStoreHttpClient(tufUri)
+  val tuf = new KeyserverHttpClient(tufUri)
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(tuf), "filecache-daemon")
 

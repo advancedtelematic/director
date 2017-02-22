@@ -5,7 +5,7 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreHttpClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.typesafe.config.{Config, ConfigFactory}
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -45,7 +45,7 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val tuf = new RoleKeyStoreHttpClient(tufUri)
+  val tuf = new KeyserverHttpClient(tufUri)
 
   Security.addProvider(new BouncyCastleProvider())
 

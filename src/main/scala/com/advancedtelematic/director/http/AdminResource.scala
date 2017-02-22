@@ -13,14 +13,14 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
   FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreClient)
+class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClient)
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport

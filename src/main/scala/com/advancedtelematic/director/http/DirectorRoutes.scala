@@ -6,7 +6,7 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.http.{ErrorHandler, HealthResource}
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 
@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext
 import slick.driver.MySQLDriver.api._
 
 
-class DirectorRoutes(verifier: ClientKey => Verifier, tuf: RoleKeyStoreClient)
+class DirectorRoutes(verifier: ClientKey => Verifier, tuf: KeyserverClient)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,

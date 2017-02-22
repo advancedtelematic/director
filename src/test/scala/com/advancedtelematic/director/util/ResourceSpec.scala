@@ -5,11 +5,11 @@ import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
 
-object FakeRoleStore extends RoleKeyStoreClient {
+object FakeRoleStore extends KeyserverClient {
   import akka.http.scaladsl.util.FastFuture
   import cats.syntax.show._
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair
@@ -18,7 +18,7 @@ object FakeRoleStore extends RoleKeyStoreClient {
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType._
   import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-  import io.circe.{Encoder, Json}
+  import io.circe.{Decoder, Encoder, Json}
   import io.circe.syntax._
   import java.security.{KeyPair, PublicKey}
   import java.time.Instant
@@ -60,9 +60,9 @@ object FakeRoleStore extends RoleKeyStoreClient {
     }
   }
 
-  override def sign[T: Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[Json]] = {
+  override def sign[T : Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = {
     val signature = signWithRoot(repoId, payload)
-    FastFuture.successful(SignedPayload(List(signature), payload.asJson))
+    FastFuture.successful(SignedPayload(List(signature), payload))
   }
 
   override def fetchRootRole(repoId: RepoId): Future[SignedPayload[Json]] = {

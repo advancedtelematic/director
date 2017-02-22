@@ -16,13 +16,14 @@ export USE_MEM="1024.0"
 export USE_CPU="0.5"
 export JAVA_OPTS="-Xmx800m"
 
-# Merge service environment variables with secrets from this vault endpoint.
-export CATALOG_ADDR="http://catalog.gw.prod01.internal.advancedtelematic.com"
+export MARATHON="http://marathon.prod01.internal.advancedtelematic.com:8080"
 
 cat deploy/service.json |
     envsubst |
-    curl --show-error --silent --fail \
-         --header "X-Vault-Token: ${VAULT_TOKEN}" \
-         --request POST \
+    python2 deploy/add-vault-vars.py $VAULT_ENDPOINT $VAULT_TOKEN |
+    tee marathon_deploy.log |
+    curl --show-error --fail \
+         --header "Content-Type: application/json" \
+         --request PUT \
          --data @- \
-         ${CATALOG_ADDR}/service/${VAULT_ENDPOINT}
+         ${MARATHON}/v2/apps

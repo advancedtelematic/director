@@ -2,7 +2,7 @@ ALTER DATABASE CHARACTER SET utf8 COLLATE utf8_unicode_ci;
 
 CREATE TABLE `ecus` (
   `ecu_serial` varchar(64) NOT NULL,
-  `device` varchar(36) NOT NULL,
+  `device` char(36) NOT NULL,
   `namespace` varchar(200) NOT NULL,
   `primary` bool NOT NULL,
   `cryptographic_method` varchar(16) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE `current_images` (
 
 CREATE TABLE `repo_names` (
   `namespace` varchar(200) NOT NULL,
-  `repoName` varchar(36) NOT NULL,
+  `repo_id` char(36) NOT NULL,
 
   PRIMARY KEY (`namespace`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -39,14 +39,14 @@ CREATE TABLE `ecu_targets` (
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE `device_targets` (
-  `device` varchar(36) NOT NULL,
+  `device` char(36) NOT NULL,
   `latest_scheduled_target` int NOT NULL,
 
   PRIMARY KEY (`device`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 CREATE TABLE `device_current_target` (
-`device` varchar(36) NOT NULL,
+`device` char(36) NOT NULL,
 `device_current_target` int NOT NULL,
 
 PRIMARY KEY (`device`)
@@ -55,8 +55,8 @@ PRIMARY KEY (`device`)
 CREATE TABLE `file_cache` (
   `role` ENUM('ROOT', 'SNAPSHOT', 'TARGETS', 'TIMESTAMP') NOT NULL,
   `version` int NOT NULL,
-  `device` varchar(36) NOT NULL,
-  `fileEntity` longtext NOT NULL,
+  `device` char(36) NOT NULL,
+  `file_entity` longtext NOT NULL,
 
   PRIMARY KEY (`role`, `version`, `device`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -64,7 +64,7 @@ CREATE TABLE `file_cache` (
 CREATE TABLE `file_cache_requests` (
   `namespace` varchar(200) NOT NULL,
   `version` int NOT NULL,
-  `device` varchar(36) NOT NULL,
+  `device` char(36) NOT NULL,
   `status` ENUM('SUCCESS', 'ERROR', 'PENDING') NOT NULL,
 
   PRIMARY KEY (`version`, `device`)

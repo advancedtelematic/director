@@ -58,6 +58,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
     dbAct
   }
+
   def setDeviceManifest(namespace: Namespace, signedDevMan: SignedPayload[DeviceManifest]): Route = {
     val device = signedDevMan.signed.vin
     val action = async {
@@ -97,9 +98,6 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       path("manifest") {
         (put & entity(as[SignedPayload[DeviceManifest]])) { devMan =>
           setDeviceManifest(ns, devMan)
-
-          // ^^ This will return an empty response to device
-          // When does the device receive an updated timestamp.json?
         }
       } ~
       pathPrefix(DeviceId.Path) { device =>

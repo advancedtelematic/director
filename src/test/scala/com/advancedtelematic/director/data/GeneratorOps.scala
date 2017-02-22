@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.director.data.RefinedUtils._
+import com.advancedtelematic.libats.data.RefinedUtils._
 import eu.timepit.refined.api.{Refined, Validate}
 import org.scalacheck.Gen
 import scala.annotation.tailrec

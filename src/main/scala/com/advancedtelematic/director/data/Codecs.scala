@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 
@@ -11,7 +12,6 @@ object Codecs {
   import AdminRequest._
   import DataType._
   import DeviceRequest._
-  import RefinedUtils._
   import io.circe.generic.semiauto._
 
   implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>

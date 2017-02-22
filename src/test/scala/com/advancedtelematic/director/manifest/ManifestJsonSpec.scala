@@ -4,8 +4,8 @@ import cats.data.Xor
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
-import com.advancedtelematic.director.data.RefinedUtils._
 import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
 import com.advancedtelematic.libtuf.data.TufDataType.SignatureMethod.RSASSA_PSS

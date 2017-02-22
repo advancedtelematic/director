@@ -32,7 +32,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
-    registerDeviceFail(regDev, StatusCodes.BadRequest) shouldBe s"The primary ecu: ${primEcu.get} isn't part of the list of ECUs"
+    registerDeviceExpected(regDev, StatusCodes.BadRequest)
   }
 
   test("Device can update a registered device") {

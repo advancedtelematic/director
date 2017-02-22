@@ -3,7 +3,7 @@ package com.advancedtelematic.director.manifest
 import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.Utility._
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
 import io.circe.Encoder
@@ -23,7 +23,7 @@ object Verify {
   import Verifier.Verifier
 
   def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
-    val data = what.signed.asJson.canonicalBytes
+    val data = what.signed.asJson.canonical.getBytes
 
     @tailrec
     def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {

@@ -222,6 +222,7 @@ trait RepoNameRepositorySupport {
 }
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
+  import DataType.RepoName
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.db.SlickExtensions._
 
@@ -234,7 +235,7 @@ protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext
   }
 
   def storeRepo(ns: Namespace, repoId: RepoId): Future[Unit] = db.run {
-    (Schema.repoNameMapping += ((ns, repoId)))
+    (Schema.repoNameMapping += (RepoName(ns, repoId)))
       .handleIntegrityErrors(ConflictNamespaceRepo)
       .map(_ => ())
   }

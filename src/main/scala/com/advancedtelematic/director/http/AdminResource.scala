@@ -31,8 +31,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
     val primEcu = regDev.primary_ecu_serial
 
     regDev.ecus.find(_.ecu_serial == primEcu) match {
-      case None => complete( StatusCodes.BadRequest ->
-                              s"The primary ecu: ${primEcu.get} isn't part of the list of ECUs") // TODO: Should fail with a well known error code and just leave that to be thrown by akka
+      case None => complete( Errors.PrimaryIsNotListedForDevice )
       case Some(_) => complete( StatusCodes.Created ->
                                  adminRepository.createDevice(namespace, regDev.vin, primEcu, regDev.ecus))
     }

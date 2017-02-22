@@ -1,26 +1,5 @@
 package com.advancedtelematic.director.data
 
-object Utility {
-  import io.circe._
-
-  implicit class ToCanonicalJsonOps(value: Json) {
-    def canonicalBytes: Array[Byte] = canonical.getBytes
-    def canonical: String = generate(value).noSpaces
-
-    private def generate(value: Json): Json = value.arrayOrObject[Json](
-      value,
-      array => Json.fromValues(array.map(generate)),
-      obj => Json.fromJsonObject(
-        JsonObject.fromIterable {
-          obj.toList
-            .map { case (k, v) => k -> generate(v)
-          }.sortBy(_._1)
-        }
-      )
-    )
-  }
-}
-
 protected[data] object ValidationUtils {
   import eu.timepit.refined.api.Validate
 

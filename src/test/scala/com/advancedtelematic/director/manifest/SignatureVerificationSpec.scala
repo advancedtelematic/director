@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.manifest
 
-import com.advancedtelematic.director.data.RefinedUtils._
 import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.RSA
 import com.advancedtelematic.libtuf.data.TufDataType.ValidSignature

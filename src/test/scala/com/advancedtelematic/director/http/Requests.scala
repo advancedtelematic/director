@@ -24,10 +24,9 @@ trait Requests extends DirectorSpec with ResourceSpec {
       status shouldBe StatusCodes.Created
     }
 
-  def registerDeviceFail(regDev: RegisterDevice, expected: StatusCode): String = {
+  def registerDeviceExpected(regDev: RegisterDevice, expected: StatusCode): Unit = {
     registerDevice(regDev) ~> routes ~> check {
       status shouldBe expected
-      responseAs[String]
     }
   }
 

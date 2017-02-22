@@ -2,7 +2,7 @@ package com.advancedtelematic.director.data
 
 import com.advancedtelematic.libats.codecs.{CirceEnum, SlickEnum}
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes, ClientKey}
-import com.advancedtelematic.libtuf.data.TufDataType.RoleType
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import com.advancedtelematic.libtuf.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
@@ -42,4 +42,6 @@ object DataType {
   final case class FileCache(role: RoleType, version: Int, device: DeviceId, file: Json)
 
   final case class FileCacheRequest(namespace: Namespace, version: Int, device: DeviceId, status: FileCacheRequestStatus.Status)
+
+  final case class RepoName(namespace: Namespace, repoId: RepoId)
 }

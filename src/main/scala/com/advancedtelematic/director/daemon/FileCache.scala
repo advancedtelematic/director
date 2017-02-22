@@ -7,8 +7,8 @@ import cats.syntax.show.toShowOps
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
-import com.advancedtelematic.director.data.Utility.ToCanonicalJsonOps
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
+import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -110,7 +110,7 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
   }
 
   def generateSnapshotFile(repoId: RepoId, targetsJson: Json, version: Int): Future[Json] = async {
-    val targetsFile = targetsJson.canonicalBytes
+    val targetsFile = targetsJson.canonical.getBytes
     val targetChecksum = Sha256Digest.digest(targetsFile)
 
     val metaMap = Map(RoleType.TARGETS.toMetaPath -> MetaItem(Map(targetChecksum.method -> targetChecksum.hash), targetsFile.length))
@@ -123,7 +123,7 @@ class FileCacheWorker(tuf: RoleKeyStoreClient)(implicit val db: Database) extend
   }
 
   def generateTimestampFile(repoId: RepoId, snapshotJson: Json, version: Int): Future[Json] = async {
-    val snapshotFile = snapshotJson.canonicalBytes
+    val snapshotFile = snapshotJson.canonical.getBytes
     val snapshotChecksum = Sha256Digest.digest(snapshotFile)
 
     val metaMap = Map(RoleType.SNAPSHOT.toMetaPath -> MetaItem(Map(snapshotChecksum.method -> snapshotChecksum.hash), snapshotFile.length))

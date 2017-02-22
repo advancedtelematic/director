@@ -54,11 +54,12 @@ object Schema {
 
   protected [db] val currentImage = TableQuery[CurrentImagesTable]
 
-  class RepoNameTable(tag: Tag) extends Table[(Namespace, RepoId)](tag, "repo_names") {
+  class RepoNameTable(tag: Tag) extends Table[RepoName](tag, "repo_names") {
     def ns = column[Namespace]("namespace", O.PrimaryKey)
-    def repo = column[RepoId]("repoName")
+    def repo = column[RepoId]("repo_id")
 
-    override def * = (ns, repo) // I'd avoid tuples, but might make sense here
+    override def * = (ns, repo) <>
+      ((RepoName.apply _).tupled, RepoName.unapply)
   }
   protected [db] val repoNameMapping = TableQuery[RepoNameTable]
 
@@ -105,7 +106,7 @@ object Schema {
     def role    = column[RoleType]("role")
     def version = column[Int]("version")
     def device  = column[DeviceId]("device")
-    def fileEntity = column[Json]("fileEntity")
+    def fileEntity = column[Json]("file_entity")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 

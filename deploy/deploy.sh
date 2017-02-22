@@ -8,7 +8,8 @@ fi
 
 export DOCKER_TAG=$1
 export JOB_NAME="${JOB_NAME-director}"
-export VAULT_ENDPOINT=${VAULT_ENDPOINT-$(echo $JOB_NAME | tr "-" "_")}
+export VAULT_SECRET=$(echo $JOB_NAME | tr "-" "_")
+export VAULT_ENDPOINT="http://secrets.prod01.internal.advancedtelematic.com:8200/v1/secret/${VAULT_SECRET}"
 export IMAGE_NAME="director"
 export REGISTRY="advancedtelematic"
 export IMAGE_ARTIFACT=${REGISTRY}/${IMAGE_NAME}:${DOCKER_TAG}

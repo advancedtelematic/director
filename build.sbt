@@ -75,6 +75,7 @@ flywayUser := sys.env.getOrElse("DB_USER", "director")
 
 flywayPassword := sys.env.getOrElse("DB_PASSWORD", "director")
 
+mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 
 import com.typesafe.sbt.packager.docker._
 

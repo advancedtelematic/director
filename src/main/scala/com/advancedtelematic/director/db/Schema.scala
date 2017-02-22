@@ -61,7 +61,7 @@ object Schema {
     override def * = (ns, repo) <>
       ((RepoName.apply _).tupled, RepoName.unapply)
   }
-  protected [db] val repoNameMapping = TableQuery[RepoNameTable]
+  protected [db] val repoNames = TableQuery[RepoNameTable]
 
   type EcuTargetRow = (Int, EcuSerial, String, Int, Checksum)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
@@ -127,4 +127,15 @@ object Schema {
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]
+
+  class RootFilesTable(tag: Tag) extends Table[RootFile](tag, "root_files") {
+    def namespace = column[Namespace]("namespace")
+    def root = column[Json]("root_file")
+
+    def pk = primaryKey("root_files_pk", namespace)
+
+    override def * = (namespace, root) <>
+      ((RootFile.apply _).tupled, RootFile.unapply)
+  }
+  protected [db] val rootFiles = TableQuery[RootFilesTable]
 }

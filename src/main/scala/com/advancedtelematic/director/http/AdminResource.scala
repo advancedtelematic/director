@@ -11,8 +11,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
-  FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
-import com.advancedtelematic.libtuf.data.TufDataType.RepoId
+  FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
@@ -25,7 +24,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClien
     extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
-    with RepoNameRepositorySupport {
+    with RootFilesRepositorySupport {
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {
     val primEcu = regDev.primary_ecu_serial
@@ -58,19 +57,20 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClien
   }
 
   def registerNamespace(namespace: Namespace): Route = {
-    val repo = RepoId.generate
-    val act = for {
-      _ <- tuf.createRoot(repo)
-      _ <- repoNameRepository.storeRepo(namespace, repo)
-    } yield repo
+    complete(RegisterNamespace.action(tuf, namespace))
+  }
 
-    complete(act)
+  def fetchRoot(namespace: Namespace): Route = {
+    complete(rootFilesRepository.find(namespace))
   }
 
   val route = extractNamespace { ns =>
     pathPrefix("admin") {
       pathEnd {
         post { registerNamespace(ns) }
+      } ~
+      (get & path("root.json")) {
+         fetchRoot(ns)
       } ~
       (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)

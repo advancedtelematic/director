@@ -5,7 +5,8 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors, FileCacheRepositorySupport}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors,
+  FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.Verify
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
@@ -23,7 +24,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
                     (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends DeviceRepositorySupport
     with AdminRepositorySupport
-    with FileCacheRepositorySupport {
+    with FileCacheRepositorySupport
+    with RootFilesRepositorySupport {
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
 
@@ -93,6 +95,10 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     complete(action)
   }
 
+  def fetchRoot(ns: Namespace): Route = {
+    complete(rootFilesRepository.find(ns))
+  }
+
   val route = extractNamespace { ns =>
     pathPrefix("device") {
       path("manifest") {
@@ -102,6 +108,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       } ~
       pathPrefix(DeviceId.Path) { device =>
         get {
+          path("root.json") {
+            fetchRoot(ns)
+          } ~
           path("targets.json") {
             fetchTargets(ns, device)
           } ~

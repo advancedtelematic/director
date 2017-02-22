@@ -10,6 +10,9 @@ import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
 
+import org.genivi.sota.messaging.kafka.MessageListener
+import org.genivi.sota.messaging.Messages.UserCreated
+
 object DaemonBoot extends BootApp
     with Settings
     with VersionInfo
@@ -27,6 +30,8 @@ object DaemonBoot extends BootApp
   val tuf = new KeyserverHttpClient(tufUri)
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(tuf), "filecache-daemon")
+
+  val userCreatedListener = system.actorOf(MessageListener.props[UserCreated](config, UserCreatedListener.action(tuf)), "user-created-listener")
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

@@ -45,13 +45,12 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val tuf = new KeyserverHttpClient(tufUri)
 
   Security.addProvider(new BouncyCastleProvider())
 
   val routes: Route =
     (versionHeaders(version) & logResponseMetrics(projectName)) {
-      new DirectorRoutes(SignatureVerification.verify, tuf).routes
+      new DirectorRoutes(SignatureVerification.verify).routes
     }
 
   Http().bindAndHandle(routes, host, port)

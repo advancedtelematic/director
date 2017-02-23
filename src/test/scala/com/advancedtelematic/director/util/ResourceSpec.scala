@@ -91,7 +91,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   def apiUri(path: String): String = "/api/v1/" + path
 
-  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeRoleStore).routes
+  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

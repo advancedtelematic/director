@@ -12,14 +12,13 @@ import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest,
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
   FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClient)
+class AdminResource(extractNamespace: Directive1[Namespace])
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
@@ -56,19 +55,12 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClien
     complete(act)
   }
 
-  def registerNamespace(namespace: Namespace): Route = {
-    complete(RegisterNamespace.action(tuf, namespace))
-  }
-
   def fetchRoot(namespace: Namespace): Route = {
     complete(rootFilesRepository.find(namespace))
   }
 
   val route = extractNamespace { ns =>
     pathPrefix("admin") {
-      pathEnd {
-        post { registerNamespace(ns) }
-      } ~
       (get & path("root.json")) {
          fetchRoot(ns)
       } ~

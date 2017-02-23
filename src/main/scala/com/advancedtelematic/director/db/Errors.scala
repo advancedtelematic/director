@@ -2,16 +2,17 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
-import org.genivi.sota.data.Namespace
 
-import org.genivi.sota.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
-import org.genivi.sota.rest.ErrorCode
+import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
+import com.advancedtelematic.libats.http.ErrorCode
 
 object ErrorCodes {
   val ConflictingSnapshot = ErrorCode("snapshot_already_exists")
   val ConflictingTarget = ErrorCode("target_already_exists")
+  val ConflictingTimestamp = ErrorCode("timestamp_already_exists")
   val MissingSnapshot = ErrorCode("snapshot_not_found")
   val MissingTarget = ErrorCode("target_not_found")
+  val MissingTimestamp = ErrorCode("timestamp_not_found")
 }
 
 object Errors {
@@ -25,7 +26,10 @@ object Errors {
   val MissingTarget = RawError(ErrorCodes.MissingTarget, StatusCodes.NotFound, "There is no target for device")
 
   val ConflictingSnapshot = RawError(ErrorCodes.ConflictingSnapshot, StatusCodes.Conflict, "The snapshot already exists")
-  val MissingSnapshot = RawError(ErrorCodes.MissingTarget, StatusCodes.NotFound, "There is no snapshot for device")
+  val MissingSnapshot = RawError(ErrorCodes.MissingSnapshot, StatusCodes.NotFound, "There is no snapshot for device")
+
+  val ConflictingTimestamp = RawError(ErrorCodes.ConflictingTimestamp, StatusCodes.Conflict, "The timestamp already exists")
+  val MissingTimestamp = RawError(ErrorCodes.MissingTimestamp, StatusCodes.NotFound, "There is no timestamp for device")
 
   val NoTargetsScheduled = MissingEntity(classOf[DeviceTargets])
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])

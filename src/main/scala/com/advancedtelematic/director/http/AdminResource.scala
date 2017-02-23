@@ -8,20 +8,19 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.FileCacheRequest
+import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
   FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
-import org.genivi.sota.data.{Namespace, Uuid}
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
-import org.genivi.sota.http.UuidDirectives.extractUuid
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libats.codecs.AkkaCirce._
+import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreClient)
+class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClient)
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
@@ -32,18 +31,17 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
     val primEcu = regDev.primary_ecu_serial
 
     regDev.ecus.find(_.ecu_serial == primEcu) match {
-      case None => complete( StatusCodes.BadRequest ->
-                              s"The primary ecu: ${primEcu.get} isn't part of the list of ECUs")
+      case None => complete( Errors.PrimaryIsNotListedForDevice )
       case Some(_) => complete( StatusCodes.Created ->
                                  adminRepository.createDevice(namespace, regDev.vin, primEcu, regDev.ecus))
     }
   }
 
-  def listInstalledImages(namespace: Namespace, device: Uuid): Route = {
+  def listInstalledImages(namespace: Namespace, device: DeviceId): Route = {
     complete(adminRepository.findImages(namespace, device))
   }
 
-  def setTargets(namespace: Namespace, device: Uuid, targets: SetTarget): Route = {
+  def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
     val act = async {
       val ecus = await(deviceRepository.findEcus(namespace, device)).map(_.ecuSerial).toSet
 
@@ -74,14 +72,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: RoleKeyStoreCl
       pathEnd {
         post { registerNamespace(ns) }
       } ~
-      (post & path("add_device") & entity(as[RegisterDevice]))  { regDev =>
+      (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)
       } ~
-      extractUuid { dev =>
-        (get & path("installed_images")) {
+      pathPrefix(DeviceId.Path) { dev =>
+        (get & path("images")) {
           listInstalledImages(ns, dev)
         } ~
-        (put & path("set_targets") & entity(as[SetTarget])) { targets =>
+        (put & path("targets") & entity(as[SetTarget])) { targets =>
           setTargets(ns, dev, targets)
         }
       }

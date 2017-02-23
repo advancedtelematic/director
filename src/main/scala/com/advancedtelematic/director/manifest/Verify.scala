@@ -1,13 +1,13 @@
 package com.advancedtelematic.director.manifest
 
-import com.advancedtelematic.director.data.DataType.{Crypto, Ecu}
+import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.Utility._
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
 import io.circe.Encoder
 import io.circe.syntax._
-import org.genivi.sota.marshalling.CirceMarshallingSupport._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
@@ -23,7 +23,7 @@ object Verify {
   import Verifier.Verifier
 
   def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
-    val data = what.signed.asJson.getCanonicalBytes
+    val data = what.signed.asJson.canonical.getBytes
 
     @tailrec
     def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {
@@ -49,18 +49,18 @@ object Verify {
     }
 
   def deviceManifest(ecusForDevice: Seq[Ecu],
-                     verifier: Crypto => Verifier,
+                     verifier: ClientKey => Verifier,
                      signedDevMan: SignedPayload[DeviceManifest]): Try[Seq[EcuManifest]] = {
     val ecuMap = ecusForDevice.groupBy(_.ecuSerial).mapValues(_.head)
     for {
       primaryEcu <- ecuMap.get(signedDevMan.signed.primary_ecu_serial)
                           .fold[Try[Ecu]](Failure(Errors.EcuNotFound))(Success(_))
       _ <- tryCondition(primaryEcu.primary, Errors.EcuNotPrimary)
-      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.crypto))
-      verifiedEcu = devMan.ecu_version_manifest.map{ case sEcu =>
+      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.clientKey))
+      verifiedEcu = devMan.ecu_version_manifest.map { sEcu =>
         ecuMap.get(sEcu.signed.ecu_serial) match {
           case None => Failure(Errors.EcuNotFound)
-          case Some(ecu) => checkSigned(sEcu, verifier(ecu.crypto))
+          case Some(ecu) => checkSigned(sEcu, verifier(ecu.clientKey))
         }
       }
     } yield verifiedEcu.collect { case Success(x) => x}

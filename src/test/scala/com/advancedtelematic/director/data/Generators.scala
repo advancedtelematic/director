@@ -5,11 +5,11 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.libtuf.crypt.RsaKeyPair
 import com.advancedtelematic.libtuf.data.TufDataType._
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
 import io.circe.Encoder
 import java.time.Instant
-import org.genivi.sota.data.Uuid
 import org.scalacheck.Gen
 
 
@@ -28,14 +28,14 @@ trait Generators {
   lazy val GenSignatureMethod: Gen[SignatureMethod]
     = Gen.const(SignatureMethod.RSASSA_PSS)
 
-  lazy val GenCrypto: Gen[Crypto] = for {
+  lazy val GenClientKey: Gen[ClientKey] = for {
     keyType <- GenKeyType
-    pubKey <- Gen.identifier
-  } yield Crypto(keyType, pubKey)
+    pubKey = RsaKeyPair.generate(size = 128).getPublic
+  } yield ClientKey(keyType, pubKey)
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
-    crypto <- GenCrypto
+    crypto <- GenClientKey
   } yield RegisterEcu(ecu, crypto)
 
   lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
@@ -75,5 +75,5 @@ trait Generators {
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks)
 
   def GenSignedEcuManifest(ecuSerial: EcuSerial): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial))
-  def GenSignedDeviceManifest(device: Uuid, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
+  def GenSignedDeviceManifest(device: DeviceId, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
 }

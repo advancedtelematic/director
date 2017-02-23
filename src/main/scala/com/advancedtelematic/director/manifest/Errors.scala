@@ -2,8 +2,8 @@ package com.advancedtelematic.director.manifest
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType.Ecu
-import org.genivi.sota.http.Errors.{MissingEntity, RawError}
-import org.genivi.sota.rest.ErrorCode
+import com.advancedtelematic.libats.http.Errors.{MissingEntity, RawError}
+import com.advancedtelematic.libats.http.ErrorCode
 
 object ErrorCodes {
   val EcuNotPrimary = ErrorCode("ecu_not_primary")

@@ -1,23 +1,24 @@
 package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
-import org.genivi.sota.core.DatabaseSpec
+import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
 
-object FakeRoleStore extends RoleKeyStoreClient {
+object FakeRoleStore extends KeyserverClient {
   import akka.http.scaladsl.util.FastFuture
   import cats.syntax.show._
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair._
-  import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, RoleKeys, RootRole}
+  import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType._
   import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-  import io.circe.{Encoder, Json}
+  import io.circe.{Decoder, Encoder, Json}
   import io.circe.syntax._
   import java.security.{KeyPair, PublicKey}
   import java.time.Instant
@@ -59,9 +60,9 @@ object FakeRoleStore extends RoleKeyStoreClient {
     }
   }
 
-  override def sign[T: Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[Json]] = {
+  override def sign[T : Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = {
     val signature = signWithRoot(repoId, payload)
-    FastFuture.successful(SignedPayload(List(signature), payload.asJson))
+    FastFuture.successful(SignedPayload(List(signature), payload))
   }
 
   override def fetchRootRole(repoId: RepoId): Future[SignedPayload[Json]] = {
@@ -80,7 +81,7 @@ object FakeRoleStore extends RoleKeyStoreClient {
   private def signWithRoot[T : Encoder](repoId: RepoId, payload: T): ClientSignature = {
     val key = keyPair(repoId)
     RsaKeyPair
-      .sign(key.getPrivate, payload.asJson.noSpaces.getBytes) // WRONG!!! should use CanonicalJson
+      .sign(key.getPrivate, payload.asJson.canonical.getBytes)
       .toClient(key.id)
   }
 }
@@ -90,7 +91,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   def apiUri(path: String): String = "/api/v1/" + path
 
-  def routesWithVerifier(verifier: Crypto => Verifier.Verifier) = new DirectorRoutes(verifier, FakeRoleStore).routes
+  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeRoleStore).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

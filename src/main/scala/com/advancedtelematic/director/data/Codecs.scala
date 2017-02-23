@@ -1,22 +1,18 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 
-import org.genivi.sota.marshalling.CirceInstances.{refinedMapEncoder => _, refinedMapDecoder => _, _}
-import org.genivi.sota.marshalling.CirceInstances.{refinedDecoder, refinedEncoder}
-import org.genivi.sota.marshalling.CirceInstances.{dateTimeDecoder, dateTimeEncoder}
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
   import AdminRequest._
   import DataType._
   import DeviceRequest._
-  import RefinedUtils._
   import io.circe.generic.semiauto._
-
-  implicit val decoderCrypto: Decoder[Crypto] = deriveDecoder
-  implicit val encoderCrypto: Encoder[Crypto] = deriveEncoder
 
   implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>
     value.refineTry[ValidEcuSerial].toOption

@@ -5,15 +5,15 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreHttpClient
+import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.typesafe.config.{Config, ConfigFactory}
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.genivi.sota.db.{BootMigrations, DatabaseConfig}
-import org.genivi.sota.http.BootApp
-import org.genivi.sota.http.LogDirectives.logResponseMetrics
-import org.genivi.sota.http.VersionDirectives.versionHeaders
-import org.genivi.sota.monitoring.{DatabaseMetrics, MetricsSupport}
+import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.http.BootApp
+import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
+import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
+import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
 
 trait Settings {
   private def mkUri(config: Config, key: String): Uri = {
@@ -45,7 +45,7 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val tuf = new RoleKeyStoreHttpClient(tufUri)
+  val tuf = new KeyserverHttpClient(tufUri)
 
   Security.addProvider(new BouncyCastleProvider())
 

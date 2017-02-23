@@ -3,25 +3,25 @@ package com.advancedtelematic.director.http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.{Directives, _}
 import akka.stream.Materializer
-import com.advancedtelematic.director.data.DataType.Crypto
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.manifest.Verifier.Verifier
-import com.advancedtelematic.libtuf.repo_store.RoleKeyStoreClient
-import org.genivi.sota.http.{ErrorHandler, NamespaceDirectives, HealthResource}
-import org.genivi.sota.rest.SotaRejectionHandler._
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libats.http.{ErrorHandler, HealthResource}
+import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 
 import scala.concurrent.ExecutionContext
 import slick.driver.MySQLDriver.api._
 
 
-class DirectorRoutes(verifier: Crypto => Verifier, tuf: RoleKeyStoreClient)
+class DirectorRoutes(verifier: ClientKey => Verifier, tuf: KeyserverClient)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,
                      mat: Materializer) extends VersionInfo {
   import Directives._
 
-  val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor.map(_.namespace)
+  val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor
 
   val routes: Route =
     handleRejections(rejectionHandler) {

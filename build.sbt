@@ -31,7 +31,7 @@ libraryDependencies ++= {
 
     "org.genivi" %% "sota-common-messaging" % sotaV,
 
-    "com.advancedtelematic" %% "libats" % "0.0.1-6-g4c3698c",
+    "com.advancedtelematic" %% "libats" % "0.0.1-9-g9fff10a",
     "com.advancedtelematic" %% "libtuf" % tufV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,

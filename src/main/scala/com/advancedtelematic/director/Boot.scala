@@ -5,7 +5,6 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
-import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.typesafe.config.{Config, ConfigFactory}
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider

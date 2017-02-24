@@ -53,6 +53,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
+  // TODO: Should be protected [db]
   def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
     Schema.ecu
       .filter(_.namespace === namespace)
@@ -111,7 +112,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     Schema.currentImage.insertOrUpdate(CurrentImage(ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
   }
 
-  def persistAllAction (ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
+  // TODO: Should be protected [db]
+  def persistAllAction(ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
     DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally
 
   def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] =
@@ -127,6 +129,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .result
       .failIfNotSingle(MissingCurrentTarget)
 
+  // TODO: Should be protected [db]
   def getNextVersionAction(device: DeviceId): DBIO[Int] = {
     val devVer = getCurrentVersionAction(device)
 
@@ -143,6 +146,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   def getNextVersion(device: DeviceId): Future[Int] = db.run(getNextVersionAction(device))
 
+  // TODO: Should be protected [db]
   def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())
@@ -156,7 +160,7 @@ trait FileCacheRepositorySupport {
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.libats.db.SlickExtensions._
-  import SlickCirceMapper._
+  import com.advancedtelematic.libtuf.data.SlickCirceMapper.jsonMapper
   import DataType.FileCache
 
   private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int): Future[Json] = db.run {
@@ -175,17 +179,21 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
 
   def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
 
+  // TODO: Should be protected [db]
   def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     (Schema.fileCache += FileCache(role, version, device, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
 
+  // TODO: Should be protected [db]
   def storeTargetsAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, file)
 
+  // TODO: Should be protected [db]
   def storeSnapshotAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
 
+  // TODO: Should be protected [db]
   def storeTimestampAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.TIMESTAMP, ConflictingTimestamp)(device, version, file)
 }
@@ -246,11 +254,12 @@ trait RootFilesRepositorySupport {
   def rootFilesRepository(implicit db: Database, ec: ExecutionContext) = new RootFilesRepository()
 }
 
-protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContext) {
+protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContext) extends RepoNameRepositorySupport {
   import DataType.RootFile
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.db.SlickExtensions._
   import com.advancedtelematic.libtuf.data.SlickCirceMapper._
+  import com.advancedtelematic.libats.db.SlickPipeToUnit.pipeToUnit
 
   def find(ns: Namespace): Future[Json] = db.run {
     Schema.rootFiles
@@ -260,10 +269,18 @@ protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContex
       .failIfNotSingle(MissingRootFile)
   }
 
-  def persistAction(ns: Namespace, rootFile: Json): DBIO[RootFile] = {
+  protected [db] def persistAction(ns: Namespace, rootFile: Json): DBIO[RootFile] = {
     val root = RootFile(ns, rootFile)
     (Schema.rootFiles += root)
       .handleIntegrityErrors(ConflictingRootFile)
       .map(_ => root)
+  }
+
+  def persistNamespaceRootFile(namespace: Namespace,
+                               rootFile: Json,
+                               repoId: RepoId): Future[Unit] = db.run {
+    persistAction(namespace, rootFile)
+      .andThen(repoNameRepository.persistAction(namespace, repoId))
+      .transactionally
   }
 }

@@ -11,21 +11,19 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
-  FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
-import com.advancedtelematic.libtuf.data.TufDataType.RepoId
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+  FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClient)
+class AdminResource(extractNamespace: Directive1[Namespace])
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
-    with RepoNameRepositorySupport {
+    with RootFilesRepositorySupport {
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {
     val primEcu = regDev.primary_ecu_serial
@@ -57,20 +55,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], tuf: KeyserverClien
     complete(act)
   }
 
-  def registerNamespace(namespace: Namespace): Route = {
-    val repo = RepoId.generate
-    val act = for {
-      _ <- tuf.createRoot(repo)
-      _ <- repoNameRepository.storeRepo(namespace, repo)
-    } yield repo
-
-    complete(act)
+  def fetchRoot(namespace: Namespace): Route = {
+    complete(rootFilesRepository.find(namespace))
   }
 
   val route = extractNamespace { ns =>
     pathPrefix("admin") {
-      pathEnd {
-        post { registerNamespace(ns) }
+      (get & path("root.json")) {
+         fetchRoot(ns)
       } ~
       (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)

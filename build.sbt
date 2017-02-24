@@ -13,7 +13,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.0.3"
   val scalaTestV = "3.0.0"
   val slickV = "3.1.1"
-  val sotaV = "0.2.53"
+  val sotaV = "0.2.75"
   val bouncyCastleV = "1.56"
   val tufV = "0.0.1-42-g2f4cd4f"
 
@@ -29,7 +29,9 @@ libraryDependencies ++= {
 
     "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
 
-    "com.advancedtelematic" %% "libats" % "0.0.1-6-g4c3698c",
+    "org.genivi" %% "sota-common-messaging" % sotaV,
+
+    "com.advancedtelematic" %% "libats" % "0.0.1-9-g9fff10a",
     "com.advancedtelematic" %% "libtuf" % tufV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,

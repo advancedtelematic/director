@@ -44,4 +44,6 @@ object DataType {
   final case class FileCacheRequest(namespace: Namespace, version: Int, device: DeviceId, status: FileCacheRequestStatus.Status)
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)
+
+  final case class RootFile(namespace: Namespace, rootFile: Json)
 }

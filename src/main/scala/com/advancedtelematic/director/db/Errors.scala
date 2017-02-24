@@ -10,9 +10,11 @@ object ErrorCodes {
   val ConflictingSnapshot = ErrorCode("snapshot_already_exists")
   val ConflictingTarget = ErrorCode("target_already_exists")
   val ConflictingTimestamp = ErrorCode("timestamp_already_exists")
+  val ConflictingRootFile = ErrorCode("root_already_exists")
   val MissingSnapshot = ErrorCode("snapshot_not_found")
   val MissingTarget = ErrorCode("target_not_found")
   val MissingTimestamp = ErrorCode("timestamp_not_found")
+  val MissingRootFile = ErrorCode("root_not_found")
 }
 
 object Errors {
@@ -30,6 +32,9 @@ object Errors {
 
   val ConflictingTimestamp = RawError(ErrorCodes.ConflictingTimestamp, StatusCodes.Conflict, "The timestamp already exists")
   val MissingTimestamp = RawError(ErrorCodes.MissingTimestamp, StatusCodes.NotFound, "There is no timestamp for device")
+
+  val ConflictingRootFile = RawError(ErrorCodes.ConflictingRootFile, StatusCodes.Conflict, "The root already exists")
+  val MissingRootFile = RawError(ErrorCodes.MissingRootFile, StatusCodes.NotFound, "There is no root")
 
   val NoTargetsScheduled = MissingEntity(classOf[DeviceTargets])
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])

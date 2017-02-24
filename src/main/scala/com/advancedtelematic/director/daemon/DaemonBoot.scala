@@ -2,13 +2,14 @@ package com.advancedtelematic.director.daemon
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
-
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
-
 import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
+import org.genivi.sota.messaging.kafka.MessageListener
+import org.genivi.sota.messaging.Messages.UserCreated
 
 object DaemonBoot extends BootApp
     with Settings
@@ -27,6 +28,12 @@ object DaemonBoot extends BootApp
   val tuf = new KeyserverHttpClient(tufUri)
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(tuf), "filecache-daemon")
+
+  val createRepoListener = system.actorOf(CreateRepoActor.props(tuf), "create-repo-listener")
+
+  val msgParser = (uc: UserCreated) => FastFuture.successful(createRepoListener ! uc)
+
+  val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, msgParser), "user-created-msg-listener")
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

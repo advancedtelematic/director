@@ -9,7 +9,7 @@ import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
 import org.genivi.sota.messaging.kafka.MessageListener
-import org.genivi.sota.messaging.Messages.UserCreated
+import org.genivi.sota.messaging.Messages.{CampaignLaunched, UserCreated}
 
 object DaemonBoot extends BootApp
     with Settings
@@ -31,9 +31,14 @@ object DaemonBoot extends BootApp
 
   val createRepoListener = system.actorOf(CreateRepoActor.props(tuf), "create-repo-listener")
 
-  val msgParser = (uc: UserCreated) => FastFuture.successful(createRepoListener ! uc)
+  val ucMsgParser = (uc: UserCreated) => FastFuture.successful(createRepoListener ! uc)
 
-  val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, msgParser), "user-created-msg-listener")
+  val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, ucMsgParser),
+                                              "user-created-msg-listener")
+
+  val campaignCreatedListener =
+    system.actorOf(MessageListener.props[CampaignLaunched](config, TreehubCampaignWorker.action),
+                                                           "campaign-created-msg-listener")
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

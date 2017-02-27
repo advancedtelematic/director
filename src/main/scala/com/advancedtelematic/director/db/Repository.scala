@@ -90,6 +90,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
 
     db.run(dbAct.transactionally)
   }
+
+  def getPrimaryEcuForDevice(device: DeviceId): DBIO[EcuSerial] =
+    Schema.ecu
+      .filter(_.device === device)
+      .filter(_.primary)
+      .map(_.ecuSerial)
+      .result
+      .head
 }
 
 trait DeviceRepositorySupport {

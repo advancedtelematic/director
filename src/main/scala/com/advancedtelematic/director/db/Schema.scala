@@ -9,6 +9,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, Repo
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import io.circe.Json
+import org.genivi.sota.data.Uuid
 import slick.driver.MySQLDriver.api._
 
 object Schema {
@@ -120,10 +121,11 @@ object Schema {
     def version = column[Int]("version")
     def device = column[DeviceId]("device")
     def status = column[FileCacheRequestStatus.Status]("status")
+    def updateRequestId = column[Option[Uuid]]("update_request_id")
 
     def primKey = primaryKey("file_cache_request_pk", (version, device))
 
-    override def * = (namespace, version, device, status) <>
+    override def * = (namespace, version, device, status, updateRequestId) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]

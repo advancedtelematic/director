@@ -31,9 +31,9 @@ object DaemonBoot extends BootApp
 
   val createRepoListener = system.actorOf(CreateRepoActor.props(tuf), "create-repo-listener")
 
-  val ucMsgParser = (uc: UserCreated) => FastFuture.successful(createRepoListener ! uc)
+  val msgParser = (uc: UserCreated) => FastFuture.successful(createRepoListener ! uc)
 
-  val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, ucMsgParser),
+  val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, msgParser),
                                               "user-created-msg-listener")
 
   val campaignCreatedListener =

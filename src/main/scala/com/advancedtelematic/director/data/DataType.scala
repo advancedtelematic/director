@@ -1,12 +1,14 @@
 package com.advancedtelematic.director.data
 
 import com.advancedtelematic.libats.codecs.{CirceEnum, SlickEnum}
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes, ClientKey}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import com.advancedtelematic.libtuf.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
 import java.util.UUID
+
+import org.genivi.sota.data.Uuid
 
 object FileCacheRequestStatus extends CirceEnum with SlickEnum {
   type Status = Value
@@ -41,7 +43,8 @@ object DataType {
 
   final case class FileCache(role: RoleType, version: Int, device: DeviceId, file: Json)
 
-  final case class FileCacheRequest(namespace: Namespace, version: Int, device: DeviceId, status: FileCacheRequestStatus.Status)
+  final case class FileCacheRequest(namespace: Namespace, version: Int, device: DeviceId,
+                                    status: FileCacheRequestStatus.Status, updateRequestId: Option[Uuid] = None)
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)
 

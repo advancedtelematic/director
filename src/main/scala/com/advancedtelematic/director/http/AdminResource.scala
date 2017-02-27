@@ -9,8 +9,7 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.daemon.TreehubCampaignWorker
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
-import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
@@ -46,9 +45,9 @@ class AdminResource(extractNamespace: Directive1[Namespace])
 
       if (!targets.updates.keys.toSet.subsetOf(ecus)) {
         await(FastFuture.failed(Errors.TargetsNotSubSetOfDevice))
+      } else {
+        await(TreehubCampaignWorker.setTargets(namespace, device, targets))
       }
-
-      TreehubCampaignWorker.setTargets(namespace, device, targets)
     }
     complete(act)
   }

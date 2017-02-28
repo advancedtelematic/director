@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.daemon
 
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.Uri.Path.Empty
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.{Settings, VersionInfo}
@@ -25,7 +26,7 @@ object DaemonBoot extends BootApp
 
   log.info("Starting director daemon")
 
-  val tuf = new KeyserverHttpClient(tufUri)
+  val tuf = new KeyserverHttpClient(tufUri.withPath(Empty / "api" / "v1"))
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(tuf), "filecache-daemon")
 

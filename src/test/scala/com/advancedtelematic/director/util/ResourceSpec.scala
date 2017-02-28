@@ -1,6 +1,8 @@
 package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.util.FastFuture
+import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
@@ -8,9 +10,9 @@ import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
+import scala.concurrent.Future
 
 object FakeRoleStore extends KeyserverClient {
-  import akka.http.scaladsl.util.FastFuture
   import cats.syntax.show._
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair
   import com.advancedtelematic.libtuf.crypt.RsaKeyPair._
@@ -24,7 +26,6 @@ object FakeRoleStore extends KeyserverClient {
   import java.time.Instant
   import java.util.concurrent.ConcurrentHashMap
   import scala.collection.JavaConverters._
-  import scala.concurrent.Future
   import scala.util.Try
 
   def publicKey(repoId: RepoId): PublicKey =
@@ -86,12 +87,20 @@ object FakeRoleStore extends KeyserverClient {
   }
 }
 
+object FakeCoreClient extends CoreClient {
+  import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+
+  override def updateReportOk(namespace: Namespace, device: DeviceId, update: UpdateId): Future[Unit] = FastFuture.successful(Unit)
+  override def updateReportFail(namespace: Namespace, device: DeviceId, update: UpdateId, reason: String): Future[Unit] = FastFuture.successful(Unit)
+
+}
+
 trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
   self: Suite =>
 
   def apiUri(path: String): String = "/api/v1/" + path
 
-  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier).routes
+  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

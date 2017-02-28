@@ -2,6 +2,7 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.Directive1
 import akka.stream.Materializer
+import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
@@ -19,7 +20,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
-                     verifier: ClientKey => Verifier)
+                     verifier: ClientKey => Verifier,
+                     coreClient: CoreClient)
                     (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
@@ -35,7 +37,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       val ecus = await(deviceRepository.findEcus(namespace, device))
       val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
-      await(DeviceUpdate.setEcus(namespace, device, ecuImages))
+      await(DeviceUpdate.setEcus(coreClient)(namespace, device, ecuImages))
     }
     complete(action)
   }

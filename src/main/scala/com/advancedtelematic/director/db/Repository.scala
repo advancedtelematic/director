@@ -54,6 +54,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .failIfNone(NoTargetsScheduled)
 
+  protected [db] def fetchUpdateIdAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Option[UpdateId]] =
+    Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .map(_.update)
+      .result
+      .failIfNotSingle(NoTargetsScheduled)
+
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     Schema.ecu
       .filter(_.namespace === namespace)

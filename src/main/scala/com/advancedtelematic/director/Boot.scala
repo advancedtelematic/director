@@ -2,6 +2,7 @@ package com.advancedtelematic.director
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.Uri.Path.Empty
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
@@ -13,6 +14,7 @@ import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
+import com.advancedtelematic.director.client.CoreHttpClient
 
 trait Settings {
   private def mkUri(config: Config, key: String): Uri = {
@@ -29,6 +31,7 @@ trait Settings {
   val port = config.getInt("server.port")
 
   val tufUri = mkUri(config, "tuf.uri")
+  val coreUri = mkUri(config, "core.uri")
 }
 
 object Boot extends BootApp
@@ -44,12 +47,13 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
+  val coreClient = new CoreHttpClient(coreUri.withPath(Empty / "api" / "v1"))
 
   Security.addProvider(new BouncyCastleProvider())
 
   val routes: Route =
     (versionHeaders(version) & logResponseMetrics(projectName)) {
-      new DirectorRoutes(SignatureVerification.verify).routes
+      new DirectorRoutes(SignatureVerification.verify, coreClient).routes
     }
 
   Http().bindAndHandle(routes, host, port)

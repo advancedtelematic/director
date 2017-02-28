@@ -13,7 +13,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.0.3"
   val scalaTestV = "3.0.0"
   val slickV = "3.1.1"
-  val sotaV = "0.2.83-1-gddb50f76-SNAPSHOT"
+  val sotaV = "0.2.87"
   val bouncyCastleV = "1.56"
   val tufV = "0.0.1-42-g2f4cd4f"
 

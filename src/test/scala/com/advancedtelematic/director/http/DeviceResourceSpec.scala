@@ -156,7 +156,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     registerDeviceOk(regDev)
 
-    val targets = SetTarget(Map(primEcu -> GenImage.generate))
+    val targets = SetTarget(Map(primEcu -> GenCustomImage.generate))
 
     setTargetsOk(device, targets)
   }
@@ -171,7 +171,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     registerDeviceOk(regDev)
 
-    val targetImage = GenImage.generate
+    val targetImage = GenCustomImage.generate
     val targets = SetTarget(Map(primEcu -> targetImage))
 
     setTargetsOk(device, targets)
@@ -182,7 +182,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     updateManifestOk(deviceManifest)
 
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { sig =>
-      sig.copy(signed = sig.signed.copy(installed_image = targetImage))
+      sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
     }
     val deviceManifestTarget = GenSignedDeviceManifest(device, primEcu, ecuManifestsTarget).generate
 

@@ -2,6 +2,7 @@ package com.advancedtelematic.director.db
 
 import java.security.PublicKey
 
+import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
@@ -9,13 +10,13 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, Repo
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import io.circe.Json
-import org.genivi.sota.data.Uuid
 import slick.driver.MySQLDriver.api._
 
 object Schema {
   import com.advancedtelematic.libats.codecs.SlickRefined._
   import com.advancedtelematic.libtuf.data.SlickCirceMapper.{checksumMapper, jsonMapper}
   import com.advancedtelematic.libtuf.data.SlickPublicKeyMapper._
+  import com.advancedtelematic.libtuf.data.SlickUriMapper._
   import com.advancedtelematic.libats.db.SlickAnyVal._
 
   type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, PublicKey)
@@ -64,35 +65,39 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Int, EcuSerial, String, Int, Checksum)
+  type EcuTargetRow = (Int, EcuSerial, String, Int, Checksum, Uri)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def version = column[Int]("version")
     def id = column[EcuSerial]("ecu_serial")
     def filepath = column[String]("filepath")
     def length = column[Int]("length")
     def checksum = column[Checksum]("checksum")
+    def uri = column[Uri]("uri")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (version, id))
 
-    override def * = (version, id, filepath, length, checksum) <> (
+    override def * = (version, id, filepath, length, checksum, uri) <> (
       (_: EcuTargetRow) match {
-        case (version, id, filepath, length, checksum) =>
-          EcuTarget(version, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)))
+        case (version, id, filepath, length, checksum, uri) =>
+          EcuTarget(version, id, CustomImage(filepath, FileInfo(Map(checksum.method -> checksum.hash), length), uri))
       },
-      (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)))))
+      (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.image.uri)))
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
-  class DeviceTargetsTable(tag: Tag) extends Table[DeviceTargets](tag, "device_targets") {
-    def device = column[DeviceId]("device", O.PrimaryKey)
-    def latestScheduledTarget = column[Int]("latest_scheduled_target")
+  class DeviceUpdateTargetsTable(tag: Tag) extends Table[DeviceUpdateTarget](tag, "device_update_targets") {
+    def device = column[DeviceId]("device")
+    def update = column[Option[UpdateId]]("update")
+    def version = column[Int]("version")
 
-    override def * = (device, latestScheduledTarget) <>
-      ((DeviceTargets.apply _).tupled, DeviceTargets.unapply)
+    def primKey = primaryKey("device_targets_pk", (device, update, version))
+
+    override def * = (device, update, version) <>
+      ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
   }
-  protected [db] val deviceTargets = TableQuery[DeviceTargetsTable]
+  protected [db] val deviceTargets = TableQuery[DeviceUpdateTargetsTable]
 
   class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "device_current_target") {
     def device = column[DeviceId]("device", O.PrimaryKey)
@@ -121,11 +126,10 @@ object Schema {
     def version = column[Int]("version")
     def device = column[DeviceId]("device")
     def status = column[FileCacheRequestStatus.Status]("status")
-    def updateRequestId = column[Option[Uuid]]("update_request_id")
 
     def primKey = primaryKey("file_cache_request_pk", (version, device))
 
-    override def * = (namespace, version, device, status, updateRequestId) <>
+    override def * = (namespace, version, device, status) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]

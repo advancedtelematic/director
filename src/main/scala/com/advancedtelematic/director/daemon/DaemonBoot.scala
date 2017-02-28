@@ -37,7 +37,7 @@ object DaemonBoot extends BootApp
                                               "user-created-msg-listener")
 
   val campaignCreatedListener =
-    system.actorOf(MessageListener.props[CampaignLaunched](config, TreehubCampaignWorker.action),
+    system.actorOf(MessageListener.props[CampaignLaunched](config, CampaignWorker.action),
                                                            "campaign-created-msg-listener")
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {

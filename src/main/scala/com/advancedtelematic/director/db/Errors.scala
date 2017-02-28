@@ -36,6 +36,6 @@ object Errors {
   val ConflictingRootFile = RawError(ErrorCodes.ConflictingRootFile, StatusCodes.Conflict, "The root already exists")
   val MissingRootFile = RawError(ErrorCodes.MissingRootFile, StatusCodes.NotFound, "There is no root")
 
-  val NoTargetsScheduled = MissingEntity(classOf[DeviceTargets])
+  val NoTargetsScheduled = MissingEntity(classOf[DeviceUpdateTarget])
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])
 }

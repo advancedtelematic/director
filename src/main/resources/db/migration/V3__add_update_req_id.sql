@@ -5,6 +5,6 @@ ALTER TABLE `device_targets`
 RENAME TO `device_update_targets`;
 
 ALTER TABLE `device_update_targets`
-ADD COLUMN `update` CHAR(36) NULL,
+ADD COLUMN `update_uuid` CHAR(36) NULL,
 CHANGE `latest_scheduled_target` `version` int NOT NULL;
 

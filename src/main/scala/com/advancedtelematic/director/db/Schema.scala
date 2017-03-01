@@ -89,7 +89,7 @@ object Schema {
 
   class DeviceUpdateTargetsTable(tag: Tag) extends Table[DeviceUpdateTarget](tag, "device_update_targets") {
     def device = column[DeviceId]("device")
-    def update = column[Option[UpdateId]]("update")
+    def update = column[Option[UpdateId]]("update_uuid")
     def version = column[Int]("version")
 
     def primKey = primaryKey("device_targets_pk", (device, update, version))

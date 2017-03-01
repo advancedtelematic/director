@@ -6,14 +6,14 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
+import com.advancedtelematic.director.daemon.CampaignWorker
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace}
-import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
-  FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
+
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
@@ -45,12 +45,9 @@ class AdminResource(extractNamespace: Directive1[Namespace])
 
       if (!targets.updates.keys.toSet.subsetOf(ecus)) {
         await(FastFuture.failed(Errors.TargetsNotSubSetOfDevice))
+      } else {
+        await(CampaignWorker.setTargets(namespace, device, targets))
       }
-
-      val new_version = await(adminRepository.updateTarget(namespace, device, targets.updates))
-
-      await(fileCacheRequestRepository.persist(FileCacheRequest(namespace, new_version, device, FileCacheRequestStatus.PENDING)))
-
     }
     complete(act)
   }

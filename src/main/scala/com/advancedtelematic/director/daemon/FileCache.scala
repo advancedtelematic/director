@@ -142,11 +142,7 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
     val snapshotRole = await(generateSnapshotFile(repo, targetsRole, fcr.version))
     val timestampRole = await(generateTimestampFile(repo, snapshotRole, fcr.version))
 
-    val dbAct = fileCacheRepository.storeTargetsAction(fcr.device, fcr.version, targetsRole.asJson)
-      .andThen(fileCacheRepository.storeSnapshotAction(fcr.device, fcr.version, snapshotRole.asJson))
-      .andThen(fileCacheRepository.storeTimestampAction(fcr.device, fcr.version, timestampRole.asJson))
-
-    await(db.run(dbAct.transactionally))
+    await(fileCacheRepository.storeJson(fcr.device, fcr.version, targetsRole, snapshotRole, timestampRole))
   }
 
   override def receive: Receive = {

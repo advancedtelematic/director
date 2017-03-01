@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.data
 
+import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
@@ -66,6 +67,10 @@ trait Generators {
     fp <- Gen.alphaStr
     fi <- GenFileInfo
   } yield Image(fp, fi)
+
+  lazy val GenCustomImage: Gen[CustomImage] = for {
+    im <- GenImage
+  } yield CustomImage(im.filepath, im.fileinfo, Uri("http://www.example.com"))
 
   def GenEcuManifest(ecuSerial: EcuSerial): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)

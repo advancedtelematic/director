@@ -9,5 +9,5 @@ object AdminRequest {
 
   final case class RegisterDevice(vin: DeviceId, primary_ecu_serial: EcuSerial, ecus: Seq[RegisterEcu])
 
-  final case class SetTarget(updates: Map[EcuSerial, Image])
+  final case class SetTarget(updates: Map[EcuSerial, CustomImage])
 }

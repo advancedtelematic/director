@@ -16,7 +16,7 @@ trait AdminRepositorySupport {
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
-  import com.advancedtelematic.director.data.DataType.{DeviceTargets, EcuSerial, Image}
+  import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
   import com.advancedtelematic.libats.db.SlickExtensions._
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
@@ -46,15 +46,23 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     db.run(act.map(_ => ()).transactionally)
   }
 
-  def getLatestVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
+  protected [db] def getLatestVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
     Schema.deviceTargets
       .filter(_.device === device)
-      .map(_.latestScheduledTarget)
+      .map(_.version)
+      .max
+      .result
+      .failIfNone(NoTargetsScheduled)
+
+  protected [db] def fetchUpdateIdAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Option[UpdateId]] =
+    Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .map(_.update)
       .result
       .failIfNotSingle(NoTargetsScheduled)
 
-  // TODO: Should be protected [db]
-  def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
+  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -63,19 +71,20 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
 
-  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, Image]] =
+  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
     db.run(fetchTargetVersionAction(namespace, device, version))
 
-  def storeTargetVersion(namespace: Namespace, device: DeviceId, version: Int, targets: Map[EcuSerial, Image]): DBIO[Unit] = {
+  protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
+                                        version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
       ++= targets.map{ case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
 
-    val updateDeviceTargets = Schema.deviceTargets.insertOrUpdate(DeviceTargets(device, version))
+    val updateDeviceTargets = Schema.deviceTargets.insertOrUpdate(DeviceUpdateTarget(device, updateId, version))
 
     act.andThen(updateDeviceTargets).map(_ => ()).transactionally
   }
 
-  def updateTarget(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, Image]): Future[Int] = {
+  def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = {
     val dbAct = for {
       version <- getLatestVersion(namespace, device).asTry.flatMap {
         case Success(x) => DBIO.successful(x)
@@ -85,10 +94,19 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       previousMap <- fetchTargetVersionAction(namespace, device, version)
       new_version = version + 1
       new_targets = previousMap ++ targets
-      _ <- storeTargetVersion(namespace, device, new_version, new_targets)
+      _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
     } yield new_version
 
     db.run(dbAct.transactionally)
+  }
+
+  def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
+    Schema.ecu
+      .filter(_.device === device)
+      .filter(_.primary)
+      .map(_.ecuSerial)
+      .result
+      .head
   }
 }
 
@@ -112,8 +130,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     Schema.currentImage.insertOrUpdate(CurrentImage(ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
   }
 
-  // TODO: Should be protected [db]
-  def persistAllAction(ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
+  protected [db] def persistAllAction(ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
     DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally
 
   def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] =
@@ -129,15 +146,15 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .result
       .failIfNotSingle(MissingCurrentTarget)
 
-  // TODO: Should be protected [db]
-  def getNextVersionAction(device: DeviceId): DBIO[Int] = {
+  protected [db] def getNextVersionAction(device: DeviceId): DBIO[Int] = {
     val devVer = getCurrentVersionAction(device)
 
     val targetVer = Schema.deviceTargets
       .filter(_.device === device)
-      .map(_.latestScheduledTarget)
+      .map(_.version)
+      .max
       .result
-      .failIfNotSingle(NoTargetsScheduled)
+      .failIfNone(NoTargetsScheduled)
 
     devVer.zip(targetVer).map { case (device_version, target_version) =>
       scala.math.min(device_version + 1, target_version)
@@ -146,8 +163,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   def getNextVersion(device: DeviceId): Future[Int] = db.run(getNextVersionAction(device))
 
-  // TODO: Should be protected [db]
-  def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
+  protected [db] def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())
   }
@@ -160,7 +176,12 @@ trait FileCacheRepositorySupport {
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libtuf.data.ClientCodecs._
+  import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
   import com.advancedtelematic.libtuf.data.SlickCirceMapper.jsonMapper
+  import com.advancedtelematic.libtuf.data.TufCodecs._
+  import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+  import io.circe.syntax._
   import DataType.FileCache
 
   private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int): Future[Json] = db.run {
@@ -179,23 +200,27 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
 
   def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
 
-  // TODO: Should be protected [db]
-  def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+  protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     (Schema.fileCache += FileCache(role, version, device, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
 
-  // TODO: Should be protected [db]
-  def storeTargetsAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+  private def storeTargetsAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, file)
 
-  // TODO: Should be protected [db]
-  def storeSnapshotAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+  private def storeSnapshotAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
 
-  // TODO: Should be protected [db]
-  def storeTimestampAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
+  private def storeTimestampAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
     storeRoleTypeAction(RoleType.TIMESTAMP, ConflictingTimestamp)(device, version, file)
+
+  def storeJson(device: DeviceId, version: Int, targets: SignedPayload[TargetsRole],
+                snapshots: SignedPayload[SnapshotRole], timestamp: SignedPayload[TimestampRole]): Future[Unit] = db.run {
+    storeTargetsAction(device, version, targets.asJson)
+      .andThen(storeSnapshotAction(device, version, snapshots.asJson))
+      .andThen(storeTimestampAction(device, version, timestamp.asJson))
+      .transactionally
+  }
 }
 
 
@@ -242,7 +267,7 @@ protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext
       .failIfNotSingle(MissingNamespaceRepo)
   }
 
-  def persistAction(ns: Namespace, repoId: RepoId): DBIO[RepoName] = {
+  protected [db] def persistAction(ns: Namespace, repoId: RepoId): DBIO[RepoName] = {
     val repoName = RepoName(ns, repoId)
     (Schema.repoNames += repoName)
       .handleIntegrityErrors(ConflictNamespaceRepo)

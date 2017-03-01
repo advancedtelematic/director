@@ -6,7 +6,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
 
-import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libats.codecs.AkkaCirce.{uriEncoder => _, uriDecoder => _, _}
 
 object Codecs {
   import AdminRequest._
@@ -24,6 +24,9 @@ object Codecs {
 
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
+
+  implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder[CustomImage]
+  implicit val encoderCustomImage: Encoder[CustomImage] = deriveEncoder
 
   /*** Device Request ***/
 

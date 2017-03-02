@@ -5,7 +5,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import java.time.Instant
 
 object DeviceRequest {
-  import DataType.{DeviceId, EcuSerial, Image}
+  import DataType.{EcuSerial, Image}
 
   final case class EcuManifest(timeserver_time: Instant,
                                installed_image: Image,
@@ -13,8 +13,7 @@ object DeviceRequest {
                                ecu_serial: EcuSerial,
                                attacks_detected: String)
 
-  final case class DeviceManifest(vin: DeviceId,
-                                  primary_ecu_serial: EcuSerial,
+  final case class DeviceManifest(primary_ecu_serial: EcuSerial,
                                   ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
 
   final case class DeviceRegistration(primary_ecu_serial: EcuSerial,

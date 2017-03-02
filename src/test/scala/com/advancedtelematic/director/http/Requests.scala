@@ -30,19 +30,19 @@ trait Requests extends DirectorSpec with ResourceSpec {
     }
   }
 
-  def updateManifest(manifest: SignedPayload[DeviceManifest]): HttpRequest =
-    Put(apiUri("device/manifest"), manifest)
+  def updateManifest(device: DeviceId, manifest: SignedPayload[DeviceManifest]): HttpRequest =
+    Put(apiUri(s"device/${device.show}/manifest"), manifest)
 
-  def updateManifestOk(manifest: SignedPayload[DeviceManifest]): Unit =
-    updateManifestOkWith(manifest, routes)
+  def updateManifestOk(device: DeviceId, manifest: SignedPayload[DeviceManifest]): Unit =
+    updateManifestOkWith(device, manifest, routes)
 
-  def updateManifestOkWith(manifest: SignedPayload[DeviceManifest], withRoutes: Route): Unit =
-    updateManifest(manifest) ~> withRoutes ~> check {
+  def updateManifestOkWith(device: DeviceId, manifest: SignedPayload[DeviceManifest], withRoutes: Route): Unit =
+    updateManifest(device, manifest) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
     }
 
-  def updateManifestExpect(manifest: SignedPayload[DeviceManifest], expected: StatusCode): Unit =
-    updateManifest(manifest) ~> routes ~> check {
+  def updateManifestExpect(device: DeviceId, manifest: SignedPayload[DeviceManifest], expected: StatusCode): Unit =
+    updateManifest(device, manifest) ~> routes ~> check {
       status shouldBe expected
     }
 

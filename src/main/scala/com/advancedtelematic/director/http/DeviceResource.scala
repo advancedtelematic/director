@@ -31,8 +31,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  def setDeviceManifest(namespace: Namespace, signedDevMan: SignedPayload[DeviceManifest]): Route = {
-    val device = signedDevMan.signed.vin
+  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Route = {
     val action = async {
       val ecus = await(deviceRepository.findEcus(namespace, device))
       val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
@@ -77,31 +76,29 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   }
 
   val route = extractNamespace { ns =>
-    pathPrefix("device") {
-      path("manifest") {
-        (put & entity(as[SignedPayload[DeviceManifest]])) { devMan =>
-          setDeviceManifest(ns, devMan)
+    pathPrefix("device" / DeviceId.Path) { device =>
+      post {
+        (path("ecus") & entity(as[DeviceRegistration])) { regDev =>
+          registerDevice(ns, device, regDev)
         }
       } ~
-      pathPrefix(DeviceId.Path) { device =>
-        post {
-          (path("ecus") & entity(as[DeviceRegistration])) { regDev =>
-            registerDevice(ns, device, regDev)
-          }
+      put {
+        (path("manifest") & entity(as[SignedPayload[DeviceManifest]])) { devMan =>
+          setDeviceManifest(ns, device, devMan)
+        }
+      } ~
+      get {
+        path("root.json") {
+          fetchRoot(ns)
         } ~
-        get {
-          path("root.json") {
-            fetchRoot(ns)
-          } ~
-          path("targets.json") {
-            fetchTargets(ns, device)
-          } ~
-          path("snapshots.json") {
-            fetchSnapshot(ns, device)
-          } ~
-          path("timestamp.json") {
-            fetchTimestamp(ns, device)
-          }
+        path("targets.json") {
+          fetchTargets(ns, device)
+        } ~
+        path("snapshots.json") {
+          fetchSnapshot(ns, device)
+        } ~
+        path("timestamp.json") {
+          fetchTimestamp(ns, device)
         }
       }
     }

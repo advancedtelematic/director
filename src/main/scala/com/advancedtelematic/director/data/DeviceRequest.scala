@@ -16,4 +16,7 @@ object DeviceRequest {
   final case class DeviceManifest(vin: DeviceId,
                                   primary_ecu_serial: EcuSerial,
                                   ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
+
+  final case class DeviceRegistration(primary_ecu_serial: EcuSerial,
+                                      ecus: Seq[AdminRequest.RegisterEcu])
 }

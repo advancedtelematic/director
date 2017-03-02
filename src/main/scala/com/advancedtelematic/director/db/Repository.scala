@@ -115,11 +115,12 @@ trait DeviceRepositorySupport {
 }
 
 protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
   import com.advancedtelematic.libats.db.SlickExtensions._
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
-  import DataType.{CurrentImage, DeviceCurrentTarget}
+  import DataType.{CurrentImage, DeviceCurrentTarget, EcuSerial}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -135,6 +136,17 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] =
     db.run(persistAllAction(ecuManifests))
+
+  def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
+    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
+
+    val dbAct = byDevice(namespace, device).exists.result.flatMap {
+      case false => DBIO.sequence(ecus.map(register)).map(_ => ())
+      case true  => DBIO.failed(DeviceAlreadyRegistered)
+    }
+
+    db.run(dbAct.transactionally)
+  }
 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)

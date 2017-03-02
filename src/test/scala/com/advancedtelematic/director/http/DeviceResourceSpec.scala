@@ -47,9 +47,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
 
-    val deviceManifest = GenSignedDeviceManifest(device, primEcu, ecuManifests).generate
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
 
-    updateManifestOk(deviceManifest)
+    updateManifestOk(device, deviceManifest)
   }
 
   test("Device must have the ecu given as primary") {
@@ -66,9 +66,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
 
-    val deviceManifest = GenSignedDeviceManifest(device, fakePrimEcu, ecuManifests).generate
+    val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
 
-    updateManifestExpect(deviceManifest, StatusCodes.NotFound)
+    updateManifestExpect(device, deviceManifest, StatusCodes.NotFound)
   }
 
   test("Device need to have the correct primary") {
@@ -88,9 +88,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
 
-    val deviceManifest = GenSignedDeviceManifest(device, fakePrimEcu, ecuManifests).generate
+    val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
 
-    updateManifestExpect(deviceManifest, StatusCodes.BadRequest)
+    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
   }
 
   test("Device update will only update correct ecus") {
@@ -122,9 +122,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
 
-    val deviceManifest = GenSignedDeviceManifest(device, primEcu, ecuManifests).generate
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
 
-    updateManifestOkWith(deviceManifest, verifyRoutes)
+    updateManifestOkWith(device, deviceManifest, verifyRoutes)
 
     val images = getInstalledImagesOkWith(device, verifyRoutes)
 
@@ -177,16 +177,16 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     setTargetsOk(device, targets)
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(device, primEcu, ecuManifests).generate
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
 
-    updateManifestOk(deviceManifest)
+    updateManifestOk(device, deviceManifest)
 
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { sig =>
       sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
     }
-    val deviceManifestTarget = GenSignedDeviceManifest(device, primEcu, ecuManifestsTarget).generate
+    val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
 
-    updateManifestOk(deviceManifestTarget)
+    updateManifestOk(device, deviceManifestTarget)
   }
 
 }

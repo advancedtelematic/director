@@ -15,6 +15,7 @@ object ErrorCodes {
   val MissingTarget = ErrorCode("target_not_found")
   val MissingTimestamp = ErrorCode("timestamp_not_found")
   val MissingRootFile = ErrorCode("root_not_found")
+  val DeviceAlreadyRegistered = ErrorCode("device_already_registered")
 }
 
 object Errors {
@@ -38,4 +39,6 @@ object Errors {
 
   val NoTargetsScheduled = MissingEntity(classOf[DeviceUpdateTarget])
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])
+
+  val DeviceAlreadyRegistered = RawError(ErrorCodes.DeviceAlreadyRegistered, StatusCodes.Conflict, "The device is already registered")
 }

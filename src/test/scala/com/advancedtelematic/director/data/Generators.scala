@@ -80,5 +80,5 @@ trait Generators {
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks)
 
   def GenSignedEcuManifest(ecuSerial: EcuSerial): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial))
-  def GenSignedDeviceManifest(device: DeviceId, primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(device, primeEcu, ecusManifests))
+  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(primeEcu, ecusManifests))
 }

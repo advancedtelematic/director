@@ -36,6 +36,9 @@ object Codecs {
   implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder
   implicit val encoderDeviceManifest: Encoder[DeviceManifest] = deriveEncoder
 
+  implicit val decoderDeviceRegistration: Decoder[DeviceRegistration] = deriveDecoder
+  implicit val encoderDeviceRegistration: Encoder[DeviceRegistration] = deriveEncoder
+
   /*** Admin Request ***/
   implicit val decoderRegisterEcu: Decoder[RegisterEcu] = deriveDecoder
   implicit val encoderRegisterEcu: Encoder[RegisterEcu] = deriveEncoder

@@ -8,14 +8,16 @@ import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
 import eu.timepit.refined.api.Refined
 import org.genivi.sota.data.Uuid
 import org.genivi.sota.messaging.Messages.CampaignLaunched
-
+import org.slf4j.LoggerFactory
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
 object CampaignWorker extends AdminRepositorySupport with FileCacheRequestRepositorySupport {
+  private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def action(cl: CampaignLaunched)(implicit db: Database, ec: ExecutionContext): Future[Unit] = async {
+    _log.info(s"received event CampaignLaunched ${cl.updateId}")
     val deviceIds = cl.devices.map(deviceId => DeviceId(deviceId.toJava))
     val image = getImage(cl)
 

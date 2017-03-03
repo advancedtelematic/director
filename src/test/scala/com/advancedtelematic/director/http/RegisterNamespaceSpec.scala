@@ -41,7 +41,7 @@ class RegisterNamespaceSpec extends DirectorSpec
 
     val namespace = Namespace("defaultNS")
 
-    testActorRef ! UserCreated(namespace.get, "someemail")
+    testActorRef ! UserCreated(namespace.get)
 
     eventually(timeout, interval) {
       val repoId = repoNameRepository.getRepo(namespace).futureValue
@@ -55,7 +55,7 @@ class RegisterNamespaceSpec extends DirectorSpec
   test("creating new namespace works if root.json is not available directly") {
     val testActorRef = TestActorRef(new CreateRepoActor(new KeyserverClientWithFailure(1)))
     val namespace = Namespace("namespace-for-late-root")
-    testActorRef ! UserCreated(namespace.get, "someemail")
+    testActorRef ! UserCreated(namespace.get)
 
     eventually(timeout, interval) {
       val repoId = repoNameRepository.getRepo(namespace).futureValue

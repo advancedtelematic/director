@@ -9,6 +9,7 @@ import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
+import org.genivi.sota.messaging.daemon.MessageBusListenerActor.Subscribe
 import org.genivi.sota.messaging.kafka.MessageListener
 import org.genivi.sota.messaging.Messages.{CampaignLaunched, UserCreated}
 
@@ -36,10 +37,12 @@ object DaemonBoot extends BootApp
 
   val userCreatedBusListener = system.actorOf(MessageListener.props[UserCreated](config, msgParser),
                                               "user-created-msg-listener")
+  userCreatedBusListener ! Subscribe
 
   val campaignCreatedListener =
     system.actorOf(MessageListener.props[CampaignLaunched](config, CampaignWorker.action),
                                                            "campaign-created-msg-listener")
+  campaignCreatedListener ! Subscribe
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

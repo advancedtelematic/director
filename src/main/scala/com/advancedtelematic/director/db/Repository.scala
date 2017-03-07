@@ -26,7 +26,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] = 
+  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
     byDevice(namespace, device)
       .map(_.ecuSerial)
       .join(Schema.currentImage).on(_ === _.id)
@@ -109,7 +109,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.primary)
       .map(_.ecuSerial)
       .result
-      .head
+      .failIfNotSingle(DeviceMissingPrimaryEcu)
   }
 }
 

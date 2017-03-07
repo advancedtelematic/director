@@ -37,18 +37,14 @@ class SignatureVerificationSpec extends DirectorSpec {
     val keys = generate(size = 1024)
     val data = "0123456789abcdef".getBytes
 
-    // We change only one bit so lets just increment it like gray code
-    // https://en.wikipedia.org/wiki/Gray_code
-    val grayCodedChar = {
-      val seq = "01326754cdfeab980"
-      seq.zip(seq.tail).toMap
-    }
+    def updateBit(c: Char): Char = (c ^ 1).toChar
 
     val sig = {
       val orig = sign(keys.getPrivate, data)
-      val origHex = orig.hex.get
-      val newHex = (grayCodedChar(origHex.head) +: origHex.tail).refineTry[ValidSignature].get
-      orig.copy(hex = newHex)
+      val origSig = orig.sig.get
+
+      val newSig = (updateBit(origSig.head) +: origSig.tail).refineTry[ValidSignature].get
+      orig.copy(sig = newSig)
     }
     val clientKey = ClientKey(RSA, keys.getPublic)
 

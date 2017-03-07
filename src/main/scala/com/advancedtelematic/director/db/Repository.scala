@@ -26,13 +26,16 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuSerial, Image)]] = db.run {
+  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] = 
     byDevice(namespace, device)
       .map(_.ecuSerial)
       .join(Schema.currentImage).on(_ === _.id)
       .map(_._2)
       .result
       .map(_.map(cim => cim.ecuSerial -> cim.image))
+
+  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuSerial, Image)]] = db.run {
+    findImagesAction(namespace, device)
   }
 
   def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {

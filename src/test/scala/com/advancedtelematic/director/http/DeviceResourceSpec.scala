@@ -189,4 +189,53 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     updateManifestOk(device, deviceManifestTarget)
   }
 
+  test("Device can report current current") {
+    val device = DeviceId.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenClientKey.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    setTargetsOk(device, targets)
+
+    updateManifestOk(device, deviceManifest)
+  }
+
+  test("Device update to wrong target is detected") {
+    val device = DeviceId.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenClientKey.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    setTargetsOk(device, targets)
+
+    val ecuManifestWrongTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifestWrongTarget = GenSignedDeviceManifest(primEcu, ecuManifestWrongTarget).generate
+
+    updateManifestExpect(device, deviceManifestWrongTarget, StatusCodes.BadRequest)
+  }
+
 }

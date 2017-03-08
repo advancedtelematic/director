@@ -246,6 +246,7 @@ trait FileCacheRequestRepositorySupport {
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.FileCacheRequestStatus._
   import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.db.SlickAnyVal._
   import DataType.FileCacheRequest
 
   def persist(req: FileCacheRequest): Future[Unit] = db.run {
@@ -259,7 +260,12 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
   }
 
   def updateRequest(req: FileCacheRequest): Future[Unit] = db.run {
-    Schema.fileCacheRequest.update(req)
+    Schema.fileCacheRequest
+      .filter(_.namespace === req.namespace)
+      .filter(_.version === req.version)
+      .filter(_.device === req.device)
+      .map(_.status)
+      .update(req.status)
       .handleSingleUpdateError(MissingFileCacheRequest)
       .map(_ => ())
   }

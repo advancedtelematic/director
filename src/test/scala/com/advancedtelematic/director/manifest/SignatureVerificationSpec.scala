@@ -6,6 +6,7 @@ import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.RSA
 import com.advancedtelematic.libtuf.data.TufDataType.ValidSignature
 import com.advancedtelematic.libtuf.crypt.RsaKeyPair.{generate, sign}
+import org.bouncycastle.util.encoders.Base64
 
 import scala.util.Success
 
@@ -37,13 +38,15 @@ class SignatureVerificationSpec extends DirectorSpec {
     val keys = generate(size = 1024)
     val data = "0123456789abcdef".getBytes
 
-    def updateBit(c: Char): Char = (c ^ 1).toChar
+    def updateBit(base64: String): String = {
+      var bytes = Base64.decode(base64.getBytes)
+      bytes(0) = (bytes(0) ^ 1).toByte
+      new String(Base64.encode(bytes))
+    }
 
     val sig = {
       val orig = sign(keys.getPrivate, data)
-      val origSig = orig.sig.get
-
-      val newSig = (updateBit(origSig.head) +: origSig.tail).refineTry[ValidSignature].get
+      val newSig = updateBit(orig.sig.get).refineTry[ValidSignature].get
       orig.copy(sig = newSig)
     }
     val clientKey = ClientKey(RSA, keys.getPublic)

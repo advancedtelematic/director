@@ -26,7 +26,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] = 
+  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
     byDevice(namespace, device)
       .map(_.ecuSerial)
       .join(Schema.currentImage).on(_ === _.id)
@@ -87,20 +87,20 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     act.andThen(updateDeviceTargets).map(_ => ()).transactionally
   }
 
-  def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = {
-    val dbAct = for {
-      version <- getLatestVersion(namespace, device).asTry.flatMap {
-        case Success(x) => DBIO.successful(x)
-        case Failure(NoTargetsScheduled) => DBIO.successful(0)
-        case Failure(ex) => DBIO.failed(ex)
-      }
-      previousMap <- fetchTargetVersionAction(namespace, device, version)
-      new_version = version + 1
-      new_targets = previousMap ++ targets
-      _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
-    } yield new_version
+  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
+    version <- getLatestVersion(namespace, device).asTry.flatMap {
+      case Success(x) => DBIO.successful(x)
+      case Failure(NoTargetsScheduled) => DBIO.successful(0)
+      case Failure(ex) => DBIO.failed(ex)
+    }
+    previousMap <- fetchTargetVersionAction(namespace, device, version)
+    new_version = version + 1
+    new_targets = previousMap ++ targets
+    _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
+  } yield new_version
 
-    db.run(dbAct.transactionally)
+  def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
+    updateTargetAction(namespace, device, updateId, targets).transactionally
   }
 
   def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
@@ -109,7 +109,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.primary)
       .map(_.ecuSerial)
       .result
-      .head
+      .failIfNotSingle(DeviceMissingPrimaryEcu)
   }
 }
 
@@ -249,10 +249,13 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import DataType.FileCacheRequest
 
-  def persist(req: FileCacheRequest): Future[Unit] = db.run {
+  protected [db] def persistAction(req: FileCacheRequest): DBIO[Unit] =
     (Schema.fileCacheRequest += req)
       .map(_ => ())
       .handleIntegrityErrors(ConflictingFileCacheRequest)
+
+  def persist(req: FileCacheRequest): Future[Unit] = db.run {
+    persistAction(req)
   }
 
   def findPending(limit: Int = 10): Future[Seq[FileCacheRequest]] = db.run {

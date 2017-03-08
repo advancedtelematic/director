@@ -16,6 +16,7 @@ object ErrorCodes {
   val MissingTimestamp = ErrorCode("timestamp_not_found")
   val MissingRootFile = ErrorCode("root_not_found")
   val DeviceAlreadyRegistered = ErrorCode("device_already_registered")
+  val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
 }
 
 object Errors {
@@ -41,4 +42,6 @@ object Errors {
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])
 
   val DeviceAlreadyRegistered = RawError(ErrorCodes.DeviceAlreadyRegistered, StatusCodes.Conflict, "The device is already registered")
+
+  val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
 }

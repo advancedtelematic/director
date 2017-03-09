@@ -6,7 +6,7 @@ import cats.Traverse.ops._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, CustomManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate,
   FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
@@ -37,11 +37,12 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       val ecus = await(deviceRepository.findEcus(namespace, device))
       val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
-      val mOperations = signedDevMan.signed.ecu_version_manifest.map(_.signed.custom.flatMap(_.as[OperationResult].toOption)).toList.sequence
+      val mOperations = signedDevMan.signed.ecu_version_manifest.map(_.signed.custom.flatMap(_.as[CustomManifest].toOption)).toList.sequence
 
       mOperations match {
         case None => await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
-        case Some(operations) =>
+        case Some(customs) =>
+          val operations = customs.map(_.operation_result)
           val mUpdateId = if (operations.forall(_.isSuccess)) {
             await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
           } else {

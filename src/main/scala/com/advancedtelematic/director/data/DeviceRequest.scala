@@ -21,9 +21,11 @@ object DeviceRequest {
   final case class DeviceRegistration(primary_ecu_serial: EcuSerial,
                                       ecus: Seq[AdminRequest.RegisterEcu])
 
-  final case class OperationResult(result_code: Int, result_text: String) {
+  final case class OperationResult(id: String, result_code: Int, result_text: String) {
     def isSuccess: Boolean = result_code == 0 || result_code == 1
     def isFail: Boolean = !isSuccess
   }
+
+  final case class CustomManifest(operation_result: OperationResult)
 
 }

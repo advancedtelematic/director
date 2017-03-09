@@ -6,7 +6,7 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DeviceRequest.OperationResult
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.SetTargets
 import com.advancedtelematic.director.manifest.Verifier
@@ -261,8 +261,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
     SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId))
 
-    val operation = OperationResult(0, "Yeah that worked")
-    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(operation)).generate }.map { sig =>
+    val operation = OperationResult("update", 0, "Yeah that worked")
+    val custom = CustomManifest(operation)
+    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(custom)).generate }.map { sig =>
       sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
     }
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate

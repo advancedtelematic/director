@@ -73,13 +73,13 @@ trait Generators {
     im <- GenImage
   } yield CustomImage(im.filepath, im.fileinfo, Uri("http://www.example.com"))
 
-  def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[OperationResult] = None): Gen[EcuManifest] =  for {
+  def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)
     image <- GenImage
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks, custom = custom.map(_.asJson))
 
-  def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[OperationResult] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
+  def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(primeEcu, ecusManifests))
 }

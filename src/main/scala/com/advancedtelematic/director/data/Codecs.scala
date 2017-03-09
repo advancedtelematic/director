@@ -4,7 +4,7 @@ import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 
-import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
+import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder, JsonObject}
 
 import com.advancedtelematic.libats.codecs.AkkaCirce.{uriEncoder => _, uriDecoder => _, _}
 
@@ -31,13 +31,21 @@ object Codecs {
   /*** Device Request ***/
 
   implicit val decoderEcuManifest: Decoder[EcuManifest] = deriveDecoder
-  implicit val encoderEcuManifest: Encoder[EcuManifest] = deriveEncoder
+  implicit val encoderEcuManifest: Encoder[EcuManifest] = deriveEncoder[EcuManifest].mapJsonObject{ obj =>
+    JsonObject.fromMap(obj.toMap.filter{
+                         case ("custom", value) => !value.isNull
+                         case _ => true
+                       })
+  }
 
   implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder
   implicit val encoderDeviceManifest: Encoder[DeviceManifest] = deriveEncoder
 
   implicit val decoderDeviceRegistration: Decoder[DeviceRegistration] = deriveDecoder
   implicit val encoderDeviceRegistration: Encoder[DeviceRegistration] = deriveEncoder
+
+  implicit val decoderOperationResult: Decoder[OperationResult] = deriveDecoder
+  implicit val encoderOperationResult: Encoder[OperationResult] = deriveEncoder
 
   /*** Admin Request ***/
   implicit val decoderRegisterEcu: Decoder[RegisterEcu] = deriveDecoder

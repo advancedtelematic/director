@@ -89,9 +89,9 @@ object FakeRoleStore extends KeyserverClient {
 
 object FakeCoreClient extends CoreClient {
   import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+  import com.advancedtelematic.director.data.DeviceRequest.OperationResult
 
-  override def updateReportOk(namespace: Namespace, device: DeviceId, update: UpdateId): Future[Unit] = FastFuture.successful(Unit)
-  override def updateReportFail(namespace: Namespace, device: DeviceId, update: UpdateId, reason: String): Future[Unit] = FastFuture.successful(Unit)
+  override def updateReport(namespace: Namespace, device: DeviceId, update: UpdateId, operations: Seq[OperationResult]): Future[Unit] = FastFuture.successful(Unit)
 
 }
 

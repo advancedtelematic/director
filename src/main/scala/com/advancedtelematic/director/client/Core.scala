@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
+import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import cats.syntax.show.toShowOps
@@ -30,10 +30,16 @@ object CoreHttpClient {
 
   implicit lazy val decodeOperationResult: Decoder[CoreOperationResult] = deriveDecoder
   implicit lazy val encodeOperationResult: Encoder[CoreOperationResult] = deriveEncoder
+
+  final case class NoContent()
+
+  implicit val noContentUnmarshaller: FromEntityUnmarshaller[NoContent]
+    = Unmarshaller { implicit ec => response =>
+      FastFuture.successful(NoContent())
+    }
 }
 
 class CoreHttpClient(uri: Uri)(implicit ec: ExecutionContext, system: ActorSystem, mat: Materializer) extends CoreClient {
-  import de.heikoseeberger.akkahttpcirce.CirceSupport._
   import io.circe.syntax._
   import CoreHttpClient._
 
@@ -45,9 +51,9 @@ class CoreHttpClient(uri: Uri)(implicit ec: ExecutionContext, system: ActorSyste
     }
     val entity = HttpEntity(ContentTypes.`application/json`, operationResults.asJson.noSpaces)
     val req = HttpRequest(HttpMethods.POST,
-                          uri= uri.withPath(uri.path / "mydevice" / device.show / "updates" / update.show),
+                          uri= uri.withPath(uri.path / "api" / "v1" / "mydevice" / device.show / "updates" / update.show),
                           entity = entity)
-    execHttp[Unit](namespace, req)
+    execHttp[NoContent](namespace, req).map(_ => ())
   }
 
   private def execHttp[T : ClassTag](namespace: Namespace, request: HttpRequest)

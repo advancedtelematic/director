@@ -6,9 +6,11 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest.OperationResult
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.db.SetTargets
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 
@@ -235,6 +237,39 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val deviceManifestWrongTarget = GenSignedDeviceManifest(primEcu, ecuManifestWrongTarget).generate
 
     updateManifestExpect(device, deviceManifestWrongTarget, StatusCodes.BadRequest)
+  }
+
+  test("Successful campaign update is reported to core") {
+    val device = DeviceId.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenClientKey.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    val updateId = UpdateId.generate
+
+    SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId))
+
+    val operation = OperationResult(0, "Yeah that worked")
+    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(operation)).generate }.map { sig =>
+      sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
+    }
+    val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
+
+    updateManifestOk(device, deviceManifestTarget)
+
+    FakeCoreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
 }

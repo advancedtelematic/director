@@ -2,6 +2,7 @@ package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.util.FastFuture
+import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
@@ -90,8 +91,14 @@ object FakeRoleStore extends KeyserverClient {
 object FakeCoreClient extends CoreClient {
   import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
   import com.advancedtelematic.director.data.DeviceRequest.OperationResult
+  import java.util.concurrent.ConcurrentHashMap
 
-  override def updateReport(namespace: Namespace, device: DeviceId, update: UpdateId, operations: Seq[OperationResult]): Future[Unit] = FastFuture.successful(Unit)
+  private val reports: ConcurrentHashMap[UpdateId, Seq[OperationResult]] = new ConcurrentHashMap()
+
+  override def updateReport(namespace: Namespace, device: DeviceId, update: UpdateId, operations: Seq[OperationResult]): Future[Unit]
+    = FastFuture.successful(reports.put(update, operations))
+
+  def getReport(update: UpdateId): Seq[OperationResult] = reports.get(update)
 
 }
 
@@ -99,6 +106,8 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
   self: Suite =>
 
   def apiUri(path: String): String = "/api/v1/" + path
+
+  val defaultNs = Namespace("default")
 
   def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient).routes
 

@@ -11,14 +11,13 @@ import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import org.scalacheck.Gen
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
   test("Can register device") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus =GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -28,7 +27,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Can't register device with primary ECU not in `ecus`") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate.filter(_.ecu_serial != primEcu)
+    val ecus = GenRegisterEcu.atMost(5).generate.filter(_.ecu_serial != primEcu)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -39,7 +38,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -57,8 +56,8 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
-      (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus = GenRegisterEcu.atMost(5).generate ++
+      (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -77,10 +76,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
     val fakePrimCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
+    val ecus = GenRegisterEcu.atMost(5).generate ++
       (RegisterEcu(primEcu, primCrypto) ::
        RegisterEcu(fakePrimEcu, fakePrimCrypto) ::
-       Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+       GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -108,8 +107,8 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecusWork = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
-    val ecusFail = Gen.nonEmptyContainerOf[List, EcuSerial](GenEcuSerial).generate.map{ecu =>
+    val ecusWork = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val ecusFail = GenEcuSerial.nonEmptyAtMost(5).generate.map{ecu =>
       val clientKey = GenClientKey.generate
       taintedKeys.put(clientKey.keyval, Unit)
       RegisterEcu(ecu, clientKey)

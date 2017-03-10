@@ -5,12 +5,15 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
 import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, FileInfo, Namespace, UpdateId}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, Errors => DBErrors, SetTargets}
+import com.advancedtelematic.libats.codecs.RefinementError
+import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libtuf.data.TufDataType.ValidChecksum
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
-import eu.timepit.refined.api.Refined
 import org.genivi.sota.messaging.Messages.CampaignLaunched
 import org.slf4j.LoggerFactory
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 import slick.driver.MySQLDriver.api._
 
 object CampaignWorker extends AdminRepositorySupport {
@@ -21,7 +24,7 @@ object CampaignWorker extends AdminRepositorySupport {
     val action = async {
       _log.info(s"received event CampaignLaunched ${cl.updateId}")
       val deviceIds = cl.devices.map(deviceId => DeviceId(deviceId.toJava)).toSeq
-      val image = getImage(cl)
+      val image = await(Future.fromTry(getImage(cl)))
 
       val primEcus = await(Future.sequence(deviceIds.map(adminRepository.getPrimaryEcuForDevice)))
 
@@ -35,11 +38,14 @@ object CampaignWorker extends AdminRepositorySupport {
       case DBErrors.DeviceMissingPrimaryEcu =>
         _log.info(s"Ignoring campaign for ${cl.updateId} since the device is not registered.")
         FastFuture.successful(Done)
+      case RefinementError(o, msg) =>
+        _log.info(s"Ignoring campaign for ${cl.updateId} since the checksum doesn't match", msg)
+        FastFuture.successful(Done)
     }
   }
 
-  private def getImage(cl: CampaignLaunched): CustomImage =
-    CustomImage(cl.pkg.mkString,
-                FileInfo(Map(HashMethod.SHA256 -> Refined.unsafeApply(cl.pkgChecksum)), cl.pkgSize.toInt),
-                cl.pkgUri)
+  private def getImage(cl: CampaignLaunched): Try[CustomImage] =
+    cl.pkgChecksum.refineTry[ValidChecksum].map { hash =>
+      CustomImage(cl.pkg.mkString, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt), cl.pkgUri)
+    }
 }

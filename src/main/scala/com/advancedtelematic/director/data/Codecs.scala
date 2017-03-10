@@ -6,7 +6,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 
 import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder, JsonObject}
 
-import com.advancedtelematic.libats.codecs.AkkaCirce.{uriEncoder => _, uriDecoder => _, _}
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
   import AdminRequest._

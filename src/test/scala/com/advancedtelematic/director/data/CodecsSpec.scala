@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.data
 
-import cats.data.Xor
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
@@ -25,11 +24,11 @@ class CodecsSpec extends DirectorSpec {
     }
 
     test(s"$name decodes correctly") {
-      decode[T](sample) shouldBe Xor.Right(parsed)
+      decode[T](sample) shouldBe Right(parsed)
     }
 
     test(s"$name encodes corrcetly}") {
-      parse(sample) shouldBe Xor.Right(parsed.asJson)
+      parse(sample) shouldBe Right(parsed.asJson)
     }
   }
 

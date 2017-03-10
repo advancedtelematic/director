@@ -1,8 +1,10 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.Directive1
-import cats.std.all._
-import cats.Traverse.ops._
+import cats.syntax.either._
+import cats.instances.list._
+import cats.instances.option._
+import cats.syntax.traverse._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
@@ -37,9 +39,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       val ecus = await(deviceRepository.findEcus(namespace, device))
       val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
-      val mOperations = signedDevMan.signed.ecu_version_manifest.map(_.signed.custom.flatMap(_.as[CustomManifest].toOption)).toList.sequence
+      val mOperations = signedDevMan.signed.ecu_version_manifest.map(_.signed.custom.flatMap(_.as[CustomManifest].toOption))
 
-      mOperations match {
+      mOperations.toList.sequence match {
         case None => await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
         case Some(customs) =>
           val operations = customs.map(_.operation_result)

@@ -1,11 +1,12 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.Directive1
-import akka.stream.Materializer
+import cats.std.all._
+import cats.Traverse.ops._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, CustomManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate,
   FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
@@ -22,7 +23,7 @@ import slick.driver.MySQLDriver.api._
 class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: ClientKey => Verifier,
                      coreClient: CoreClient)
-                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
+                    (implicit db: Database, ec: ExecutionContext)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
     with RootFilesRepositorySupport {
@@ -32,11 +33,28 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Route = {
-    val action = async {
+    val action: Future[Unit] = async {
       val ecus = await(deviceRepository.findEcus(namespace, device))
       val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
-      await(DeviceUpdate.setEcus(coreClient)(namespace, device, ecuImages))
+      val mOperations = signedDevMan.signed.ecu_version_manifest.map(_.signed.custom.flatMap(_.as[CustomManifest].toOption)).toList.sequence
+
+      mOperations match {
+        case None => await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
+        case Some(customs) =>
+          val operations = customs.map(_.operation_result)
+          val mUpdateId = if (operations.forall(_.isSuccess)) {
+            await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
+          } else {
+            await(DeviceUpdate.clearTargets(namespace, device, ecuImages))
+          }
+
+          mUpdateId match {
+            case None => ()
+            case Some(updateId) => await(coreClient.updateReport(namespace, device, updateId, operations))
+          }
+      }
+      Unit
     }
     complete(action)
   }

@@ -6,19 +6,20 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.db.SetTargets
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.{DefaultPatience,DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import org.scalacheck.Gen
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
   test("Can register device") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus =GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -28,7 +29,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Can't register device with primary ECU not in `ecus`") {
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate.filter(_.ecu_serial != primEcu)
+    val ecus = GenRegisterEcu.atMost(5).generate.filter(_.ecu_serial != primEcu)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -39,7 +40,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -57,8 +58,8 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
-      (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+    val ecus = GenRegisterEcu.atMost(5).generate ++
+      (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -77,10 +78,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val primCrypto = GenClientKey.generate
     val fakePrimEcu = GenEcuSerial.generate
     val fakePrimCrypto = GenClientKey.generate
-    val ecus = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++
+    val ecus = GenRegisterEcu.atMost(5).generate ++
       (RegisterEcu(primEcu, primCrypto) ::
        RegisterEcu(fakePrimEcu, fakePrimCrypto) ::
-       Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
+       GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -108,8 +109,8 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecusWork = Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate ++ (RegisterEcu(primEcu, primCrypto) :: Gen.containerOf[List, RegisterEcu](GenRegisterEcu).generate)
-    val ecusFail = Gen.nonEmptyContainerOf[List, EcuSerial](GenEcuSerial).generate.map{ecu =>
+    val ecusWork = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val ecusFail = GenEcuSerial.nonEmptyAtMost(5).generate.map{ecu =>
       val clientKey = GenClientKey.generate
       taintedKeys.put(clientKey.keyval, Unit)
       RegisterEcu(ecu, clientKey)
@@ -236,6 +237,40 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val deviceManifestWrongTarget = GenSignedDeviceManifest(primEcu, ecuManifestWrongTarget).generate
 
     updateManifestExpect(device, deviceManifestWrongTarget, StatusCodes.BadRequest)
+  }
+
+  test("Successful campaign update is reported to core") {
+    val device = DeviceId.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenClientKey.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    val updateId = UpdateId.generate
+
+    SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId))
+
+    val operation = OperationResult("update", 0, "Yeah that worked")
+    val custom = CustomManifest(operation)
+    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(custom)).generate }.map { sig =>
+      sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
+    }
+    val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
+
+    updateManifestOk(device, deviceManifestTarget)
+
+    FakeCoreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
 }

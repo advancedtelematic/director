@@ -6,10 +6,10 @@ import com.advancedtelematic.director.daemon.CreateRepoActor
 import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.db.{RepoNameRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeRoleStore}
+import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
-import org.genivi.sota.messaging.Messages.UserCreated
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
@@ -48,7 +48,7 @@ class RegisterNamespaceSpec extends DirectorSpec
       repoId shouldBe a[RepoId]
 
       val rootFile = rootFilesRepository.find(namespace).futureValue
-      rootFile.hcursor.downField("signed").downField("_type").as[String].toEither shouldBe Right("Root")
+      rootFile.hcursor.downField("signed").downField("_type").as[String] shouldBe Right("Root")
     }
   }
 

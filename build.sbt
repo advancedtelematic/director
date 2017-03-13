@@ -15,7 +15,8 @@ libraryDependencies ++= {
   val slickV = "3.1.1"
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.56"
-  val tufV = "0.0.1-54-gcfe584a"
+  val tufV = "0.0.1-59-gc384ec5"
+  val libatsV = "0.0.1-19-gdad3295"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -29,9 +30,9 @@ libraryDependencies ++= {
 
     "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
 
-    "org.genivi" %% "sota-common-messaging" % sotaV,
-
-    "com.advancedtelematic" %% "libats" % "0.0.1-9-g9fff10a",
+    "com.advancedtelematic" %% "libats" % libatsV,
+    "com.advancedtelematic" %% "libats-messaging" % libatsV,
+    "com.advancedtelematic" %% "libats-messaging-datatype" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,

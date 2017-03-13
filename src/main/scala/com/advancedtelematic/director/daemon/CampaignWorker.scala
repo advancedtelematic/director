@@ -4,13 +4,14 @@ import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
 import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, FileInfo, Namespace, UpdateId}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, Errors => DBErrors, SetTargets}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Errors => DBErrors}
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libats.messaging_datatype.Messages.CampaignLaunched
 import com.advancedtelematic.libtuf.data.TufDataType.ValidChecksum
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
-import org.genivi.sota.messaging.Messages.CampaignLaunched
 import org.slf4j.LoggerFactory
+
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
@@ -23,13 +24,13 @@ object CampaignWorker extends AdminRepositorySupport {
 
     val action = async {
       _log.info(s"received event CampaignLaunched ${cl.updateId}")
-      val deviceIds = cl.devices.map(deviceId => DeviceId(deviceId.toJava)).toSeq
+      val deviceIds = cl.devices.map(deviceId => DeviceId(deviceId)).toSeq
       val image = await(Future.fromTry(getImage(cl)))
 
       val primEcus = await(Future.sequence(deviceIds.map(adminRepository.getPrimaryEcuForDevice)))
 
       val devTargets = deviceIds.zip(primEcus.map(prim => SetTarget(Map(prim -> image))))
-      await(SetTargets.setTargets(Namespace(cl.namespace.get), devTargets, Some(UpdateId(cl.updateId.toJava))))
+      await(SetTargets.setTargets(Namespace(cl.namespace), devTargets, Some(UpdateId(cl.updateId))))
 
       Done
     }

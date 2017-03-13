@@ -6,11 +6,11 @@ import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.http.RootFileDownloadActor
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
-import org.genivi.sota.messaging.Messages.UserCreated
 
 import scala.concurrent.Future
 import slick.driver.MySQLDriver.api._
 import akka.pattern.pipe
+import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 
 
 object CreateRepoActor {

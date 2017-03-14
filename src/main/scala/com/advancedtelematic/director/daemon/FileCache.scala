@@ -152,8 +152,8 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
       log.info("Received file cache request for {} version: {}", fcr.device.show, fcr.version)
 
       processFileCacheRequest(fcr)
-        .map(Success)
         .flatMap { _ => fileCacheRequestRepository.updateRequest(fcr.copy(status = SUCCESS)) }
+        .map(Success)
         .recoverWith {
           case ex =>
             log.error("File cache failed: {}", ex.getMessage)

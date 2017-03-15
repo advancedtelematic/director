@@ -43,8 +43,22 @@ object DaemonBoot extends BootApp
                                                            "campaign-created-msg-listener")
   campaignCreatedListener ! Subscribe
 
+  val temporaryRouteForTesting: Route = {
+    import akka.http.scaladsl.server.Directives._
+    import de.heikoseeberger.akkahttpcirce.CirceSupport._
+    import io.circe.generic.auto._
+    import org.genivi.sota.messaging.Messages.UserCreated
+
+    (post & path("testing" / "addUser") & entity(as[UserCreated])) { uc =>
+      createRepoListener ! uc
+      complete("ok")
+    }
+  }
+
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
-    new HealthResource(db, versionMap).route
+    import akka.http.scaladsl.server.Directives._
+
+    temporaryRouteForTesting ~ new HealthResource(db, versionMap).route
   }
 
   Http().bindAndHandle(routes, host, port)

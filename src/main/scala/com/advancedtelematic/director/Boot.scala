@@ -2,7 +2,6 @@ package com.advancedtelematic.director
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.Uri.Path.Empty
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
@@ -47,7 +46,7 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val coreClient = new CoreHttpClient(coreUri.withPath(Empty / "api" / "v1"))
+  val coreClient = new CoreHttpClient(coreUri)
 
   Security.addProvider(new BouncyCastleProvider())
 

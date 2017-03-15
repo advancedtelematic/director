@@ -87,14 +87,12 @@ object DeviceUpdate extends AdminRepositorySupport
 
   def clearTargets(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])
                   (implicit db: Database, ec: ExecutionContext): Future[Option[UpdateId]] = {
-    val dbAct = setEcusAction(namespace, device, ecuImages){
-      for {
+    val dbAct = for {
         _ <- setEcusAction(namespace, device, ecuImages)(DBIO.successful(None))
         next_version <- deviceRepository.getNextVersionAction(device)
         updateId <- adminRepository.fetchUpdateIdAction(namespace, device, next_version)
         _ <- clearTargetsFrom(namespace, device, next_version)
       } yield updateId
-    }
 
     db.run(dbAct.transactionally)
   }

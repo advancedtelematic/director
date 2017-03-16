@@ -50,8 +50,8 @@ object DataType {
 
   final case class FileCache(role: RoleType, version: Int, device: DeviceId, file: Json)
 
-  final case class FileCacheRequest(namespace: Namespace, version: Int, device: DeviceId,
-                                    status: FileCacheRequestStatus.Status)
+  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId,
+                                    status: FileCacheRequestStatus.Status, timestampVersion: Int)
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)
 

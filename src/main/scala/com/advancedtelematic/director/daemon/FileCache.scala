@@ -92,11 +92,7 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
   implicit val ec = context.dispatcher
 
   def generateTargetFile(repoId: RepoId, fcr: FileCacheRequest): Future[SignedPayload[TargetsRole]] = async {
-    val namespace = fcr.namespace
-    val device = fcr.device
-    val version = fcr.version
-
-    val targets = await(adminRepository.fetchTargetVersion(fcr.namespace, fcr.device, fcr.version))
+    val targets = await(adminRepository.fetchTargetVersion(fcr.namespace, fcr.device, fcr.targetVersion))
 
     val clientsTarget = targets.map { case (ecu_serial, image) =>
       val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length,
@@ -107,7 +103,7 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
 
     val targetsRole = TargetsRole(expires = Instant.now.plus(31, ChronoUnit.DAYS),
                                   targets = clientsTarget,
-                                  version = fcr.version)
+                                  version = fcr.targetVersion)
     await(tuf.sign(repoId, RoleType.TARGETS, targetsRole))
   }
 
@@ -141,15 +137,16 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
     val repo = await(repoNameRepository.getRepo(fcr.namespace))
 
     val targetsRole = await(generateTargetFile(repo, fcr))
-    val snapshotRole = await(generateSnapshotFile(repo, targetsRole, fcr.version))
-    val timestampRole = await(generateTimestampFile(repo, snapshotRole, fcr.version))
+    val snapshotRole = await(generateSnapshotFile(repo, targetsRole, fcr.targetVersion))
+    val timestampRole = await(generateTimestampFile(repo, snapshotRole, fcr.timestampVersion))
 
-    await(fileCacheRepository.storeJson(fcr.device, fcr.version, targetsRole, snapshotRole, timestampRole))
+    await(fileCacheRepository.storeJson(fcr.device, fcr.timestampVersion, targetsRole, snapshotRole, timestampRole))
   }
 
   override def receive: Receive = {
     case fcr: FileCacheRequest =>
-      log.info("Received file cache request for {} version: {}", fcr.device.show, fcr.version)
+      log.info("Received file cache request for {} targetVersion: {} timestampVersion: {}",
+               fcr.device.show, fcr.targetVersion, fcr.timestampVersion)
 
       processFileCacheRequest(fcr)
         .flatMap { _ => fileCacheRequestRepository.updateRequest(fcr.copy(status = SUCCESS)) }

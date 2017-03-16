@@ -1,6 +1,8 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, EcuSerial, Image, Namespace, UpdateId}
+import cats.syntax.show._
+import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, EcuSerial, FileCacheRequest, Image, Namespace, UpdateId}
+import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.director.http.{Errors => HttpErrors}
 import org.slf4j.LoggerFactory
@@ -9,9 +11,8 @@ import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._
 
 object DeviceUpdate extends AdminRepositorySupport
-    with DeviceRepositorySupport {
-  import com.advancedtelematic.libats.db.SlickAnyVal._
-
+    with DeviceRepositorySupport
+    with FileCacheRequestRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   private def checkTargets[T](namespace: Namespace, device: DeviceId, next_version: Int)
@@ -39,13 +40,13 @@ object DeviceUpdate extends AdminRepositorySupport
       if (translatedTargets == translatedManifest) {
         deviceRepository.updateDeviceVersionAction(device, next_version)
       } else {
+        _log.error(s"Device ${device.show} updated to the wrong target")
         _log.info {
           s"""version : $next_version
              |targets : $translatedTargets
              |manifest: $translatedManifest
            """.stripMargin
         }
-        _log.error(s"Device $device updated to the wrong target")
         DBIO.failed(HttpErrors.DeviceUpdatedToWrongTarget)
       }
     }
@@ -66,32 +67,24 @@ object DeviceUpdate extends AdminRepositorySupport
 
   protected [db] def clearTargetsFrom(namespace: Namespace, device: DeviceId, version: Int)
                                      (implicit db: Database, ec: ExecutionContext): DBIO[Unit] = {
-    val clearRequest = Schema.fileCacheRequest
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .filter(_.version >= version)
-      .delete
+    val dbAct = for {
+      latestVersion <- adminRepository.getLatestVersion(namespace, device)
+      nextTimestampVersion = latestVersion + 1
+      fcr = FileCacheRequest(namespace, version, device, FileCacheRequestStatus.PENDING, nextTimestampVersion)
+      _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
+      _ <- fileCacheRequestRepository.persistAction(fcr)
+    } yield ()
 
-    val clearCache = Schema.fileCache
-      .filter(_.device === device)
-      .filter(_.version >= version)
-      .delete
-
-    val setVersion = Schema.deviceTargets
-      .filter(_.device === device)
-      .filter(_.version >= version)
-      .delete
-
-    clearRequest.andThen(clearCache).andThen(setVersion).map(_ => ()).transactionally
+    dbAct.transactionally
   }
 
   def clearTargets(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])
                   (implicit db: Database, ec: ExecutionContext): Future[Option[UpdateId]] = {
     val dbAct = for {
         _ <- setEcusAction(namespace, device, ecuImages)(DBIO.successful(None))
-        next_version <- deviceRepository.getNextVersionAction(device)
-        updateId <- adminRepository.fetchUpdateIdAction(namespace, device, next_version)
-        _ <- clearTargetsFrom(namespace, device, next_version)
+        current_version <- deviceRepository.getCurrentVersionAction(device)
+        updateId <- adminRepository.fetchUpdateIdAction(namespace, device, current_version + 1)
+        _ <- clearTargetsFrom(namespace, device, current_version)
       } yield updateId
 
     db.run(dbAct.transactionally)

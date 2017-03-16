@@ -154,7 +154,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  private def getCurrentVersionAction(device: DeviceId): DBIO[Int] =
+  protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Int] =
     Schema.deviceCurrentTarget
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
@@ -265,7 +265,7 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
   def updateRequest(req: FileCacheRequest): Future[Unit] = db.run {
     Schema.fileCacheRequest
       .filter(_.namespace === req.namespace)
-      .filter(_.version === req.version)
+      .filter(_.timestampVersion === req.timestampVersion)
       .filter(_.device === req.device)
       .map(_.status)
       .update(req.status)

@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.manifest
 
-import akka.http.scaladsl.util.FastFuture
 import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.client.CoreClient
@@ -28,26 +27,30 @@ class DeviceManifestUpdate(coreClient: CoreClient,
     val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
     deviceManifestOperationResults(signedDevMan.signed) match {
-      case Nil => await(clientReportedNoErrors(namespace, device, ecuImages))
+      case Nil =>
+        val okReport = Seq(OperationResult("", 0, "Device did not report an operationresult, but is at the correct target"))
+        await(clientReportedNoErrors(namespace, device, ecuImages, okReport))
       case operations =>
-        val mUpdateId = if (operations.forall(_.isSuccess)) {
-          await(clientReportedNoErrors(namespace, device, ecuImages))
+        if (operations.forall(_.isSuccess)) {
+          await(clientReportedNoErrors(namespace, device, ecuImages, operations))
         } else {
           _log.info(s"Device ${device.show} reports errors during install: $operations")
-          await(DeviceUpdate.clearTargets(namespace, device, ecuImages))
+          val mUpdateId = await(DeviceUpdate.clearTargets(namespace, device, ecuImages))
+          await(maybeUpdateCore(namespace, device, operations, mUpdateId))
         }
-        await(maybeUpdateCore(namespace, device, operations, mUpdateId))
     }
   }
 
-  private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Option[UpdateId]] =
-    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).recoverWith {
-      case HttpErrors.DeviceUpdatedToWrongTarget => async {
-        val update = await(DeviceUpdate.clearTargets(namespace,device, ecuImages))
-        val errorReport = Seq(OperationResult("",4, "director and device not in sync"))
-        await(maybeUpdateCore(namespace, device, errorReport, update))
-        await(FastFuture.failed(HttpErrors.DeviceUpdatedToWrongTarget))
-      }
+  private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],
+                                     operations: Seq[OperationResult]): Future[Unit] =
+    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).map((_, operations)).recoverWith {
+      case HttpErrors.DeviceUpdatedToWrongTarget =>
+        DeviceUpdate.clearTargets(namespace,device, ecuImages).map { update =>
+          val errorReport = Seq(OperationResult("",4, "director and device not in sync"))
+          (update, errorReport)
+        }
+    }.flatMap { case (update, ops) =>
+      maybeUpdateCore(namespace, device, ops, update)
     }
 
   private def maybeUpdateCore(namespace: Namespace, device: DeviceId, operations: Seq[OperationResult],

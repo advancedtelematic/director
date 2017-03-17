@@ -63,7 +63,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.version === version)
       .map(_.update)
       .result
-      .failIfNotSingle(NoTargetsScheduled)
+      .map(_.headOption.flatten)
 
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     Schema.ecu

@@ -15,8 +15,8 @@ object SetTargets extends AdminRepositorySupport
                 (implicit db: Database, ec: ExecutionContext): Future[Unit] = {
     def devAction(device: DeviceId, targets: SetTarget): DBIO[Unit] =
       adminRepository.updateTargetAction(namespace, device, updateId, targets.updates).flatMap { new_version =>
-        fileCacheRequestRepository.persistAction(FileCacheRequest(namespace, new_version, device,
-                                                                  FileCacheRequestStatus.PENDING))
+        val fcr = FileCacheRequest(namespace, new_version, device, FileCacheRequestStatus.PENDING, new_version)
+        fileCacheRequestRepository.persistAction(fcr)
       }
 
     db.run {

@@ -92,7 +92,7 @@ object Schema {
     def update = column[Option[UpdateId]]("update_uuid")
     def version = column[Int]("version")
 
-    def primKey = primaryKey("device_targets_pk", (device, update, version))
+    def primKey = primaryKey("device_targets_pk", (device, version))
 
     override def * = (device, update, version) <>
       ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
@@ -123,13 +123,14 @@ object Schema {
 
   class FileCacheRequestsTable(tag: Tag) extends Table[FileCacheRequest](tag, "file_cache_requests") {
     def namespace = column[Namespace]("namespace")
-    def version = column[Int]("version")
+    def targetVersion = column[Int]("target_version")
     def device = column[DeviceId]("device")
     def status = column[FileCacheRequestStatus.Status]("status")
+    def timestampVersion = column[Int]("timestamp_version")
 
-    def primKey = primaryKey("file_cache_request_pk", (version, device))
+    def primKey = primaryKey("file_cache_request_pk", (timestampVersion, device))
 
-    override def * = (namespace, version, device, status) <>
+    override def * = (namespace, targetVersion, device, status, timestampVersion) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]

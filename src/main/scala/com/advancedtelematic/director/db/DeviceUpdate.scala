@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.db
 
 import cats.syntax.show._
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, EcuSerial, FileCacheRequest, Image, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, DeviceUpdateTarget,
+  EcuSerial, FileCacheRequest, Image, Namespace, UpdateId}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.director.http.{Errors => HttpErrors}
@@ -72,6 +73,7 @@ object DeviceUpdate extends AdminRepositorySupport
       nextTimestampVersion = latestVersion + 1
       fcr = FileCacheRequest(namespace, version, device, FileCacheRequestStatus.PENDING, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
+      _ <- Schema.deviceTargets += DeviceUpdateTarget(device, None, nextTimestampVersion)
       _ <- fileCacheRequestRepository.persistAction(fcr)
     } yield ()
 

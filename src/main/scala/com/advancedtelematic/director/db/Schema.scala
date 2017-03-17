@@ -92,7 +92,7 @@ object Schema {
     def update = column[Option[UpdateId]]("update_uuid")
     def version = column[Int]("version")
 
-    def primKey = primaryKey("device_targets_pk", (device, update, version))
+    def primKey = primaryKey("device_targets_pk", (device, version))
 
     override def * = (device, update, version) <>
       ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)

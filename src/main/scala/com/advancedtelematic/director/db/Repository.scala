@@ -82,7 +82,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     val act = (Schema.ecuTargets
       ++= targets.map{ case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
 
-    val updateDeviceTargets = Schema.deviceTargets.insertOrUpdate(DeviceUpdateTarget(device, updateId, version))
+    val updateDeviceTargets = Schema.deviceTargets += DeviceUpdateTarget(device, updateId, version)
 
     act.andThen(updateDeviceTargets).map(_ => ()).transactionally
   }

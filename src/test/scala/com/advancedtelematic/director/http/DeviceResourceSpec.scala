@@ -11,8 +11,9 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.SetTargets
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
-import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
+import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
   test("Can register device") {
@@ -274,8 +275,6 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   }
 
   test("Failed campaign update is reported to core and cancels remaing") {
-    import io.circe.syntax._
-    import com.advancedtelematic.director.data.Codecs._
 
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
@@ -309,6 +308,41 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     updateManifestOk(device, deviceManifestTarget)
 
     FakeCoreClient.getReport(updateId) shouldBe Seq(operation)
+  }
+
+  test("Device reports wrong thing counts as failed campaign") {
+    val device = DeviceId.generate()
+    val primEcu = GenEcuSerial.generate
+    val primCrypto = GenClientKey.generate
+    val ecus = List(RegisterEcu(primEcu, primCrypto))
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+    val updateId = UpdateId.generate
+
+    SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId))
+
+    val operation = OperationResult("update", 0, "this looks like success")
+    val custom = CustomManifest(operation)
+
+    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { secu =>
+      secu.copy(signed = secu.signed.copy(custom = Some(custom.asJson)))
+    }
+
+    val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
+
+    updateManifestExpect(device, deviceManifestTarget, StatusCodes.BadRequest)
+
+    FakeCoreClient.getReport(updateId).map(_.result_code) shouldBe Seq(4)
   }
 
 }

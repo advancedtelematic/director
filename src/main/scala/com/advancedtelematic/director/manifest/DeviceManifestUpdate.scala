@@ -5,8 +5,8 @@ import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, OperationResult}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, OperationResult}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.director.http.{Errors => HttpErrors}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
@@ -28,27 +28,34 @@ class DeviceManifestUpdate(coreClient: CoreClient,
     val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
     deviceManifestOperationResults(signedDevMan.signed) match {
-      case Nil => await(DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages))
+      case Nil => await(clientReportedNoErrors(namespace, device, ecuImages))
       case operations =>
-
         val mUpdateId = if (operations.forall(_.isSuccess)) {
-          await{
-            DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages)
-              .recoverWith{ case HttpErrors.DeviceUpdatedToWrongTarget =>
-                DeviceUpdate.clearTargets(namespace,device, ecuImages)
-                  .flatMap(_ => FastFuture.failed(HttpErrors.DeviceUpdatedToWrongTarget))
-            }
-          }
+          await(clientReportedNoErrors(namespace, device, ecuImages))
         } else {
           _log.info(s"Device ${device.show} reports errors during install: $operations")
           await(DeviceUpdate.clearTargets(namespace, device, ecuImages))
         }
+        await(maybeUpdateCore(namespace, device, operations, mUpdateId))
+    }
+  }
 
-        mUpdateId match {
-          case None => ()
-          case Some(updateId) =>
-            await(coreClient.updateReport(namespace, device, updateId, operations))
-        }
+  private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Option[UpdateId]] =
+    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).recoverWith {
+      case HttpErrors.DeviceUpdatedToWrongTarget => async {
+        val update = await(DeviceUpdate.clearTargets(namespace,device, ecuImages))
+        val errorReport = Seq(OperationResult("",4, "director and device not in sync"))
+        await(maybeUpdateCore(namespace, device, errorReport, update))
+        await(FastFuture.failed(HttpErrors.DeviceUpdatedToWrongTarget))
+      }
+    }
+
+  private def maybeUpdateCore(namespace: Namespace, device: DeviceId, operations: Seq[OperationResult],
+                              mUpdateId: Option[UpdateId]): Future[Unit] = async {
+    mUpdateId match {
+      case None => ()
+      case Some(updateId) =>
+        await(coreClient.updateReport(namespace, device, updateId, operations))
     }
   }
 

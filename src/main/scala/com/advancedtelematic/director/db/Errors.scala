@@ -2,7 +2,6 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
-
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
 import com.advancedtelematic.libats.http.ErrorCode
 
@@ -17,6 +16,7 @@ object ErrorCodes {
   val MissingRootFile = ErrorCode("root_not_found")
   val DeviceAlreadyRegistered = ErrorCode("device_already_registered")
   val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
+  val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
 }
 
 object Errors {
@@ -44,4 +44,8 @@ object Errors {
   val DeviceAlreadyRegistered = RawError(ErrorCodes.DeviceAlreadyRegistered, StatusCodes.Conflict, "The device is already registered")
 
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
+
+  val ConflictingMultiTargetUpdate = EntityAlreadyExists(classOf[MultiTargetUpdate])
+  val MissingMultiTargetUpdate = RawError(ErrorCodes.MissingMultiTargetUpdate, StatusCodes.NotFound, "multi-target update not found")
+
 }

@@ -3,7 +3,7 @@ package com.advancedtelematic.director.data
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.libats.codecs.{CirceEnum, SlickEnum}
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import com.advancedtelematic.libtuf.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
@@ -30,7 +30,7 @@ object DataType {
   type EcuSerial = Refined[String, ValidEcuSerial]
   implicit val validEcuSerial: Validate.Plain[String, ValidEcuSerial] = ValidationUtils.validInBetween(min = 1, max = 64, ValidEcuSerial())
 
-  final case class FileInfo(hashes: Hashes, length: Int)
+  final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: String, fileinfo: FileInfo)
 
   final case class CustomImage(filepath: String, fileinfo: FileInfo, uri: Uri) {
@@ -56,4 +56,7 @@ object DataType {
   final case class RepoName(namespace: Namespace, repoId: RepoId)
 
   final case class RootFile(namespace: Namespace, rootFile: Json)
+
+  final case class MultiTargetUpdate(id: UpdateId, hardwareId: String, target: String, checksum: Checksum,
+                                     targetLength: Long)
 }

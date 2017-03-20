@@ -3,9 +3,7 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-
-import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder, JsonObject}
-
+import io.circe.{Decoder, Encoder, JsonObject, KeyDecoder, KeyEncoder}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
@@ -59,4 +57,7 @@ object Codecs {
 
   implicit val decoderSetTarget: Decoder[SetTarget] = deriveDecoder
   implicit val encoderSetTarget: Encoder[SetTarget] = deriveEncoder
+
+  implicit val multiTargetUpdateCreatedEncoder: Encoder[MultiTargetUpdate] = deriveEncoder
+  implicit val multiTargetUpdateCreatedDecoder: Decoder[MultiTargetUpdate] = deriveDecoder
 }

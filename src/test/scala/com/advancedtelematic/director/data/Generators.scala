@@ -14,7 +14,6 @@ import io.circe.syntax._
 import java.time.Instant
 import org.scalacheck.Gen
 
-
 trait Generators {
   import KeyType._
   import SignatureMethod._
@@ -73,6 +72,10 @@ trait Generators {
     im <- GenImage
   } yield CustomImage(im.filepath, im.fileinfo, Uri("http://www.example.com"))
 
+  lazy val GenChecksum: Gen[Checksum] = for {
+    hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
+  } yield Checksum(HashMethod.SHA256, hash)
+
   def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)
     image <- GenImage
@@ -82,4 +85,17 @@ trait Generators {
 
   def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(primeEcu, ecusManifests))
+
+  def genIdentifier(maxLen: Int): Gen[String] = for {
+  //use a minimum length of 10 to reduce possibility of naming conflicts
+    size <- Gen.choose(10, maxLen)
+    name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
+  } yield name.mkString
+
+  val GenMultiTargetUpdateCreated: Gen[MultiTargetUpdate] = for {
+    hardwareId <- genIdentifier(200)
+    target <- genIdentifier(200)
+    size <- Gen.chooseNum(0, Long.MaxValue)
+    checksum <- GenChecksum
+  } yield MultiTargetUpdate(UpdateId.generate, hardwareId, target, checksum, size)
 }

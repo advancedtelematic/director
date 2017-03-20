@@ -19,18 +19,22 @@ object Schema {
   import com.advancedtelematic.libtuf.data.SlickUriMapper._
   import com.advancedtelematic.libats.db.SlickAnyVal._
 
-  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, PublicKey)
+  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
+    def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def cryptoMethod = column[KeyType]("cryptographic_method")
     def publicKey = column[PublicKey]("public_key")
 
-    override def * = (ecuSerial, device, namespace, primary, cryptoMethod, publicKey) <>
-      ((x: EcuRow) => Ecu(x._1, x._2, x._3, x._4, ClientKey(x._5, x._6)),
-       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.clientKey.keytype, x.clientKey.keyval))
+    override def * = (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) <>
+      ((_ : EcuRow) match {
+         case (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) =>
+           Ecu(ecuSerial, device, namespace, primary, hardwareId, ClientKey(cryptoMethod, publicKey))
+       },
+       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.hardwareId, x.clientKey.keytype, x.clientKey.keyval))
        )
   }
   protected [db] val ecu = TableQuery[EcusTable]

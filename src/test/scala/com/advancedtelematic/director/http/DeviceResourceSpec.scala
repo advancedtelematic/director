@@ -18,9 +18,9 @@ import io.circe.syntax._
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
   test("Can register device") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus =GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -39,9 +39,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device can update a registered device") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -56,11 +56,11 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device must have the ecu given as primary") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
     val fakePrimEcu = GenEcuSerial.generate
     val ecus = GenRegisterEcu.atMost(5).generate ++
-      (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+      (primEcuReg :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -75,14 +75,12 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device need to have the correct primary") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val fakePrimEcu = GenEcuSerial.generate
-    val fakePrimCrypto = GenClientKey.generate
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val fakePrimEcuReg = GenRegisterEcu.generate
+    val fakePrimEcu = fakePrimEcuReg.ecu_serial
     val ecus = GenRegisterEcu.atMost(5).generate ++
-      (RegisterEcu(primEcu, primCrypto) ::
-       RegisterEcu(fakePrimEcu, fakePrimCrypto) ::
-       GenRegisterEcu.atMost(5).generate)
+      (primEcuReg :: fakePrimEcuReg :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -108,13 +106,13 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
 
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecusWork = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecusWork = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
     val ecusFail = GenEcuSerial.nonEmptyAtMost(5).generate.map{ecu =>
-      val clientKey = GenClientKey.generate
-      taintedKeys.put(clientKey.keyval, Unit)
-      RegisterEcu(ecu, clientKey)
+      val regEcu = GenRegisterEcu.generate
+      taintedKeys.put(regEcu.clientKey.keyval, Unit)
+      regEcu
     }
     val ecus = ecusWork ++ ecusFail
 
@@ -150,9 +148,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Can set target for device") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -165,9 +163,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device can update to set target") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -193,9 +191,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device can report current current") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -216,9 +214,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Successful campaign update is reported to core") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -251,9 +249,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
   test("Failed campaign update is reported to core and cancels remaing") {
 
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 
@@ -286,9 +284,9 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
 
   test("Device update to target counts as failed campaign") {
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
-    val primCrypto = GenClientKey.generate
-    val ecus = List(RegisterEcu(primEcu, primCrypto))
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 

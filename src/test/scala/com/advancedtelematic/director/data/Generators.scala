@@ -35,10 +35,14 @@ trait Generators {
     pubKey = RsaKeyPair.generate(size = 128).getPublic
   } yield ClientKey(keyType, pubKey)
 
+  lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
+    Gen.choose(10,64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
+
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
+    hwId <- GenHardwareIdentifier
     crypto <- GenClientKey
-  } yield RegisterEcu(ecu, crypto)
+  } yield RegisterEcu(ecu, hwId, crypto)
 
   lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
 

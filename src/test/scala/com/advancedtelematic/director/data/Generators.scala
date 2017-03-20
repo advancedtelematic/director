@@ -34,10 +34,14 @@ trait Generators {
     pubKey = RsaKeyPair.generate(size = 128).getPublic
   } yield ClientKey(keyType, pubKey)
 
+  lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
+    Gen.choose(10,200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
+
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
+    hwId <- GenHardwareIdentifier
     crypto <- GenClientKey
-  } yield RegisterEcu(ecu, crypto)
+  } yield RegisterEcu(ecu, hwId, crypto)
 
   lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
 
@@ -76,13 +80,17 @@ trait Generators {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
   } yield Checksum(HashMethod.SHA256, hash)
 
-  def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =  for {
+  def GenEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest]): Gen[EcuManifest] =  for {
     time <- Gen.const(Instant.now)
-    image <- GenImage
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
   } yield EcuManifest(time, image, ptime, ecuSerial, attacks, custom = custom.map(_.asJson))
 
+  def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =
+    GenImage.flatMap(GenEcuManifestWithImage(ecuSerial, _, custom))
+
+  def GenSignedEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
+    GenSigned(GenEcuManifestWithImage(ecuSerial, image, custom))
   def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(primeEcu, ecusManifests))
 
@@ -93,7 +101,7 @@ trait Generators {
   } yield name.mkString
 
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
-    hardwareId <- genIdentifier(200)
+    hardwareId <- GenHardwareIdentifier
     target <- genIdentifier(200)
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum

@@ -16,8 +16,8 @@ class MultiTargetUpdatesResourceSpec extends DirectorSpec with DefaultPatience w
     val clientHash1 = Map(mtu1.checksum.method -> mtu1.checksum.hash)
     val clientHash2 = Map(mtu2.checksum.method -> mtu2.checksum.hash)
     val expectedResult =
-      Map[String, Image](mtu1.hardwareId -> Image(mtu1.target, FileInfo(clientHash1, mtu1.targetLength)),
-                         mtu2.hardwareId -> Image(mtu2.target, FileInfo(clientHash2, mtu2.targetLength)))
+      Map(mtu1.hardwareId -> Image(mtu1.target, FileInfo(clientHash1, mtu1.targetLength)),
+          mtu2.hardwareId -> Image(mtu2.target, FileInfo(clientHash2, mtu2.targetLength)))
     createMultiTargetUpdateOK(mtu1)
     createMultiTargetUpdateOK(mtu2.copy(id = mtu1.id))
 

@@ -31,7 +31,9 @@ object CampaignWorker extends AdminRepositorySupport {
       val primEcus = await(Future.sequence(deviceIds.map(adminRepository.getPrimaryEcuForDevice)))
 
       val devTargets = deviceIds.zip(primEcus.map(prim => SetTarget(Map(prim -> image))))
-      await(SetTargets.setTargets(Namespace(cl.namespace), devTargets, Some(UpdateId(cl.updateId))))
+      val updateId = Some(UpdateId(cl.updateId))
+
+      await(SetTargets.setTargets(Namespace(cl.namespace), devTargets, updateId))
 
       Done
     }

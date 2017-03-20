@@ -4,7 +4,7 @@ import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdate, MultiTargetUpdateRequest, UpdateId}
+import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdate, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.data.Namespace
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
@@ -21,7 +21,7 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
   def getTargetInfo(id: UpdateId, ns: Namespace): Route = {
     val f = async {
       val rows = await(multiTargetUpdatesRepository.fetch(id, ns))
-      rows.foldLeft(Map[String, Image]()) { (map, mtu) =>
+      rows.foldLeft(Map[HardwareIdentifier, Image]()) { (map, mtu) =>
         map + (mtu.hardwareId -> mtu.image)
       }
     }

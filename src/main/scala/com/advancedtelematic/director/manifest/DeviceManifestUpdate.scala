@@ -2,12 +2,10 @@ package com.advancedtelematic.director.manifest
 
 import cats.syntax.either._
 import cats.syntax.show._
-import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.director.data.DataType.DeviceId
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, OperationResult}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate}
-import com.advancedtelematic.director.http.{Errors => HttpErrors}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
@@ -18,51 +16,42 @@ import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
-class DeviceManifestUpdate(coreClient: CoreClient,
+class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
                            verifier: ClientKey => Verifier
                           )(implicit val db: Database, val ec: ExecutionContext)
-  extends DeviceRepositorySupport {
+    extends DeviceRepositorySupport
+    with UpdateTypesRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Future[Unit] = async {
     val ecus = await(deviceRepository.findEcus(namespace, device))
     val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
 
-    deviceManifestOperationResults(signedDevMan.signed) match {
+    val updateResult = deviceManifestOperationResults(signedDevMan.signed) match {
       case Nil =>
-        val okReport = Seq(OperationResult("", 0, "Device did not report an operationresult, but is at the correct target"))
-        await(clientReportedNoErrors(namespace, device, ecuImages, okReport))
+        await(clientReportedNoErrors(namespace, device, ecuImages, None))
       case operations =>
         if (operations.forall(_.isSuccess)) {
-          await(clientReportedNoErrors(namespace, device, ecuImages, operations))
+          await(clientReportedNoErrors(namespace, device, ecuImages, Some(operations)))
         } else {
           _log.info(s"Device ${device.show} reports errors during install: $operations")
-          val mUpdateId = await(DeviceUpdate.clearTargets(namespace, device, ecuImages))
-          await(maybeUpdateCore(namespace, device, operations, mUpdateId))
+          val currentVersion = await(deviceRepository.getCurrentVersion(device))
+          Failed(namespace, device, currentVersion, Some(operations))
         }
     }
+    await(afterUpdate.report(updateResult))
   }
 
   private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],
-                                     operations: Seq[OperationResult]): Future[Unit] =
-    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).map((_, operations)).recoverWith {
-      case HttpErrors.DeviceUpdatedToWrongTarget =>
-        DeviceUpdate.clearTargets(namespace,device, ecuImages).map { update =>
-          val errorReport = Seq(OperationResult("",4, "director and device not in sync"))
-          (update, errorReport)
-        }
-    }.flatMap { case (update, ops) =>
-      maybeUpdateCore(namespace, device, ops, update)
+                                     clientReport: Option[Seq[OperationResult]]): Future[DeviceManifestUpdateResult] =
+    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).map {
+      case None => SuccessWithoutUpdateId()
+      case Some((nextVersion, updateId)) => SuccessWithUpdateId(namespace, device, updateId, nextVersion, clientReport)
+    }.recover {
+      case DeviceUpdate.DeviceUpdatedToWrongTarget(currentVersion) =>
+        _log.info(s"Device ${device.show} updated to the wrong version, cancel remaining targets")
+        Failed(namespace, device, currentVersion, None)
     }
-
-  private def maybeUpdateCore(namespace: Namespace, device: DeviceId, operations: Seq[OperationResult],
-                              mUpdateId: Option[UpdateId]): Future[Unit] = async {
-    mUpdateId match {
-      case None => ()
-      case Some(updateId) =>
-        await(coreClient.updateReport(namespace, device, updateId, operations))
-    }
-  }
 
   private def deviceManifestOperationResults(deviceManifest: DeviceManifest): Seq[OperationResult] = {
     deviceManifest.ecu_version_manifest.flatMap(_.signed.custom.flatMap(_.as[CustomManifest].toOption))

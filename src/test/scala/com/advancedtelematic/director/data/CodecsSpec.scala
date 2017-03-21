@@ -78,15 +78,16 @@ class CodecsSpec extends DirectorSpec {
         |ZQIDAQAB
         |-----END PUBLIC KEY-----""".stripMargin + "\n"
 
+    val hardwareId = "hw-type"
     val clientKey = s"""{"keytype": "RSA", "keyval": {"public": "${pubKey.replace("\n","\\n")}"}}"""
-    val ecus = s"""{"ecu_serial": "$ecu_serial", "clientKey": $clientKey}"""
+    val ecus = s"""{"ecu_serial": "$ecu_serial", "hardware_identifier": "$hardwareId", "clientKey": $clientKey}"""
 
     val sample = s"""{"primary_ecu_serial": "$ecu_serial", "ecus": [$ecus]}"""
 
     val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
     val p_pubKey = RsaKeyPair.parsePublic(pubKey).get
     val p_clientKey = ClientKey(KeyType.RSA, p_pubKey)
-    val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, p_clientKey)))
+    val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, hardwareId.refineTry[ValidHardwareIdentifier].get, p_clientKey)))
 
     example(sample, parsed)
   }

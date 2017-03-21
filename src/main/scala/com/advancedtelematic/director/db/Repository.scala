@@ -42,7 +42,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     val toClean = byDevice(namespace, device)
     val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
 
-    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
+    def register(reg: RegisterEcu) =
+      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardware_identifier, reg.clientKey)
 
     val act = clean.andThen(DBIO.sequence(ecus.map(register)))
 
@@ -141,7 +142,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(persistAllAction(ecuManifests))
 
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
-    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
+    def register(reg: RegisterEcu) =
+      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardware_identifier, reg.clientKey)
 
     val dbAct = byDevice(namespace, device).exists.result.flatMap {
       case false => DBIO.sequence(ecus.map(register)).map(_ => ())

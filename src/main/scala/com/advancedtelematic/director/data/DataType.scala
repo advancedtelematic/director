@@ -30,6 +30,10 @@ object DataType {
   type EcuSerial = Refined[String, ValidEcuSerial]
   implicit val validEcuSerial: Validate.Plain[String, ValidEcuSerial] = ValidationUtils.validInBetween(min = 1, max = 64, ValidEcuSerial())
 
+  final case class ValidHardwareIdentifier()
+  type HardwareIdentifier = Refined[String, ValidHardwareIdentifier]
+  implicit val validHardwareIdentifier: Validate.Plain[String, ValidHardwareIdentifier] = ValidationUtils.validInBetween(min = 0, max = 64, ValidHardwareIdentifier())
+
   final case class FileInfo(hashes: Hashes, length: Int)
   final case class Image(filepath: String, fileinfo: FileInfo)
 
@@ -38,7 +42,8 @@ object DataType {
   }
 
 
-  final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean, clientKey: ClientKey)
+  final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
+                       hardwareId: HardwareIdentifier, clientKey: ClientKey)
 
   final case class CurrentImage (ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 

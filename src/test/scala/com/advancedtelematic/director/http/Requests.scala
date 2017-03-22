@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, Image}
+import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, Image, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
@@ -62,4 +62,11 @@ trait Requests extends DirectorSpec with ResourceSpec {
     setTargets(device, targets) ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+
+  def fetchMultiTargetUpdate(id: UpdateId): Map[String, Image] =
+    Get(apiUri(s"multi_target_updates/${id.show}")) ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Map[String, Image]]
+    }
+
 }

@@ -1,13 +1,14 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, Namespace}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, Namespace, MultiTargetUpdate, UpdateId}
 import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, RepoId}
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import io.circe.Json
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
-import scala.util.{Success, Failure}
 
+import scala.util.{Failure, Success}
 import Errors._
 
 trait AdminRepositorySupport {
@@ -331,5 +332,28 @@ protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContex
     persistAction(namespace, rootFile)
       .andThen(repoNameRepository.persistAction(namespace, repoId))
       .transactionally
+  }
+}
+
+trait MultiTargetUpdatesRepositorySupport {
+  def multiTargetUpdatesRepository(implicit db: Database, ec: ExecutionContext) = new MultiTargetUpdatesRepository()
+}
+
+protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
+
+  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.codecs.SlickRefined._
+
+  def fetch(id: UpdateId)(implicit ec: ExecutionContext): Future[Seq[MultiTargetUpdate]] = db.run {
+    Schema.multiTargets
+      .filter(_.id === id)
+      .result
+      .failIfEmpty(MissingMultiTargetUpdate)
+  }
+
+  def create(row: MultiTargetUpdate)(implicit ec: ExecutionContext): Future[Unit] = db.run {
+    (Schema.multiTargets += row)
+      .handleIntegrityErrors(ConflictingMultiTargetUpdate)
+      .map(_ => ())
   }
 }

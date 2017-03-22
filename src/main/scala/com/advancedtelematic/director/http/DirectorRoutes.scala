@@ -29,7 +29,8 @@ class DirectorRoutes(verifier: ClientKey => Verifier,
       ErrorHandler.handleErrors {
         pathPrefix("api" / "v1") {
           new AdminResource(extractNamespace).route ~
-          new DeviceResource(extractNamespace, verifier, coreClient).route
+          new DeviceResource(extractNamespace, verifier, coreClient).route ~
+          new MultiTargetUpdatesResource().route
         } ~ new HealthResource(db, versionMap).route
       }
     }

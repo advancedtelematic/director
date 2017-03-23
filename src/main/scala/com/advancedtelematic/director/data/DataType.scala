@@ -58,5 +58,14 @@ object DataType {
   final case class RootFile(namespace: Namespace, rootFile: Json)
 
   final case class MultiTargetUpdate(id: UpdateId, hardwareId: String, target: String, checksum: Checksum,
-                                     targetLength: Long)
+                                     targetLength: Long, namespace: Namespace) {
+    lazy val image: Image = {
+      val clientHash = Map(checksum.method -> checksum.hash)
+      Image(target, FileInfo(clientHash, targetLength))
+    }
+  }
+
+  final case class MultiTargetUpdateRequest(id: UpdateId, hardwareId: String, target: String, checksum: Checksum,
+                                            targetLength: Long)
+
 }

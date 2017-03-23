@@ -56,7 +56,7 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     complete(rootFilesRepository.find(namespace))
   }
 
-  val route = extractNamespace { ns =>
+  val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
       (get & path("root.json")) {
          fetchRoot(ns)

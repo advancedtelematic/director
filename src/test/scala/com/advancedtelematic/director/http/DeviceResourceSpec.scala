@@ -20,7 +20,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val primCrypto = GenClientKey.generate
-    val ecus =GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (RegisterEcu(primEcu, primCrypto) :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 

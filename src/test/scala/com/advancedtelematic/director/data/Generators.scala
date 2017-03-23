@@ -92,10 +92,10 @@ trait Generators {
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
 
-  val GenMultiTargetUpdateCreated: Gen[MultiTargetUpdate] = for {
+  val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
     hardwareId <- genIdentifier(200)
     target <- genIdentifier(200)
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum
-  } yield MultiTargetUpdate(UpdateId.generate, hardwareId, target, checksum, size)
+  } yield MultiTargetUpdateRequest(UpdateId.generate, hardwareId, target, checksum, size)
 }

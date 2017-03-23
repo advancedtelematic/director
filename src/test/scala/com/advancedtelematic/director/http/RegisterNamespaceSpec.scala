@@ -3,9 +3,9 @@ package com.advancedtelematic.director.http
 import akka.actor.ActorSystem
 import akka.testkit.{TestActorRef, TestKitBase}
 import com.advancedtelematic.director.daemon.CreateRepoActor
-import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.db.{RepoNameRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeRoleStore}
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId

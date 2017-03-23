@@ -5,6 +5,7 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod.HashMethod
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId, ValidChecksum}
@@ -149,7 +150,7 @@ object Schema {
   protected [db] val rootFiles = TableQuery[RootFilesTable]
 
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.value.toString, HashMethod.withName)
-  type MTURow = (UpdateId, String, String, HashMethod, Refined[String, ValidChecksum], Long)
+  type MTURow = (UpdateId, String, String, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
   class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")
     def hardwareId = column[String]("hardware_identifier")
@@ -157,13 +158,15 @@ object Schema {
     def hashMethod = column[HashMethod]("hash_method")
     def targetHash = column[Refined[String, ValidChecksum]]("target_hash")
     def targetSize = column[Long]("target_size")
+    def namespace = column[Namespace]("namespace")
 
-    def * = (id, hardwareId, target, hashMethod, targetHash, targetSize).shaped <>
-      ((x: MTURow) => MultiTargetUpdate(x._1, x._2, x._3, Checksum(x._4, x._5), x._6),
-       (x: MultiTargetUpdate) =>Some((x.id, x.hardwareId, x.target, x.checksum.method, x.checksum.hash, x.targetLength)))
+    def * = (id, hardwareId, target, hashMethod, targetHash, targetSize, namespace).shaped <>
+      ((x: MTURow) => MultiTargetUpdate(x._1, x._2, x._3, Checksum(x._4, x._5), x._6, x._7),
+       (x: MultiTargetUpdate) =>
+         Some((x.id, x.hardwareId, x.target, x.checksum.method, x.checksum.hash, x.targetLength, x.namespace)))
 
     def pk = primaryKey("mtu_pk", (id, hardwareId))
   }
 
-  val multiTargets = TableQuery[MultiTargetUpdates]
+  protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
 }

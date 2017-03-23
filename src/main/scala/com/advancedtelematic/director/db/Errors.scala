@@ -2,6 +2,7 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
 import com.advancedtelematic.libats.http.ErrorCode
 

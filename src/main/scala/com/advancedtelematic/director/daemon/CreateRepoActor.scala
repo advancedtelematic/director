@@ -2,7 +2,6 @@ package com.advancedtelematic.director.daemon
 
 import akka.actor.{Actor, Props}
 import com.advancedtelematic.director.daemon.CreateRepoActor.RepoCreated
-import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.http.RootFileDownloadActor
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
@@ -10,6 +9,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.RepoId
 import scala.concurrent.Future
 import slick.driver.MySQLDriver.api._
 import akka.pattern.pipe
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 
 

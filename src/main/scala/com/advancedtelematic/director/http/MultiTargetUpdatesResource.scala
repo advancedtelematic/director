@@ -1,34 +1,48 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.marshalling.Marshaller._
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image, UpdateId}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdate, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
+import com.advancedtelematic.libats.data.Namespace
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import slick.driver.MySQLDriver.api.Database
 
 import scala.async.Async._
 import scala.concurrent.ExecutionContext
 
-class MultiTargetUpdatesResource()(implicit db: Database, ec: ExecutionContext)
+class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit db: Database, ec: ExecutionContext)
   extends MultiTargetUpdatesRepositorySupport {
 
   import Directives._
 
-  def getTargetInfo(id: UpdateId): Route = {
+  def getTargetInfo(id: UpdateId, ns: Namespace): Route = {
     val f = async {
-      val rows = await(multiTargetUpdatesRepository.fetch(id))
+      val rows = await(multiTargetUpdatesRepository.fetch(id, ns))
       rows.foldLeft(Map[String, Image]()) { (map, mtu) =>
-        val clientHash = Map(mtu.checksum.method -> mtu.checksum.hash)
-        map + (mtu.hardwareId -> Image(mtu.target, FileInfo(clientHash, mtu.targetLength)))
+        map + (mtu.hardwareId -> mtu.image)
       }
     }
     complete(f)
   }
 
-  val route =
-    (pathPrefix("multi_target_updates" / UpdateId.Path) & get) { updateRequestId =>
-      getTargetInfo(updateRequestId)
+  def createMultiTargetUpdate(ns: Namespace): Route = {
+    entity(as[MultiTargetUpdateRequest]) { mtu =>
+      val m = MultiTargetUpdate(mtu.id, mtu.hardwareId, mtu.target, mtu.checksum, mtu.targetLength, ns)
+      complete(StatusCodes.Created -> multiTargetUpdatesRepository.create(m))
     }
+  }
+
+  val route = extractNamespace { ns =>
+    pathPrefix("multi_target_updates") {
+      (pathPrefix(UpdateId.Path) & get) { updateRequestId =>
+        getTargetInfo(updateRequestId, ns)
+      } ~
+      (post & pathEnd) {
+        createMultiTargetUpdate(ns)
+      }
+    }
+  }
 }

@@ -4,14 +4,16 @@ import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, OperationResult}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.director.http.{Errors => HttpErrors}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import org.slf4j.LoggerFactory
+
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._

@@ -3,7 +3,6 @@ package com.advancedtelematic.director.daemon
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
@@ -12,7 +11,6 @@ import com.advancedtelematic.libats.messaging.MessageListener
 import com.advancedtelematic.libats.messaging.daemon.MessageBusListenerActor.Subscribe
 import com.advancedtelematic.libats.messaging_datatype.Messages.{CampaignLaunched, UserCreated}
 import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
-import com.advancedtelematic.director.data.Messages.multiTargetUpdateCreatedMessageLike
 
 object DaemonBoot extends BootApp
     with Settings
@@ -44,11 +42,6 @@ object DaemonBoot extends BootApp
     system.actorOf(MessageListener.props[CampaignLaunched](config, CampaignWorker.action),
                    "campaign-created-msg-listener")
   campaignCreatedListener ! Subscribe
-
-  val multiTargetUpdateListener =
-    system.actorOf(MessageListener.props[MultiTargetUpdate](config, MultiTargetUpdateWorker.action),
-                   "multi-target-update-created-msg-listener")
-  multiTargetUpdateListener ! Subscribe
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(db, versionMap).route

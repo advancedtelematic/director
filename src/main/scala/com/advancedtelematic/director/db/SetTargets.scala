@@ -1,8 +1,9 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest, UpdateId}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libats.data.Namespace
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._

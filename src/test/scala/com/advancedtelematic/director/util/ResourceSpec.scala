@@ -2,15 +2,16 @@ package com.advancedtelematic.director.util
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
+
 import scala.concurrent.Future
 
 object FakeRoleStore extends KeyserverClient {
@@ -89,7 +90,7 @@ object FakeRoleStore extends KeyserverClient {
 }
 
 object FakeCoreClient extends CoreClient {
-  import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+  import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
   import com.advancedtelematic.director.data.DeviceRequest.OperationResult
   import java.util.concurrent.ConcurrentHashMap
 

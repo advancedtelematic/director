@@ -8,8 +8,9 @@ import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import cats.syntax.show.toShowOps
-import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.http.ErrorCode
 import com.advancedtelematic.libats.http.Errors.RawError
 

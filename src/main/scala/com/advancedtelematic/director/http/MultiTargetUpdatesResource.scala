@@ -4,8 +4,9 @@ import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image, MultiTargetUpdate, MultiTargetUpdateRequest, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdate, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
+import com.advancedtelematic.libats.data.Namespace
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import slick.driver.MySQLDriver.api.Database
 

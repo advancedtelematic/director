@@ -9,6 +9,8 @@ import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
 import java.util.UUID
 
+import com.advancedtelematic.libats.data.Namespace
+
 object FileCacheRequestStatus extends CirceEnum with SlickEnum {
   type Status = Value
 
@@ -23,8 +25,6 @@ object DataType {
 
   final case class UpdateId(uuid: UUID) extends UUIDKey
   object UpdateId extends UUIDKeyObj[UpdateId]
-
-  final case class Namespace(get: String) extends AnyVal
 
   final case class ValidEcuSerial()
   type EcuSerial = Refined[String, ValidEcuSerial]

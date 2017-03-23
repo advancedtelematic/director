@@ -1,12 +1,13 @@
 package com.advancedtelematic.director.db
 
 import cats.syntax.show._
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, DeviceUpdateTarget,
-  EcuSerial, FileCacheRequest, Image, Namespace, UpdateId}
+import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, DeviceUpdateTarget, EcuSerial, FileCacheRequest, Image, UpdateId}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.director.http.{Errors => HttpErrors}
+import com.advancedtelematic.libats.data.Namespace
 import org.slf4j.LoggerFactory
+
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._

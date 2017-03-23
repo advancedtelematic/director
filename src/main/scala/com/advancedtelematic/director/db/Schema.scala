@@ -5,6 +5,7 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod.HashMethod
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId, ValidChecksum}

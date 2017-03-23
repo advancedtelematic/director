@@ -3,16 +3,18 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.server.Directive1
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
+import com.advancedtelematic.director.data.DataType.DeviceId
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.DeviceManifestUpdate
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import org.slf4j.LoggerFactory
+
 import scala.concurrent.ExecutionContext
 import slick.driver.MySQLDriver.api._
 

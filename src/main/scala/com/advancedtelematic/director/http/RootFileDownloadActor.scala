@@ -3,13 +3,14 @@ package com.advancedtelematic.director.http
 import akka.actor.Status.Failure
 import akka.pattern.pipe
 import akka.actor.{Actor, ActorLogging, Props}
-import com.advancedtelematic.director.data.DataType.Namespace
 import com.advancedtelematic.director.db.RootFilesRepositorySupport
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, SignedPayload}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import io.circe.Json
 import io.circe.syntax._
+
 import scala.concurrent.duration._
 import slick.driver.MySQLDriver.api._
 

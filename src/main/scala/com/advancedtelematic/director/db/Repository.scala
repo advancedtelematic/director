@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, Namespace, MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, MultiTargetUpdate, UpdateId}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import io.circe.Json
@@ -10,6 +10,7 @@ import slick.driver.MySQLDriver.api._
 
 import scala.util.{Failure, Success}
 import Errors._
+import com.advancedtelematic.libats.data.Namespace
 
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()

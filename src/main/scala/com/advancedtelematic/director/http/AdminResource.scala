@@ -8,10 +8,10 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, Namespace}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport,
-  SetTargets}
+import com.advancedtelematic.director.data.DataType.DeviceId
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport, SetTargets}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libats.data.Namespace
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 
 import scala.concurrent.ExecutionContext

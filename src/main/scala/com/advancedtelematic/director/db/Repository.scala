@@ -2,6 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, MultiTargetUpdate, UpdateId}
 import com.advancedtelematic.director.data.DataType
+import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import io.circe.Json
 
@@ -38,6 +39,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
 
   def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuSerial, Image)]] = db.run {
     findImagesAction(namespace, device)
+  }
+
+  def findAffected(namespace: Namespace, filepath: String, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+    Schema.currentImage
+      .filter(_.filepath === filepath)
+      .map(_.id)
+      .join(Schema.ecu.filter(_.namespace === namespace)).on(_ === _.ecuSerial)
+      .map(_._2)
+      .map(_.device)
+      .distinct
+      .paginateResult(offset = offset, limit = limit)
   }
 
   def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {

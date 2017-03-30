@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
-import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AdminRequest.{FindAffetectedRequest, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.DeviceId
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport, SetTargets}
@@ -56,10 +56,22 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     complete(rootFilesRepository.find(namespace))
   }
 
+  def findAffectedDevices(namespace: Namespace): Route =
+    (parameters('limit.as[Long].?) & parameters('offset.as[Long].?) & entity(as[FindAffetectedRequest])) { (mLimit, mOffset, image) =>
+      val offset = mOffset.getOrElse(0L)
+      val limit  = mLimit.getOrElse(50L)
+      complete(adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit))
+    }
+
   val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
       (get & path("root.json")) {
          fetchRoot(ns)
+      } ~
+      pathPrefix("images") {
+        (get & path("affected")) {
+          findAffectedDevices(ns)
+        }
       } ~
       (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
         registerDevice(ns, regDev)

@@ -68,4 +68,19 @@ object Codecs {
 
   implicit val findAffectedRequestEncoder: Encoder[FindAffectedRequest] = deriveEncoder
   implicit val findAffectedRequestDecoder: Decoder[FindAffectedRequest] = deriveDecoder
+
+  implicit val ecuInfoImageEncoder: Encoder[EcuInfoImage] = deriveEncoder
+  implicit val ecuInfoImageDecoder: Decoder[EcuInfoImage] = deriveDecoder
+
+  implicit val ecuInfoResponseEncoder: Encoder[EcuInfoResponse] = deriveEncoder
+  implicit val ecuInfoResponseDecoder: Decoder[EcuInfoResponse] = deriveDecoder
+}
+
+object AkkaHttpUnmarshallingSupport {
+  import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
+  import akka.http.scaladsl.util.FastFuture
+
+  import DataType._
+  implicit val ecuSerial: FromStringUnmarshaller[EcuSerial] =
+    Unmarshaller{ec => x => FastFuture(x.refineTry[ValidEcuSerial])}
 }

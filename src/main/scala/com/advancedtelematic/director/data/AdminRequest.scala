@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
 
 object AdminRequest {
   import DataType._
@@ -12,4 +12,7 @@ object AdminRequest {
   final case class SetTarget(updates: Map[EcuSerial, CustomImage])
 
   final case class FindAffectedRequest(filepath: String)
+
+  final case class EcuInfoImage(filepath: String, size: Long, hash: Hashes)
+  final case class EcuInfoResponse(id: EcuSerial, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
 }

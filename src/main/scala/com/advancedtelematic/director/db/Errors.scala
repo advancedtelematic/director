@@ -20,6 +20,7 @@ object ErrorCodes {
   val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
   val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
   val MissingUpdateType = ErrorCode("missing_update_type")
+  val MissingDevice = ErrorCode("missing_device")
 }
 
 object Errors {
@@ -45,7 +46,6 @@ object Errors {
   val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])
 
   val DeviceAlreadyRegistered = RawError(ErrorCodes.DeviceAlreadyRegistered, StatusCodes.Conflict, "The device is already registered")
-
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
 
   val ConflictingMultiTargetUpdate = EntityAlreadyExists(classOf[MultiTargetUpdate])
@@ -58,4 +58,7 @@ object Errors {
 
   val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists(classOf[LaunchedMultiTargetUpdate])
   val MissingLaunchedMultiTargetUpdate = MissingEntity(classOf[LaunchedMultiTargetUpdate])
+
+  val MissingDevice = RawError(ErrorCodes.MissingDevice, StatusCodes.NotFound, "The device is not found")
+  val MissingEcu = MissingEntity(classOf[Ecu])
 }

@@ -14,7 +14,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 
 trait Requests extends DirectorSpec with ResourceSpec {
-  private def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/devices"), regDev)
+  def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/devices"), regDev)
 
   def registerDeviceOk(regDev: RegisterDevice): Unit =
     registerDeviceOkWith(regDev, routes)
@@ -73,5 +73,4 @@ trait Requests extends DirectorSpec with ResourceSpec {
       status shouldBe StatusCodes.OK
       responseAs[Map[String, Image]]
     }
-
 }

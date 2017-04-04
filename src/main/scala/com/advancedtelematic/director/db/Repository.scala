@@ -24,6 +24,20 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
 
+  implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
+    def devTargets = Schema.deviceTargets
+      .groupBy(_.device)
+      .map{case (devId, q) => (devId, q.map(_.version).max.getOrElse(0))}
+
+    def notInACampaign: Query[Rep[DeviceId], DeviceId, Seq] = query
+      .join(Schema.deviceCurrentTarget).on(_ === _.device)
+      .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
+      .joinLeft(devTargets).on(_._1 === _._1)
+      .map{case ((devId, curTarg), devUpdate) => (devId, curTarg, devUpdate.map(_._2).getOrElse(curTarg))}
+      .filter{ case(_, cur, lastScheduled) => cur === lastScheduled}
+      .map(_._1)
+  }
+
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
@@ -48,6 +62,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .join(Schema.ecu.filter(_.namespace === namespace)).on(_ === _.ecuSerial)
       .map(_._2)
       .map(_.device)
+      .notInACampaign
       .distinct
       .paginateResult(offset = offset, limit = limit)
   }

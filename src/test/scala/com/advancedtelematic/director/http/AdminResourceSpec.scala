@@ -6,13 +6,14 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest}
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.db.SetVersion
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.PaginationResult
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
 import io.circe.Json
 import io.circe.syntax._
 
-class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests {
+class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests with SetVersion {
   trait NamespaceTag {
     val value: String
   }
@@ -105,6 +106,33 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests {
 
       (pag1.values ++ pag2.values).length shouldBe 3
       (pag1.values ++ pag2.values).toSet shouldBe Set(device1, device2, device3)
+    }
+  }
+
+  test("images/affected Ignores devices in a campaign") {
+    withNamespace("ns with campaign") { implicit ns =>
+      val device1 = registerNSDeviceOk("a", "b")
+      val device2 = registerNSDeviceOk("a")
+
+      setCampaign(device1, 0).futureValue
+      setCampaign(device1, 1).futureValue
+
+      val pag = getAffected("a")()
+      pag.total shouldBe 1
+      pag.values shouldBe Seq(device2)
+    }
+  }
+
+  test("images/affected Includes devices that are at the latest target") {
+    withNamespace("ns with campaign, at latest") {implicit ns =>
+      val device1 = registerNSDeviceOk("a", "b")
+      val device2 = registerNSDeviceOk("a")
+
+      setCampaign(device1, 0).futureValue
+
+      val pag = getAffected("a")()
+      pag.total shouldBe 2
+      pag.values.toSet shouldBe Set(device1, device2)
     }
   }
 }

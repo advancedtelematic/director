@@ -11,5 +11,5 @@ object AdminRequest {
 
   final case class SetTarget(updates: Map[EcuSerial, CustomImage])
 
-  final case class FindAffetectedRequest(filepath: String)
+  final case class FindAffectedRequest(filepath: String)
 }

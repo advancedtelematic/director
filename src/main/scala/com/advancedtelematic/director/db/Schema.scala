@@ -4,7 +4,7 @@ import java.security.PublicKey
 
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.director.data.{FileCacheRequestStatus, LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod.HashMethod
@@ -22,18 +22,22 @@ object Schema {
   import com.advancedtelematic.libtuf.data.SlickUriMapper._
   import com.advancedtelematic.libats.db.SlickAnyVal._
 
-  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, KeyType, PublicKey)
+  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
+    def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def cryptoMethod = column[KeyType]("cryptographic_method")
     def publicKey = column[PublicKey]("public_key")
 
-    override def * = (ecuSerial, device, namespace, primary, cryptoMethod, publicKey) <>
-      ((x: EcuRow) => Ecu(x._1, x._2, x._3, x._4, ClientKey(x._5, x._6)),
-       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.clientKey.keytype, x.clientKey.keyval))
+    override def * = (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) <>
+      ((_ : EcuRow) match {
+         case (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) =>
+           Ecu(ecuSerial, device, namespace, primary, hardwareId, ClientKey(cryptoMethod, publicKey))
+       },
+       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.hardwareId, x.clientKey.keytype, x.clientKey.keyval))
        )
   }
   protected [db] val ecu = TableQuery[EcusTable]
@@ -150,10 +154,10 @@ object Schema {
   protected [db] val rootFiles = TableQuery[RootFilesTable]
 
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.value.toString, HashMethod.withName)
-  type MTURow = (UpdateId, String, String, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
+  type MTURow = (UpdateId, HardwareIdentifier, String, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
   class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")
-    def hardwareId = column[String]("hardware_identifier")
+    def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def target = column[String]("target")
     def hashMethod = column[HashMethod]("hash_method")
     def targetHash = column[Refined[String, ValidChecksum]]("target_hash")
@@ -169,4 +173,27 @@ object Schema {
   }
 
   protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
+
+  class LaunchedMultiTargetUpdatesTable(tag: Tag) extends Table[LaunchedMultiTargetUpdate](tag, "launched_multi_target_updates") {
+    def device = column[DeviceId]("device")
+    def update = column[UpdateId]("update_id")
+    def timestampVersion = column[Int]("timestamp_version")
+    def status = column[LaunchedMultiTargetUpdateStatus.Status]("status")
+
+    def primKey = primaryKey("launched_multi_target_updates_pk", (device, update, timestampVersion))
+
+    override def * = (device, update, timestampVersion, status) <>
+      ((LaunchedMultiTargetUpdate.apply _).tupled, LaunchedMultiTargetUpdate.unapply)
+  }
+
+  protected [db] val launchedMultiTargetUpdates = TableQuery[LaunchedMultiTargetUpdatesTable]
+
+  class UpdateTypes(tag: Tag) extends Table[(UpdateId, UpdateType.UpdateType)](tag, "update_types") {
+    def update = column[UpdateId]("update_id", O.PrimaryKey)
+    def updateType = column[UpdateType.UpdateType]("update_type")
+
+    override def * = (update, updateType)
+  }
+
+  protected [db] val updateTypes = TableQuery[UpdateTypes]
 }

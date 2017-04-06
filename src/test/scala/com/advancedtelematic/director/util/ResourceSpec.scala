@@ -96,10 +96,11 @@ object FakeCoreClient extends CoreClient {
 
   private val reports: ConcurrentHashMap[UpdateId, Seq[OperationResult]] = new ConcurrentHashMap()
 
-  override def updateReport(namespace: Namespace, device: DeviceId, update: UpdateId, operations: Seq[OperationResult]): Future[Unit]
-    = FastFuture.successful(reports.put(update, operations))
+  override def updateReport(namespace: Namespace, device: DeviceId, update: UpdateId, operations: Seq[OperationResult]): Future[Unit] =
+    FastFuture.successful(reports.put(update, operations))
 
-  def getReport(update: UpdateId): Seq[OperationResult] = reports.get(update)
+  def getReport(update: UpdateId): Seq[OperationResult] =
+    reports.get(update)
 
 }
 

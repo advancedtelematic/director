@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.DataType.DeviceId
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
-import com.advancedtelematic.director.manifest.DeviceManifestUpdate
+import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -30,7 +30,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  private val deviceManifestUpdate = new DeviceManifestUpdate(coreClient, verifier)
+  private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
+  private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
 
   def fetchTargets(ns: Namespace, device: DeviceId): Route = {
     val action = deviceRepository.getNextVersion(device).flatMap { version =>

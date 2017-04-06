@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, Image, MultiTargetUpdateRequest, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, HardwareIdentifier, Image, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
@@ -47,7 +47,7 @@ trait Requests extends DirectorSpec with ResourceSpec {
     }
 
   def getInstalledImages(device: DeviceId): HttpRequest =
-    Get(apiUri(s"admin/${device.show}/images"))
+    Get(apiUri(s"admin/devices/${device.show}/images"))
 
   def getInstalledImagesOkWith(device: DeviceId, withRoutes: Route): Seq[(EcuSerial, Image)] =
     getInstalledImages(device) ~> withRoutes ~> check {
@@ -56,7 +56,7 @@ trait Requests extends DirectorSpec with ResourceSpec {
     }
 
   def setTargets(device: DeviceId, targets: SetTarget): HttpRequest =
-    Put(apiUri(s"admin/${device.show}/targets"), targets)
+    Put(apiUri(s"admin/devices/${device.show}/targets"), targets)
 
   def setTargetsOk(device: DeviceId, targets: SetTarget): Unit =
     setTargets(device, targets) ~> routes ~> check {
@@ -68,9 +68,9 @@ trait Requests extends DirectorSpec with ResourceSpec {
       status shouldBe StatusCodes.Created
     }
 
-  def fetchMultiTargetUpdate(id: UpdateId): Map[String, Image] =
+  def fetchMultiTargetUpdate(id: UpdateId): Map[HardwareIdentifier, Image] =
     Get(apiUri(s"multi_target_updates/${id.show}")) ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[Map[String, Image]]
+      responseAs[Map[HardwareIdentifier, Image]]
     }
 }

@@ -21,8 +21,9 @@ object GeneratorOps {
   }
 
   implicit class GenAtMost[T](gen: Gen[T]) {
-    final def atMost(n: Int): Gen[List[T]] = Gen.choose(0, n).flatMap(Gen.containerOfN[List, T](_, gen))
-    final def nonEmptyAtMost(n: Int): Gen[List[T]] = Gen.choose(1, n).flatMap(Gen.containerOfN[List, T](_, gen))
+    final def atMost(n: Int): Gen[List[T]] = listBetween(0, n)
+    final def nonEmptyAtMost(n: Int): Gen[List[T]] = listBetween(1, n)
+    final def listBetween(lower: Int, upper: Int): Gen[List[T]] = Gen.choose(lower, upper).flatMap(Gen.containerOfN[List, T](_, gen))
   }
 
   def GenStringByChar(gen: Gen[Char]) =

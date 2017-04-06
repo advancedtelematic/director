@@ -8,8 +8,9 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.DeviceId
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport, SetTargets}
+import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport,
+  SetMultiTargets, SetTargets}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
@@ -52,6 +53,12 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     complete(act)
   }
 
+  def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
+    complete {
+      SetMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
+    }
+  }
+
   def fetchRoot(namespace: Namespace): Route = {
     complete(rootFilesRepository.find(namespace))
   }
@@ -73,15 +80,24 @@ class AdminResource(extractNamespace: Directive1[Namespace])
           findAffectedDevices(ns)
         }
       } ~
-      (post & path("devices") & entity(as[RegisterDevice]))  { regDev =>
-        registerDevice(ns, regDev)
-      } ~
-      pathPrefix(DeviceId.Path) { dev =>
-        (get & path("images")) {
-          listInstalledImages(ns, dev)
+      pathPrefix("devices") {
+        (post & entity(as[RegisterDevice]))  { regDev =>
+          registerDevice(ns, regDev)
         } ~
-        (put & path("targets") & entity(as[SetTarget])) { targets =>
-          setTargets(ns, dev, targets)
+        pathPrefix(DeviceId.Path) { device =>
+          (get & path("images")) {
+            listInstalledImages(ns, device)
+          } ~
+          path("targets") {
+            (put & entity(as[SetTarget])) { targets =>
+              setTargets(ns, device, targets)
+            }
+          } ~
+          path("multi_target_update" / UpdateId.Path) { updateId =>
+            put {
+              setMultiUpdateTarget(ns, device, updateId)
+            }
+          }
         }
       }
     }

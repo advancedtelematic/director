@@ -1,7 +1,9 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, HardwareIdentifier,
+  MultiTargetUpdate, UpdateId}
 import com.advancedtelematic.director.data.DataType
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
 import io.circe.Json
@@ -43,6 +45,13 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
+  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, HardwareIdentifier]] =
+    byDevice(namespace, device)
+      .map(x => x.ecuSerial -> x.hardwareId)
+      .result
+      .failIfEmpty(DeviceMissing)
+      .map(_.toMap)
+
   protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
     byDevice(namespace, device)
       .map(_.ecuSerial)
@@ -71,7 +80,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     val toClean = byDevice(namespace, device)
     val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
 
-    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
+    def register(reg: RegisterEcu) =
+      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardware_identifier, reg.clientKey)
 
     val act = clean.andThen(DBIO.sequence(ecus.map(register)))
 
@@ -92,7 +102,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .filter(_.version === version)
       .map(_.update)
       .result
-      .map(_.headOption.flatten)
+      .failIfMany()
+      .map(_.flatten)
 
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     Schema.ecu
@@ -140,6 +151,19 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .result
       .failIfNotSingle(DeviceMissingPrimaryEcu)
   }
+
+  def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
+                       fromVersion: Int, toVersion: Int): Future[Seq[Option[UpdateId]]] = db.run {
+    Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version > fromVersion)
+      .filter(_.version <= toVersion)
+      .map(x => (x.version, x.update))
+      .sortBy(_._1)
+      .map(_._2)
+      .result
+  }
+
 }
 
 trait DeviceRepositorySupport {
@@ -170,7 +194,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(persistAllAction(ecuManifests))
 
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
-    def register(reg: RegisterEcu) = Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.clientKey)
+    def register(reg: RegisterEcu) =
+      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardware_identifier, reg.clientKey)
 
     val dbAct = byDevice(namespace, device).exists.result.flatMap {
       case false => DBIO.sequence(ecus.map(register)).map(_ => ())
@@ -189,6 +214,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .map(_.deviceCurrentTarget)
       .result
       .failIfNotSingle(MissingCurrentTarget)
+
+  def getCurrentVersion(device: DeviceId): Future[Int] = db.run(getCurrentVersionAction(device))
 
   protected [db] def getNextVersionAction(device: DeviceId): DBIO[Int] = {
     val devVer = getCurrentVersionAction(device)
@@ -368,17 +395,19 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-
   import com.advancedtelematic.libats.db.SlickExtensions._
   import com.advancedtelematic.libats.codecs.SlickRefined._
   import com.advancedtelematic.libats.db.SlickAnyVal._
 
-  def fetch(id: UpdateId, ns: Namespace): Future[Seq[MultiTargetUpdate]] = db.run {
+  protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdate]] =
     Schema.multiTargets
       .filter(_.id === id)
       .filter(_.namespace === ns)
       .result
       .failIfEmpty(MissingMultiTargetUpdate)
+
+  def fetch(id: UpdateId, ns: Namespace): Future[Seq[MultiTargetUpdate]] = db.run {
+    fetchAction(id, ns)
   }
 
   def create(row: MultiTargetUpdate): Future[Unit] = db.run {
@@ -387,3 +416,55 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
       .map(_ => ())
   }
 }
+
+trait LaunchedMultiTargetUpdateRepositorySupport {
+  def launchedMultiTargetUpdateRepository(implicit db: Database, ec: ExecutionContext) = new LaunchedMultiTargetUpdateRepository()
+}
+
+protected class LaunchedMultiTargetUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.director.data.DataType.LaunchedMultiTargetUpdate
+  import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
+  import com.advancedtelematic.libats.db.SlickExtensions._
+  import Schema.launchedMultiTargetUpdates
+
+  protected [db] def persistAction(lmtu: LaunchedMultiTargetUpdate): DBIO[LaunchedMultiTargetUpdate] =
+    (launchedMultiTargetUpdates += lmtu)
+      .handleIntegrityErrors(ConflictingLaunchedMultiTargetUpdate)
+      .map(_ => lmtu)
+
+  def persist(lmtu: LaunchedMultiTargetUpdate): Future[LaunchedMultiTargetUpdate] = db.run(persistAction(lmtu))
+
+  def setStatus(device: DeviceId, updateId: UpdateId, timestampVersion: Int,
+                status: LaunchedMultiTargetUpdateStatus.Status): Future[Unit] = db.run {
+    launchedMultiTargetUpdates
+      .filter(_.device === device)
+      .filter(_.update === updateId)
+      .filter(_.timestampVersion === timestampVersion)
+      .map(_.status)
+      .update(status)
+      .handleSingleUpdateError(MissingLaunchedMultiTargetUpdate)
+  }
+}
+
+trait UpdateTypesRepositorySupport {
+  def updateTypesRepository(implicit db: Database, ec: ExecutionContext) = new UpdateTypesRepository()
+}
+
+protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.director.data.UpdateType.UpdateType
+  import com.advancedtelematic.libats.db.SlickExtensions._
+
+  protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] =
+    (Schema.updateTypes += ((updateId, ofType)))
+      .handleIntegrityErrors(ConflictingUpdateType)
+      .map(_ => ())
+
+  def getType(updateId: UpdateId): Future[UpdateType] = db.run {
+    Schema.updateTypes
+      .filter(_.update === updateId)
+      .map(_.updateType)
+      .result
+      .failIfNotSingle(MissingUpdateType)
+  }
+}
+

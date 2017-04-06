@@ -33,7 +33,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
     val ecuSerials = ecus.keys.toSeq
     val primEcu = ecuSerials.head
 
-    val regEcus = ecuSerials.map{ ecu => RegisterEcu(ecu, GenClientKey.generate)}
+    val regEcus = ecuSerials.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
     val regDev = RegisterDevice(device, primEcu, regEcus)
 
     registerDevice(regDev).namespaced ~> routes ~> check {

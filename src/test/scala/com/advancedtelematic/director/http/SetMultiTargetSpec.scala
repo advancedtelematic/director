@@ -29,7 +29,7 @@ class SetMultiTargetSpec extends DirectorSpec
 
     registerDeviceOk(regDev)
 
-    val mtu = GenMultiTargetUpdateRequest.generate.copy(hardwareId = primEcuReg.hardware_identifier)
+    val mtu = GenMultiTargetUpdateRequest.generate.copy(hardwareId = primEcuReg.hardwareId)
 
     createMultiTargetUpdateOK(mtu)
 
@@ -56,7 +56,7 @@ class SetMultiTargetSpec extends DirectorSpec
 
     val updateId = UpdateId.generate
     val mtus = ecusThatWillUpdate.map { regEcu =>
-      GenMultiTargetUpdateRequest.generate.copy(hardwareId = regEcu.hardware_identifier,
+      GenMultiTargetUpdateRequest.generate.copy(hardwareId = regEcu.hardwareId,
                                                 id = updateId)
     }
 
@@ -90,7 +90,7 @@ class SetMultiTargetSpec extends DirectorSpec
     val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
     updateManifestOk(device, devManifest)
 
-    val mtu = GenMultiTargetUpdateRequest.generate.copy(hardwareId = primEcuReg.hardware_identifier)
+    val mtu = GenMultiTargetUpdateRequest.generate.copy(hardwareId = primEcuReg.hardwareId)
 
     createMultiTargetUpdateOK(mtu)
 

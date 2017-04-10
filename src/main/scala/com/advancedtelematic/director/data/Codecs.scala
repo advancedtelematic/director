@@ -55,7 +55,12 @@ object Codecs {
 
   /*** Admin Request ***/
   implicit val decoderRegisterEcu: Decoder[RegisterEcu] = deriveDecoder
-  implicit val encoderRegisterEcu: Encoder[RegisterEcu] = deriveEncoder
+  implicit val encoderRegisterEcu: Encoder[RegisterEcu] = deriveEncoder[RegisterEcu].mapJsonObject{ obj =>
+    JsonObject.fromMap(obj.toMap.filter{
+                         case ("hardware_identifier", value) => !value.isNull
+                         case _ => true
+                       })
+  }
 
   implicit val decoderRegisterDevice: Decoder[RegisterDevice] = deriveDecoder
   implicit val encoderRegisterDevice: Encoder[RegisterDevice] = deriveEncoder

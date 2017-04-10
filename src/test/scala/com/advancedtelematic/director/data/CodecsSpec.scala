@@ -27,7 +27,7 @@ class CodecsSpec extends DirectorSpec {
       decode[T](sample) shouldBe Right(parsed)
     }
 
-    test(s"$name encodes corrcetly}") {
+    test(s"$name encodes correctly}") {
       parse(sample) shouldBe Right(parsed.asJson)
     }
   }
@@ -90,6 +90,31 @@ class CodecsSpec extends DirectorSpec {
     val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, hardwareId.refineTry[ValidHardwareIdentifier].get, p_clientKey)))
 
     example(sample, parsed)
+  }
+
+  {
+    import com.advancedtelematic.libtuf.crypt.RsaKeyPair
+    val ecu_serial = "ecu1111"
+    val pubKey =
+      """-----BEGIN PUBLIC KEY-----
+        |MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1cUg8reXsHhoU4QefD+s
+        |1cUCmwlenPuIdg9gS4dWMXtIn0X/22zT7rMSQbE5mJxI7lVT8FZivqqwwNdC2Ami
+        |PhICu8GKuXMeK8yvvQaI5y5fcwwWFbt+7UI5d8r7g6p1toqDcSHv/Xe+F7Tcw/UA
+        |RaqjkaETMYSHo/ksJGHNIsjnG495ShBVt/nm12CUwtB7VQKrKYs2/JgJPOo8rzTj
+        |U23kk0SlNEHP8tRfUdY7hmtETFvvkM0T2mLRFVBg3487/iKFG503GgtKGI7Njsxz
+        |df1h5aFqNMXUbr4y+GNZXGBjXzY+udx57O12ujvp9gYd0Uacn1aT2u2dSt13I8V4
+        |ZQIDAQAB
+        |-----END PUBLIC KEY-----""".stripMargin + "\n"
+
+    val clientKey = s"""{"keytype": "RSA", "keyval": {"public": "${pubKey.replace("\n","\\n")}"}}"""
+    val sample = s"""{"ecu_serial": "$ecu_serial", "clientKey": $clientKey}"""
+
+    val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
+    val p_pubKey = RsaKeyPair.parsePublic(pubKey).get
+    val p_clientKey = ClientKey(KeyType.RSA, p_pubKey)
+    val parsed = RegisterEcu(p_ecu_serial, None, p_clientKey)
+
+    example(sample, parsed, "without hardware_identifier")
   }
 
   {

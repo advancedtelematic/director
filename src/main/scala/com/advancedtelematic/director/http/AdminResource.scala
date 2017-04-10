@@ -7,14 +7,15 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport,
   SetMultiTargets, SetTargets}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libtuf.data.ClientCodecs._
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
-
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.driver.MySQLDriver.api._
@@ -38,6 +39,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
 
   def listInstalledImages(namespace: Namespace, device: DeviceId): Route = {
     complete(adminRepository.findImages(namespace, device))
+  }
+
+  def getDevice(namespace: Namespace, device: DeviceId): Route = {
+    complete(adminRepository.findDevice(namespace, device))
   }
 
   def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
@@ -70,6 +75,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
       complete(adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit))
     }
 
+  def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = complete {
+    adminRepository.findPublicKey(namespace, device, ecuSerial)
+  }
+
   val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
       (get & path("root.json")) {
@@ -85,8 +94,16 @@ class AdminResource(extractNamespace: Directive1[Namespace])
           registerDevice(ns, regDev)
         } ~
         pathPrefix(DeviceId.Path) { device =>
-          (get & path("images")) {
-            listInstalledImages(ns, device)
+          get {
+            pathEnd {
+              getDevice(ns, device)
+            } ~
+            (path("ecus" / "public_key") & parameters('ecu_serial.as[EcuSerial])) { ecuSerial =>
+              getPublicKey(ns, device, ecuSerial)
+            } ~
+            path("images") {
+                listInstalledImages(ns, device)
+            }
           } ~
           path("targets") {
             (put & entity(as[SetTarget])) { targets =>

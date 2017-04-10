@@ -5,7 +5,7 @@ import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, H
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType}
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import io.circe.Json
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -20,11 +20,14 @@ trait AdminRepositorySupport {
 }
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
+  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
   import com.advancedtelematic.libats.db.SlickExtensions._
   import com.advancedtelematic.libats.db.SlickAnyVal._
   import com.advancedtelematic.libats.codecs.SlickRefined._
+  import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+  import com.advancedtelematic.libtuf.data.SlickPublicKeyMapper._
+  import com.advancedtelematic.libtuf.data.SlickCirceMapper.checksumMapper
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
     def devTargets = Schema.deviceTargets
@@ -74,6 +77,30 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
       .notInACampaign
       .distinct
       .paginateResult(offset = offset, limit = limit)
+  }
+
+  def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
+    val query: Rep[Seq[(EcuSerial,HardwareIdentifier,Boolean,String,Long,Checksum)]] = for {
+      ecu <- Schema.ecu if ecu.namespace === namespace && ecu.device === device
+      curImage <- Schema.currentImage if ecu.ecuSerial === curImage.id
+    } yield (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum)
+
+    for {
+      devices <- query.result.failIfEmpty(MissingDevice)
+    } yield for {
+      (id, hardwareId, primary, filepath, size, checksum) <- devices
+    } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Map(checksum.method -> checksum.hash)))
+  }
+
+  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[ClientKey] = db.run {
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .filter(_.ecuSerial === ecu_serial)
+      .map(x => (x.cryptoMethod, x.publicKey))
+      .result
+      .failIfNotSingle(MissingEcu)
+      .map{case (typ, key) => ClientKey(typ, key)}
   }
 
   def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {

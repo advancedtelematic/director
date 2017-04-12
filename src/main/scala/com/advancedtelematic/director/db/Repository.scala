@@ -437,8 +437,8 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
     fetchAction(id, ns)
   }
 
-  def create(row: MultiTargetUpdate): Future[Unit] = db.run {
-    (Schema.multiTargets += row)
+  def create(rows: Seq[MultiTargetUpdate]): Future[Unit] = db.run {
+    (Schema.multiTargets ++= rows)
       .handleIntegrityErrors(ConflictingMultiTargetUpdate)
       .map(_ => ())
   }

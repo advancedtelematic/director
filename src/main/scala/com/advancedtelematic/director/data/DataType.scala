@@ -85,14 +85,22 @@ object DataType {
   }
 
   object MultiTargetUpdate {
-    def apply(mtu: MultiTargetUpdateRequest, namespace: Namespace): MultiTargetUpdate =
-      MultiTargetUpdate(id = mtu.id, hardwareId = mtu.hardwareId, target = mtu.target,
-                        checksum = mtu.checksum, targetLength = mtu.targetLength,
-                        namespace = namespace)
+    def apply(mtu: MultiTargetUpdateRequest, id: UpdateId, namespace: Namespace): Seq[MultiTargetUpdate] =
+      mtu.targets.toSeq.map {case (hardwareId, target) =>
+        MultiTargetUpdate(id = id, hardwareId = hardwareId, target = target.target,
+                          checksum = target.checksum, targetLength = target.targetLength,
+                          namespace = namespace)
+      }
   }
 
-  final case class MultiTargetUpdateRequest(id: UpdateId, hardwareId: HardwareIdentifier, target: String, checksum: Checksum,
-                                            targetLength: Long)
+  final case class TargetUpdate(target: String, checksum: Checksum, targetLength: Long) {
+    lazy val image: Image = {
+      val clientHash = Map(checksum.method -> checksum.hash)
+      Image(target, FileInfo(clientHash, targetLength))
+    }
+  }
+
+  final case class MultiTargetUpdateRequest(targets: Map[HardwareIdentifier, TargetUpdate])
 
   final case class LaunchedMultiTargetUpdate(device: DeviceId, update: UpdateId, timestampVersion: Int,
                                              status: LaunchedMultiTargetUpdateStatus.Status)

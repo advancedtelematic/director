@@ -13,6 +13,9 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._
 import java.time.Instant
+
+import eu.timepit.refined.api.Refined
+
 import scala.reflect.ClassTag
 
 class CodecsSpec extends DirectorSpec {
@@ -37,7 +40,7 @@ class CodecsSpec extends DirectorSpec {
     val length = 21
     val sha256 = "303e3a1e1ad2c60dd0d6f4ee377a0a3f4113981191676197e5e8e642faebe4fa"
     val sample = s"""{"filepath":"$filepath", "fileinfo": {"hashes": {"sha256": "$sha256"}, "length": $length} }"""
-    val parsed = Image(filepath, FileInfo(Map(HashMethod.SHA256 -> sha256.refineTry[ValidChecksum].get), length))
+    val parsed = Image(Refined.unsafeApply(filepath), FileInfo(Map(HashMethod.SHA256 -> sha256.refineTry[ValidChecksum].get), length))
 
     example(sample, parsed)
   }
@@ -53,7 +56,7 @@ class CodecsSpec extends DirectorSpec {
                               keyid = "49309f114b857e4b29bfbff1c1c75df59f154fbc45539b2eb30c8a867843b2cb".refineTry[ValidKeyId].get)),
         signed = EcuManifest(timeserver_time = Instant.ofEpochSecond(1476461163),
                              installed_image = Image(
-                               filepath = "/file2.txt",
+                               filepath = Refined.unsafeApply("/file2.txt"),
                                fileinfo = FileInfo(
                                  hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
                                  length = 21)),
@@ -133,7 +136,7 @@ class CodecsSpec extends DirectorSpec {
     val parsed: EcuManifest = EcuManifest(
       timeserver_time = Instant.ofEpochSecond(1476461163),
       installed_image = Image(
-        filepath = "/file2.txt",
+        filepath = Refined.unsafeApply("/file2.txt"),
         fileinfo = FileInfo(
           hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
           length = 21)),

@@ -6,6 +6,7 @@
     </appender>
 
     <logger name="com.zaxxer.hikari" level="info" />
+    <logger name="com.advancedtelematic.director.manifest" level="debug" />
     <logger name="slick.backend.DatabaseComponent.action" level="info" />
 
     <root level="${rootLevel:-info}">

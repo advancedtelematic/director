@@ -8,10 +8,12 @@ import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.libtuf.crypt.RsaKeyPair
 import com.advancedtelematic.libtuf.data.TufDataType._
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey, ValidTargetFilename}
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
+
+import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
 
 trait Generators {
@@ -68,7 +70,7 @@ trait Generators {
   } yield FileInfo(hs, len)
 
   lazy val GenImage: Gen[Image] = for {
-    fp <- Gen.alphaStr
+    fp <- Gen.alphaStr.map(Refined.unsafeApply[String, ValidTargetFilename])
     fi <- GenFileInfo
   } yield Image(fp, fi)
 
@@ -102,7 +104,7 @@ trait Generators {
 
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
     hardwareId <- GenHardwareIdentifier
-    target <- genIdentifier(200)
+    target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum
   } yield MultiTargetUpdateRequest(UpdateId.generate, hardwareId, target, checksum, size)

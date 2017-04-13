@@ -4,14 +4,15 @@ import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.RawHeader
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest}
+import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.SetVersion
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
 import de.heikoseeberger.akkahttpcirce.CirceSupport._
+import eu.timepit.refined.api.Refined
 import io.circe.Json
 import io.circe.syntax._
 
@@ -44,7 +45,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
     (device, primEcu, ecuSerials)
   }
 
-  def updateManifestOk(device: DeviceId, primEcu: EcuSerial, ecus: Map[EcuSerial, String])
+  def updateManifestOk(device: DeviceId, primEcu: EcuSerial, ecus: Map[EcuSerial, TargetFilename])
                       (implicit ns: NamespaceTag): Unit = {
     val ecuManifests = ecus.keys.toSeq.map { ecu =>
       val sig = GenSignedEcuManifest(ecu).generate
@@ -59,7 +60,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
     }
   }
 
-  def createDeviceWithImages(images: String*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
+  def createDeviceWithImages(images: TargetFilename*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val (device, primEcu, ecuSerials) = registerDeviceOk(images.length)
     val ecus = ecuSerials.zip(images).toMap
 
@@ -68,7 +69,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
     (device, primEcu, ecuSerials)
   }
 
-  def registerNSDeviceOk(images: String*)(implicit ns: NamespaceTag): DeviceId = createDeviceWithImages(images : _*)._1
+  def registerNSDeviceOk(images: TargetFilename*)(implicit ns: NamespaceTag): DeviceId = createDeviceWithImages(images : _*)._1
 
   def getAffected(filepath: String) (limit: Option[Long]= None, offset: Option[Long] = None)
                  (implicit ns: NamespaceTag): PaginationResult[DeviceId] = {
@@ -103,11 +104,15 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
     }
   }
 
+  val afn: TargetFilename = Refined.unsafeApply("a")
+  val bfn: TargetFilename = Refined.unsafeApply("b")
+  val cfn: TargetFilename = Refined.unsafeApply("c")
+  val dfn: TargetFilename = Refined.unsafeApply("d")
   test("images/affected Can get devices with an installed image filename") {
     withNamespace("ns get several") {implicit ns =>
-      val device1 = registerNSDeviceOk("a", "b")
-      val device2 = registerNSDeviceOk("a", "c")
-      val device3 = registerNSDeviceOk("d")
+      val device1 = registerNSDeviceOk(afn, bfn)
+      val device2 = registerNSDeviceOk(afn, cfn)
+      val device3 = registerNSDeviceOk(dfn)
 
       val pag = getAffected("a")()
       pag.total shouldBe 2
@@ -117,7 +122,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
 
   test("images/affected Don't count devices multiple times") {
     withNamespace("ns no dups") { implicit ns =>
-      val device = registerNSDeviceOk("a", "a", "c")
+      val device = registerNSDeviceOk(afn, afn, cfn)
 
       val pag = getAffected("a")()
       pag.total shouldBe 1
@@ -127,9 +132,9 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
 
   test("images/affected Pagination works") {
     withNamespace("ns with limit/offset") { implicit ns =>
-      val device1 = registerNSDeviceOk("a", "b")
-      val device2 = registerNSDeviceOk("a", "c")
-      val device3 = registerNSDeviceOk("a")
+      val device1 = registerNSDeviceOk(afn, bfn)
+      val device2 = registerNSDeviceOk(afn, cfn)
+      val device3 = registerNSDeviceOk(afn)
 
       val pag1 = getAffected("a")(limit = Some(2))
       val pag2 = getAffected("a")(offset = Some(2))
@@ -144,8 +149,8 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
 
   test("images/affected Ignores devices in a campaign") {
     withNamespace("ns with campaign") { implicit ns =>
-      val device1 = registerNSDeviceOk("a", "b")
-      val device2 = registerNSDeviceOk("a")
+      val device1 = registerNSDeviceOk(afn, bfn)
+      val device2 = registerNSDeviceOk(afn)
 
       setCampaign(device1, 0).futureValue
       setCampaign(device1, 1).futureValue
@@ -158,8 +163,8 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
 
   test("images/affected Includes devices that are at the latest target") {
     withNamespace("ns with campaign, at latest") {implicit ns =>
-      val device1 = registerNSDeviceOk("a", "b")
-      val device2 = registerNSDeviceOk("a")
+      val device1 = registerNSDeviceOk(afn, bfn)
+      val device2 = registerNSDeviceOk(afn)
 
       setCampaign(device1, 0).futureValue
 
@@ -193,7 +198,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
 
 
     withNamespace("check ecuresponse") {implicit ns =>
-      val images = Seq("a", "b")
+      val images = Seq(afn, bfn)
       val (device, primEcu, ecusSerials) = createDeviceWithImages(images : _*)
       val ecus = ecusSerials.zip(images).toMap
 

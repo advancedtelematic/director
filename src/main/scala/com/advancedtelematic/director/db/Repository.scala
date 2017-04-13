@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, HardwareIdentifier,
-  MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, HardwareIdentifier, MultiTargetUpdate, UpdateId}
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
@@ -14,6 +13,8 @@ import slick.driver.MySQLDriver.api._
 import scala.util.{Failure, Success}
 import Errors._
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libtuf.data.ClientDataType.TargetFilename
+import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
@@ -22,12 +23,11 @@ trait AdminRepositorySupport {
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
-  import com.advancedtelematic.libats.db.SlickExtensions._
-  import com.advancedtelematic.libats.db.SlickAnyVal._
-  import com.advancedtelematic.libats.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-  import com.advancedtelematic.libtuf.data.SlickPublicKeyMapper._
-  import com.advancedtelematic.libtuf.data.SlickCirceMapper.checksumMapper
+  import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
     def devTargets = Schema.deviceTargets
@@ -67,7 +67,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
     findImagesAction(namespace, device)
   }
 
-  def findAffected(namespace: Namespace, filepath: String, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+  def findAffected(namespace: Namespace, filepath: TargetFilename, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
     Schema.currentImage
       .filter(_.filepath === filepath)
       .map(_.id)
@@ -80,7 +80,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
   }
 
   def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
-    val query: Rep[Seq[(EcuSerial,HardwareIdentifier,Boolean,String,Long,Checksum)]] = for {
+    val query: Rep[Seq[(EcuSerial,HardwareIdentifier,Boolean,TargetFilename,Long,Checksum)]] = for {
       ecu <- Schema.ecu if ecu.namespace === namespace && ecu.device === device
       curImage <- Schema.currentImage if ecu.ecuSerial === curImage.id
     } yield (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum)
@@ -200,9 +200,9 @@ trait DeviceRepositorySupport {
 protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
-  import com.advancedtelematic.libats.db.SlickExtensions._
-  import com.advancedtelematic.libats.db.SlickAnyVal._
-  import com.advancedtelematic.libats.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import DataType.{CurrentImage, DeviceCurrentTarget, EcuSerial}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
@@ -273,10 +273,10 @@ trait FileCacheRepositorySupport {
 }
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
-  import com.advancedtelematic.libtuf.data.SlickCirceMapper.jsonMapper
+  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libtuf.data.TufCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
   import io.circe.syntax._
@@ -328,8 +328,8 @@ trait FileCacheRequestRepositorySupport {
 
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.FileCacheRequestStatus._
-  import com.advancedtelematic.libats.db.SlickExtensions._
-  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import DataType.FileCacheRequest
 
   protected [db] def persistAction(req: FileCacheRequest): DBIO[Unit] =
@@ -363,8 +363,9 @@ trait RepoNameRepositorySupport {
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
   import DataType.RepoName
-  import com.advancedtelematic.libats.db.SlickAnyVal._
-  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 
   def getRepo(ns: Namespace): Future[RepoId] = db.run {
     Schema.repoNames
@@ -388,10 +389,10 @@ trait RootFilesRepositorySupport {
 
 protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContext) extends RepoNameRepositorySupport {
   import DataType.RootFile
-  import com.advancedtelematic.libats.db.SlickAnyVal._
-  import com.advancedtelematic.libats.db.SlickExtensions._
-  import com.advancedtelematic.libtuf.data.SlickCirceMapper._
-  import com.advancedtelematic.libats.db.SlickPipeToUnit.pipeToUnit
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickCirceMapper._
+  import com.advancedtelematic.libats.slick.db.SlickPipeToUnit.pipeToUnit
 
   def find(ns: Namespace): Future[Json] = db.run {
     Schema.rootFiles
@@ -422,9 +423,9 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.libats.db.SlickExtensions._
-  import com.advancedtelematic.libats.codecs.SlickRefined._
-  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 
   protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdate]] =
     Schema.multiTargets
@@ -451,7 +452,8 @@ trait LaunchedMultiTargetUpdateRepositorySupport {
 protected class LaunchedMultiTargetUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.DataType.LaunchedMultiTargetUpdate
   import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
-  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import Schema.launchedMultiTargetUpdates
 
   protected [db] def persistAction(lmtu: LaunchedMultiTargetUpdate): DBIO[LaunchedMultiTargetUpdate] =
@@ -479,7 +481,7 @@ trait UpdateTypesRepositorySupport {
 
 protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.UpdateType.UpdateType
-  import com.advancedtelematic.libats.db.SlickExtensions._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
 
   protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] =
     (Schema.updateTypes += ((updateId, ofType)))

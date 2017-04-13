@@ -30,8 +30,9 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
 
   def createMultiTargetUpdate(ns: Namespace): Route = {
     entity(as[MultiTargetUpdateRequest]) { mtu =>
-      val m = MultiTargetUpdate(mtu.id, mtu.hardwareId, mtu.target, mtu.checksum, mtu.targetLength, ns)
-      complete(StatusCodes.Created -> multiTargetUpdatesRepository.create(m))
+      val updateId = UpdateId.generate
+      val m = MultiTargetUpdate(mtu, updateId, ns)
+      complete(StatusCodes.Created -> multiTargetUpdatesRepository.create(m).map(_ => updateId))
     }
   }
 

@@ -63,9 +63,10 @@ trait Requests extends DirectorSpec with ResourceSpec {
       status shouldBe StatusCodes.OK
     }
 
-  def createMultiTargetUpdateOK(mtu: MultiTargetUpdateRequest): Unit =
+  def createMultiTargetUpdateOK(mtu: MultiTargetUpdateRequest): UpdateId =
     Post(apiUri(s"multi_target_updates"), mtu) ~> routes ~> check {
       status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
     }
 
   def fetchMultiTargetUpdate(id: UpdateId): Map[HardwareIdentifier, Image] =

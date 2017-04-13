@@ -100,10 +100,13 @@ trait Generators {
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
 
-  val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
-    hardwareId <- GenHardwareIdentifier
+  val GenTargetUpdate: Gen[TargetUpdate] = for {
     target <- genIdentifier(200)
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum
-  } yield MultiTargetUpdateRequest(UpdateId.generate, hardwareId, target, checksum, size)
+  } yield TargetUpdate(target, checksum, size)
+
+  val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
+    targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdate))
+  } yield MultiTargetUpdateRequest(targets)
 }

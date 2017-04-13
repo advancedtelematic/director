@@ -5,12 +5,13 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
-import com.advancedtelematic.libats.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.messaging.MessageListener
 import com.advancedtelematic.libats.messaging.daemon.MessageBusListenerActor.Subscribe
 import com.advancedtelematic.libats.messaging_datatype.Messages.{CampaignLaunched, UserCreated}
-import com.advancedtelematic.libats.monitoring.{DatabaseMetrics, MetricsSupport}
+import com.advancedtelematic.libats.monitoring.MetricsSupport
+import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 
 object DaemonBoot extends BootApp
     with Settings
@@ -44,7 +45,7 @@ object DaemonBoot extends BootApp
   campaignCreatedListener ! Subscribe
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
-    new HealthResource(db, versionMap).route
+    new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route
   }
 
   Http().bindAndHandle(routes, host, port)

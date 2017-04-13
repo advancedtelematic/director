@@ -31,7 +31,7 @@ class DirectorRoutes(verifier: ClientKey => Verifier,
           new AdminResource(extractNamespace).route ~
           new DeviceResource(extractNamespace, verifier, coreClient).route ~
           new MultiTargetUpdatesResource(extractNamespace).route
-        } ~ new HealthResource(db, versionMap).route
+        }
       }
     }
 }

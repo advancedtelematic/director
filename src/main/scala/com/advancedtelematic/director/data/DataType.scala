@@ -1,14 +1,16 @@
 package com.advancedtelematic.director.data
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.libats.codecs.{CirceEnum, SlickEnum}
+import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename, ClientHashes => Hashes}
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
-import com.advancedtelematic.libtuf.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
 import java.util.UUID
+
+import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
+import com.advancedtelematic.libats.slick.codecs.SlickEnum
 
 object FileCacheRequestStatus extends CirceEnum with SlickEnum {
   type Status = Value
@@ -46,9 +48,9 @@ object DataType {
   implicit val validHardwareIdentifier: Validate.Plain[String, ValidHardwareIdentifier] = ValidationUtils.validInBetween(min = 0, max = 200, ValidHardwareIdentifier())
 
   final case class FileInfo(hashes: Hashes, length: Long)
-  final case class Image(filepath: String, fileinfo: FileInfo)
+  final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
 
-  final case class CustomImage(filepath: String, fileinfo: FileInfo, uri: Uri) {
+  final case class CustomImage(filepath: TargetFilename, fileinfo: FileInfo, uri: Uri) {
     def image: Image = Image(filepath, fileinfo)
   }
 
@@ -76,7 +78,7 @@ object DataType {
 
   final case class RootFile(namespace: Namespace, rootFile: Json)
 
-  final case class MultiTargetUpdate(id: UpdateId, hardwareId: HardwareIdentifier, target: String, checksum: Checksum,
+  final case class MultiTargetUpdate(id: UpdateId, hardwareId: HardwareIdentifier, target: TargetFilename, checksum: Checksum,
                                      targetLength: Long, namespace: Namespace) {
     lazy val image: Image = {
       val clientHash = Map(checksum.method -> checksum.hash)
@@ -93,7 +95,7 @@ object DataType {
       }
   }
 
-  final case class TargetUpdate(target: String, checksum: Checksum, targetLength: Long) {
+  final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long) {
     lazy val image: Image = {
       val clientHash = Map(checksum.method -> checksum.hash)
       Image(target, FileInfo(clientHash, targetLength))

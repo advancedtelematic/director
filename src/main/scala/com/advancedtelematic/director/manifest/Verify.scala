@@ -4,10 +4,12 @@ import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
+import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
 import io.circe.Encoder
 import io.circe.syntax._
+import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
@@ -22,8 +24,14 @@ object Verifier {
 object Verify {
   import Verifier.Verifier
 
+  val log = LoggerFactory.getLogger(this.getClass)
+
   def checkSigned[T](what: SignedPayload[T], checkSignature: Verifier) (implicit encoder: Encoder[T]): Try[T] = {
     val data = what.signed.asJson.canonical.getBytes
+
+    if( log.isDebugEnabled ) {
+      log.debug(s"Verifying signature of ${what.signed.asJson.canonical}, data digest: ${Sha256Digest.digest(data)}")
+    }
 
     @tailrec
     def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {

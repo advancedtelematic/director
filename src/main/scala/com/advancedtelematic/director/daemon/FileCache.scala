@@ -19,7 +19,9 @@ import io.circe.Json
 import io.circe.syntax._
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+
 import com.advancedtelematic.libats.codecs.AkkaCirce.refinedEncoder
+
 import scala.async.Async._
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -96,8 +98,8 @@ class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends A
 
     val clientsTarget = targets.map { case (ecu_serial, image) =>
       val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length,
-                                  Json.obj("ecuIdentifier" -> ecu_serial.asJson,
-                                           "uri" -> image.uri.asJson))
+                                  Some(Json.obj("ecuIdentifier" -> ecu_serial.asJson,
+                                           "uri" -> image.uri.asJson)))
       image.filepath -> item
     }
 

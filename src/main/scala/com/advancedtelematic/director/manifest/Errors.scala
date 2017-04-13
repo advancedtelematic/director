@@ -13,7 +13,7 @@ object ErrorCodes {
 }
 
 object Errors {
-  val EcuNotFound = MissingEntity(classOf[Ecu])
+  val EcuNotFound = MissingEntity[Ecu]
   val EcuNotPrimary = RawError(ErrorCodes.EcuNotPrimary, StatusCodes.BadRequest, "The claimed primary ECU is not the primary ECU for the device")
   val EmptySignatureList = RawError(ErrorCodes.EmptySignatureList, StatusCodes.BadRequest, "The given signature list is empty")
   val SignatureMethodMismatch = RawError(ErrorCodes.SignatureMethodMismatch, StatusCodes.BadRequest, "The given signature method and the stored signature method are different")

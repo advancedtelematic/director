@@ -24,11 +24,11 @@ object ErrorCodes {
 }
 
 object Errors {
-  val ConflictingFileCacheRequest = EntityAlreadyExists(classOf[FileCacheRequest])
-  val MissingFileCacheRequest = MissingEntity(classOf[FileCacheRequest])
+  val ConflictingFileCacheRequest = EntityAlreadyExists[FileCacheRequest]
+  val MissingFileCacheRequest = MissingEntity[FileCacheRequest]
 
-  val ConflictNamespaceRepo = EntityAlreadyExists(classOf[Namespace])
-  val MissingNamespaceRepo = MissingEntity(classOf[Namespace])
+  val ConflictNamespaceRepo = EntityAlreadyExists[Namespace]
+  val MissingNamespaceRepo = MissingEntity[Namespace]
 
   val ConflictingTarget = RawError(ErrorCodes.ConflictingTarget, StatusCodes.Conflict, "The target already exists")
   val MissingTarget = RawError(ErrorCodes.MissingTarget, StatusCodes.NotFound, "There is no target for device")
@@ -42,23 +42,23 @@ object Errors {
   val ConflictingRootFile = RawError(ErrorCodes.ConflictingRootFile, StatusCodes.Conflict, "The root already exists")
   val MissingRootFile = RawError(ErrorCodes.MissingRootFile, StatusCodes.NotFound, "There is no root")
 
-  val NoTargetsScheduled = MissingEntity(classOf[DeviceUpdateTarget])
-  val MissingCurrentTarget = MissingEntity(classOf[DeviceCurrentTarget])
+  val NoTargetsScheduled = MissingEntity[DeviceUpdateTarget]
+  val MissingCurrentTarget = MissingEntity[DeviceCurrentTarget]
 
   val DeviceAlreadyRegistered = RawError(ErrorCodes.DeviceAlreadyRegistered, StatusCodes.Conflict, "The device is already registered")
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
 
-  val ConflictingMultiTargetUpdate = EntityAlreadyExists(classOf[MultiTargetUpdate])
+  val ConflictingMultiTargetUpdate = EntityAlreadyExists[MultiTargetUpdate]
   val MissingMultiTargetUpdate = RawError(ErrorCodes.MissingMultiTargetUpdate, StatusCodes.NotFound, "multi-target update not found")
 
-  val DeviceMissing = MissingEntity(classOf[DeviceId])
+  val DeviceMissing = MissingEntity[DeviceId]
 
-  val ConflictingUpdateType = EntityAlreadyExists(classOf[UpdateType])
+  val ConflictingUpdateType = EntityAlreadyExists[UpdateType]
   val MissingUpdateType = RawError(ErrorCodes.MissingUpdateType, StatusCodes.InternalServerError, "update type not found")
 
-  val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists(classOf[LaunchedMultiTargetUpdate])
-  val MissingLaunchedMultiTargetUpdate = MissingEntity(classOf[LaunchedMultiTargetUpdate])
+  val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists[LaunchedMultiTargetUpdate]
+  val MissingLaunchedMultiTargetUpdate = MissingEntity[LaunchedMultiTargetUpdate]
 
   val MissingDevice = RawError(ErrorCodes.MissingDevice, StatusCodes.NotFound, "The device is not found")
-  val MissingEcu = MissingEntity(classOf[Ecu])
+  val MissingEcu = MissingEntity[Ecu]
 }

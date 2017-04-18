@@ -9,6 +9,7 @@ import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
 import com.advancedtelematic.libats.messaging_datatype.Messages.CampaignLaunched
+import com.advancedtelematic.libtuf.data.ClientDataType.ValidTargetFilename
 import com.advancedtelematic.libtuf.data.TufDataType.ValidChecksum
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
 import org.slf4j.LoggerFactory
@@ -48,8 +49,8 @@ object CampaignWorker extends AdminRepositorySupport {
     }
   }
 
-  private def getImage(cl: CampaignLaunched): Try[CustomImage] =
-    cl.pkgChecksum.refineTry[ValidChecksum].map { hash =>
-      CustomImage(cl.pkg.mkString, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt), cl.pkgUri)
-    }
+  private def getImage(cl: CampaignLaunched): Try[CustomImage] = for {
+    hash <- cl.pkgChecksum.refineTry[ValidChecksum]
+    filepath <- cl.pkg.mkString.refineTry[ValidTargetFilename]
+  } yield CustomImage(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt), cl.pkgUri)
 }

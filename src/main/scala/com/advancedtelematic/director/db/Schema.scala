@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.{FileCacheRequestStatus, LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.HashMethod.HashMethod
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId, ValidChecksum}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
@@ -16,11 +16,12 @@ import io.circe.Json
 import slick.driver.MySQLDriver.api._
 
 object Schema {
-  import com.advancedtelematic.libats.codecs.SlickRefined._
-  import com.advancedtelematic.libtuf.data.SlickCirceMapper.{checksumMapper, jsonMapper}
-  import com.advancedtelematic.libtuf.data.SlickPublicKeyMapper._
-  import com.advancedtelematic.libtuf.data.SlickUriMapper._
-  import com.advancedtelematic.libats.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+  import com.advancedtelematic.libtuf.data.TufSlickMappings._
+  import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
+  import com.advancedtelematic.libats.slick.db.SlickUriMapper._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 
   type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
@@ -42,10 +43,10 @@ object Schema {
   }
   protected [db] val ecu = TableQuery[EcusTable]
 
-  type CurrentImageRow = (EcuSerial, String, Long, Checksum, String)
+  type CurrentImageRow = (EcuSerial, TargetFilename, Long, Checksum, String)
   class CurrentImagesTable(tag: Tag) extends Table[CurrentImage](tag, "current_images") {
     def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
-    def filepath = column[String]("filepath")
+    def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
     def attacksDetected = column[String]("attacks_detected")
@@ -72,11 +73,11 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Int, EcuSerial, String, Long, Checksum, Uri)
+  type EcuTargetRow = (Int, EcuSerial, TargetFilename, Long, Checksum, Uri)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def version = column[Int]("version")
     def id = column[EcuSerial]("ecu_serial")
-    def filepath = column[String]("filepath")
+    def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
     def uri = column[Uri]("uri")
@@ -154,11 +155,11 @@ object Schema {
   protected [db] val rootFiles = TableQuery[RootFilesTable]
 
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.value.toString, HashMethod.withName)
-  type MTURow = (UpdateId, HardwareIdentifier, String, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
+  type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
   class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def target = column[String]("target")
+    def target = column[TargetFilename]("target")
     def hashMethod = column[HashMethod]("hash_method")
     def targetHash = column[Refined[String, ValidChecksum]]("target_hash")
     def targetSize = column[Long]("target_size")

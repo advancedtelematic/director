@@ -20,7 +20,7 @@ trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
 }
 
-protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) {
+protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
@@ -235,17 +235,21 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Int] =
+  protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Option[Int]] =
     Schema.deviceCurrentTarget
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
       .result
-      .failIfNotSingle(MissingCurrentTarget)
+      .failIfMany()
 
-  def getCurrentVersion(device: DeviceId): Future[Int] = db.run(getCurrentVersionAction(device))
+  def getCurrentVersion(device: DeviceId): Future[Int] = db.run{
+    getCurrentVersionAction(device)
+      .failIfNone(MissingCurrentTarget)
+  }
 
   protected [db] def getNextVersionAction(device: DeviceId): DBIO[Int] = {
     val devVer = getCurrentVersionAction(device)
+      .failIfNone(MissingCurrentTarget)
 
     val targetVer = Schema.deviceTargets
       .filter(_.device === device)

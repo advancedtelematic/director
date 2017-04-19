@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.db
 
-import cats.syntax.show._
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, DeviceUpdateTarget, EcuSerial, FileCacheRequest, Image, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, DeviceUpdateTarget, EcuSerial, FileCacheRequest, Image, UpdateId}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.Namespace
@@ -11,65 +10,64 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._
 
+object DeviceUpdateResult {
+  sealed abstract class DeviceUpdateResult
+
+  final case class NoChange() extends DeviceUpdateResult
+  final case class UpdatedSuccessfully(timestamp: Int, updateId: Option[UpdateId]) extends DeviceUpdateResult
+  final case class UpdatedToWrongTarget(timestamp: Int, targets: Map[EcuSerial, Image], manifest: Map[EcuSerial, Image]) extends DeviceUpdateResult
+
+}
+
 object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport {
+  import DeviceUpdateResult._
+
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  import scala.util.control.NoStackTrace
-  final case class DeviceUpdatedToWrongTarget(next_version: Int) extends Throwable(s"Device updated to the wrong target") with NoStackTrace
+  final case class DeviceVersion(current: Int, latestUpdate: Option[Int])
 
-  private def checkTargets[T](namespace: Namespace, device: DeviceId, next_version: Int)
-                          (withTargets:  Map[EcuSerial, CustomImage] => DBIO[T])
-                          (implicit db: Database, ec: ExecutionContext): DBIO[Option[UpdateId]] = {
-    adminRepository.fetchTargetVersionAction(namespace, device, next_version)
-      .flatMap(withTargets)
-      .andThen(adminRepository.fetchUpdateIdAction(namespace, device, next_version))
-  }
-
-  private def findNextVersionOrUpdate[T](device: DeviceId)(withVersion: Int => DBIO[Option[T]])
-                                     (implicit db: Database, ec: ExecutionContext): DBIO[Option[(Int, T)]] = {
-    deviceRepository.getNextVersionAction(device).asTry.flatMap {
-      case Failure(Errors.MissingCurrentTarget) =>
-        deviceRepository.updateDeviceVersionAction(device, 0).map(_ => None)
-      case Failure(ex) => DBIO.failed(ex)
-      case Success(next_version) => withVersion(next_version).map(x => x.map((next_version, _)))
-    }
-  }
-
-  private def updateDeviceTargetAction(namespace: Namespace, device: DeviceId, next_version: Int, translatedManifest: Map[EcuSerial, Image])
-                                      (implicit db: Database, ec: ExecutionContext): DBIO[Option[UpdateId]] = {
-    checkTargets(namespace, device, next_version) { targets =>
+  private def isEqualToUpdate(namespace: Namespace, device: DeviceId, next_version: Int, translatedManifest: Map[EcuSerial, Image])
+                             (ifNot : Map[EcuSerial, Image] => DBIO[DeviceUpdateResult])
+                             (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] =
+    adminRepository.fetchTargetVersionAction(namespace, device, next_version).flatMap { targets =>
       val translatedTargets = targets.mapValues(_.image)
       if (translatedTargets == translatedManifest) {
-        deviceRepository.updateDeviceVersionAction(device, next_version)
+        for {
+          _ <- deviceRepository.updateDeviceVersionAction(device, next_version)
+          updateId <- adminRepository.fetchUpdateIdAction(namespace, device, next_version)
+        } yield UpdatedSuccessfully(next_version, updateId)
       } else {
-        _log.error(s"Device ${device.show} updated to the wrong target")
-        _log.info {
-          s"""version : $next_version
-             |targets : $translatedTargets
-             |manifest: $translatedManifest
-           """.stripMargin
-        }
-        DBIO.failed(DeviceUpdatedToWrongTarget(next_version - 1)) // TODO, I rather not do - 1 here
+        ifNot(translatedTargets)
       }
     }
-  }
 
   def checkAgainstTarget(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])
-                        (implicit db: Database, ec: ExecutionContext): Future[Option[(Int, UpdateId)]] = {
+                        (implicit db: Database, ec: ExecutionContext): Future[DeviceUpdateResult] = {
     val translatedManifest = ecuImages.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
 
-    val dbAct = setEcusAction(namespace, device, ecuImages){
-      findNextVersionOrUpdate(device) { next_version =>
-        updateDeviceTargetAction(namespace, device, next_version, translatedManifest)
+    val dbAct = deviceRepository.getCurrentVersionAction(device).flatMap {
+      case None => isEqualToUpdate(namespace, device, 1, translatedManifest) { _ =>
+        deviceRepository.updateDeviceVersionAction(device, 0).map(_ => NoChange())
       }
-    }
+      case Some(current_version) =>
+        val next_version = current_version + 1
+        isEqualToUpdate(namespace, device, next_version, translatedManifest) { translatedTargets =>
+          adminRepository.findImagesAction(namespace, device).flatMap { currentStored =>
+            if (currentStored.toMap == translatedManifest) {
+              DBIO.successful(NoChange())
+            } else {
+              DBIO.successful(UpdatedToWrongTarget(current_version, translatedTargets, translatedManifest))
+            }
+          }
+        }
+    }.flatMap(x => deviceRepository.persistAllAction(ecuImages).map(_ => x))
 
     db.run(dbAct.transactionally)
   }
 
-  protected [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, version: Int)
+  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, version: Int)
                                            (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
       latestVersion <- adminRepository.getLatestVersion(namespace, device)
@@ -86,30 +84,5 @@ object DeviceUpdate extends AdminRepositorySupport
   def clearTargetsFrom(namespace: Namespace, device: DeviceId, version: Int)
                       (implicit db: Database, ec: ExecutionContext): Future[Int] = db.run{
     clearTargetsFromAction(namespace, device, version)
-  }
-
-  def clearTargets(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])
-                  (implicit db: Database, ec: ExecutionContext): Future[Option[UpdateId]] = {
-    val dbAct = for {
-        _ <- setEcusAction(namespace, device, ecuImages)(DBIO.successful(None))
-        current_version <- deviceRepository.getCurrentVersionAction(device)
-        updateId <- adminRepository.fetchUpdateIdAction(namespace, device, current_version + 1)
-        _ <- clearTargetsFromAction(namespace, device, current_version)
-      } yield updateId
-
-    db.run(dbAct.transactionally)
-  }
-
-  protected [db] def setEcusAction[T](namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])(ifNotSame : DBIO[Option[T]])
-                                  (implicit db: Database, ec: ExecutionContext): DBIO[Option[T]] = {
-    val translatedManifest = ecuImages.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
-
-    adminRepository.findImagesAction(namespace, device).flatMap { currentStored =>
-      if (currentStored.toMap == translatedManifest) {
-        DBIO.successful(None)
-      } else {
-        deviceRepository.persistAllAction(ecuImages).andThen(ifNotSame)
-      }
-    }
   }
 }

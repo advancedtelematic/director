@@ -16,6 +16,8 @@ import slick.driver.MySQLDriver.api._
 
 sealed abstract class DeviceManifestUpdateResult
 
+final case class NoChange() extends DeviceManifestUpdateResult
+
 final case class SuccessWithoutUpdateId() extends DeviceManifestUpdateResult
 
 final case class SuccessWithUpdateId(namespace: Namespace, device: DeviceId, updateId: UpdateId,
@@ -34,6 +36,7 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     with UpdateTypesRepositorySupport {
 
   val report: DeviceManifestUpdateResult => Future[Unit] = {
+    case NoChange() => FastFuture.successful(Unit)
     case SuccessWithoutUpdateId() => FastFuture.successful(Unit)
     case res:SuccessWithUpdateId =>
       updateTypesRepository.getType(res.updateId).flatMap {

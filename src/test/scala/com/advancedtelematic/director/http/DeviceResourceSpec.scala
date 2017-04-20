@@ -4,21 +4,27 @@ import java.util.concurrent.ConcurrentHashMap
 import java.security.PublicKey
 
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.db.SetTargets
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import io.circe.syntax._
 
-class DeviceResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
+class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
+    with ResourceSpec with Requests {
 
   def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
     SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
+  }
+
+  def deviceVersion(deviceId: DeviceId): Option[Int] = {
+    deviceRepository.getCurrentVersion(deviceId).map(Some.apply).recover{case _ => None}.futureValue
   }
 
   test("Can register device") {
@@ -320,5 +326,56 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with Resource
     updateManifestOk(device, deviceManifestTarget)
 
     FakeCoreClient.getReport(updateId).map(_.result_code) shouldBe Seq(4)
+  }
+
+  test("Update where the device is already") {
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri())))
+    val updateId = UpdateId.generate
+
+    schedule(device, targets, updateId)
+    updateManifestOk(device, deviceManifest)
+
+    deviceVersion(device) shouldBe Some(1)
+  }
+
+  test("First Device can also update") {
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val cimage = GenCustomImage.generate
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> cimage))
+    val updateId = UpdateId.generate
+
+    schedule(device, targets, updateId)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifestWithImage(regEcu.ecu_serial, cimage.image).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    deviceVersion(device) shouldBe Some(1)
   }
 }

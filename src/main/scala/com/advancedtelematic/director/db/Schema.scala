@@ -25,13 +25,15 @@ object Schema {
 
   type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
-    def ecuSerial = column[EcuSerial]("ecu_serial", O.PrimaryKey)
+    def ecuSerial = column[EcuSerial]("ecu_serial")
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def cryptoMethod = column[KeyType]("cryptographic_method")
     def publicKey = column[PublicKey]("public_key")
+
+    def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
 
     override def * = (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) <>
       ((_ : EcuRow) match {
@@ -43,22 +45,26 @@ object Schema {
   }
   protected [db] val ecu = TableQuery[EcusTable]
 
-  type CurrentImageRow = (EcuSerial, TargetFilename, Long, Checksum, String)
+  type CurrentImageRow = (Namespace, EcuSerial, TargetFilename, Long, Checksum, String)
   class CurrentImagesTable(tag: Tag) extends Table[CurrentImage](tag, "current_images") {
-    def id = column[EcuSerial]("ecu_serial", O.PrimaryKey)
+    def namespace = column[Namespace]("namespace")
+    def id = column[EcuSerial]("ecu_serial")
     def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
     def attacksDetected = column[String]("attacks_detected")
 
+    def primKey = primaryKey("current_image_pk", (namespace, id))
+
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    override def * = (id, filepath, length, checksum, attacksDetected) <> (
+    override def * = (namespace, id, filepath, length, checksum, attacksDetected) <> (
       (_: CurrentImageRow) match {
-        case (id, filepath, length, checksum, attacksDetected) =>
-          CurrentImage(id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), attacksDetected)
+        case (namespace, id, filepath, length, checksum, attacksDetected) =>
+          CurrentImage(namespace, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), attacksDetected)
       },
-      (x: CurrentImage) => Some((x.ecuSerial, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected))
+      (x: CurrentImage) => Some((x.namespace, x.ecuSerial, x.image.filepath, x.image.fileinfo.length,
+                                 Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected))
     )
   }
 
@@ -73,8 +79,9 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Int, EcuSerial, TargetFilename, Long, Checksum, Uri)
+  type EcuTargetRow = (Namespace, Int, EcuSerial, TargetFilename, Long, Checksum, Uri)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
+    def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
     def id = column[EcuSerial]("ecu_serial")
     def filepath = column[TargetFilename]("filepath")
@@ -84,14 +91,15 @@ object Schema {
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    def primKey = primaryKey("ecu_target_pk", (version, id))
+    def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
 
-    override def * = (version, id, filepath, length, checksum, uri) <> (
+    override def * = (namespace, version, id, filepath, length, checksum, uri) <> (
       (_: EcuTargetRow) match {
-        case (version, id, filepath, length, checksum, uri) =>
-          EcuTarget(version, id, CustomImage(filepath, FileInfo(Map(checksum.method -> checksum.hash), length), uri))
+        case (namespace, version, id, filepath, length, checksum, uri) =>
+          EcuTarget(namespace, version, id, CustomImage(filepath, FileInfo(Map(checksum.method -> checksum.hash), length), uri))
       },
-      (x: EcuTarget) => Some((x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length, Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.image.uri)))
+      (x: EcuTarget) => Some((x.namespace, x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length,
+                              Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.image.uri)))
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 

@@ -7,7 +7,6 @@ import com.advancedtelematic.libats.data.Namespace
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 import slick.driver.MySQLDriver.api._
 
 object DeviceUpdateResult {
@@ -62,7 +61,7 @@ object DeviceUpdate extends AdminRepositorySupport
             }
           }
         }
-    }.flatMap(x => deviceRepository.persistAllAction(ecuImages).map(_ => x))
+    }.flatMap(x => deviceRepository.persistAllAction(namespace, ecuImages).map(_ => x))
 
     db.run(dbAct.transactionally)
   }

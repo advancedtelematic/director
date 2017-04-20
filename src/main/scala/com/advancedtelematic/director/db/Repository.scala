@@ -108,7 +108,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
 
     def register(reg: RegisterEcu) =
-      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey)
+      (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
+        .handleIntegrityErrors(EcuAlreadyRegistered)
 
     val act = clean.andThen(DBIO.sequence(ecus.map(register)))
 
@@ -147,7 +148,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
                                         version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
-      ++= targets.map{ case (ecuSerial, image) => EcuTarget(version, ecuSerial, image)})
+      ++= targets.map{ case (ecuSerial, image) => EcuTarget(namespace, version, ecuSerial, image)})
 
     val updateDeviceTargets = Schema.deviceTargets += DeviceUpdateTarget(device, updateId, version)
 
@@ -210,19 +211,20 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  private def persistEcu(ecuManifest: EcuManifest): DBIO[Unit] = {
-    Schema.currentImage.insertOrUpdate(CurrentImage(ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
+  private def persistEcu(namespace: Namespace, ecuManifest: EcuManifest): DBIO[Unit] = {
+    Schema.currentImage.insertOrUpdate(CurrentImage(namespace, ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
   }
 
-  protected [db] def persistAllAction(ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
-    DBIO.sequence(ecuManifests.map(persistEcu)).map(_ => ()).transactionally
+  protected [db] def persistAllAction(namespace: Namespace, ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
+    DBIO.sequence(ecuManifests.map(persistEcu(namespace, _))).map(_ => ()).transactionally
 
-  def persistAll(ecuManifests: Seq[EcuManifest]): Future[Unit] =
-    db.run(persistAllAction(ecuManifests))
+  def persistAll(namespace: Namespace, ecuManifests: Seq[EcuManifest]): Future[Unit] =
+    db.run(persistAllAction(namespace, ecuManifests))
 
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
     def register(reg: RegisterEcu) =
-      Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey)
+      (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
+        .handleIntegrityErrors(EcuAlreadyRegistered)
 
     val dbAct = byDevice(namespace, device).exists.result.flatMap {
       case false => DBIO.sequence(ecus.map(register)).map(_ => ())

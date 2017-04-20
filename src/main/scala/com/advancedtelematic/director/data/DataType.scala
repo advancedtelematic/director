@@ -61,9 +61,9 @@ object DataType {
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, clientKey: ClientKey)
 
-  final case class CurrentImage (ecuSerial: EcuSerial, image: Image, attacksDetected: String)
+  final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 
-  final case class EcuTarget(version: Int, ecuIdentifier: EcuSerial, image: CustomImage)
+  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, image: CustomImage)
 
   final case class DeviceUpdateTarget(device: DeviceId, updateId: Option[UpdateId], targetVersion: Int)
 

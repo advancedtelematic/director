@@ -7,7 +7,7 @@ import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libats.http.{ErrorHandler, HealthResource}
+import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 
 import scala.concurrent.ExecutionContext

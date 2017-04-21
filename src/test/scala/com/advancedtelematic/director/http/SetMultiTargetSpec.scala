@@ -25,7 +25,7 @@ class SetMultiTargetSpec extends DirectorSpec
 
     registerDeviceOk(regDev)
 
-    val targetUpdate = GenTargetUpdate.generate
+    val targetUpdate = GenTargetUpdateRequest.generate
     val mtu = MultiTargetUpdateRequest(Map(primEcuReg.hardwareId -> targetUpdate))
 
     val mtuId = createMultiTargetUpdateOK(mtu)
@@ -33,7 +33,7 @@ class SetMultiTargetSpec extends DirectorSpec
     SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
 
-    update shouldBe Map(primEcu -> CustomImage(targetUpdate.image, Uri()))
+    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
   }
 
   test("only ecus that match the hardwareId will be scheduled") {
@@ -49,13 +49,13 @@ class SetMultiTargetSpec extends DirectorSpec
     registerDeviceOk(regDev)
 
     val mtus = ecusThatWillUpdate.map { regEcu =>
-      regEcu.hardwareId -> GenTargetUpdate.generate
+      regEcu.hardwareId -> GenTargetUpdateRequest.generate
     }
 
     val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
 
     val expected = ecusThatWillUpdate.zip(mtus).map { case (ecu, (hw, mtu)) =>
-      ecu.ecu_serial -> CustomImage(mtu.image, Uri())
+      ecu.ecu_serial -> CustomImage(mtu.to.image, Uri())
     }.toMap
 
     val f = async {
@@ -80,7 +80,7 @@ class SetMultiTargetSpec extends DirectorSpec
     val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
     updateManifestOk(device, devManifest)
 
-    val targetUpdate = GenTargetUpdate.generate
+    val targetUpdate = GenTargetUpdateRequest.generate
     val mtu = MultiTargetUpdateRequest(Map(primEcuReg.hardwareId -> targetUpdate))
 
     val mtuId = createMultiTargetUpdateOK(mtu)
@@ -88,11 +88,11 @@ class SetMultiTargetSpec extends DirectorSpec
     async {
       await(SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId))
       val update = await(adminRepository.fetchTargetVersion(defaultNs, device, 1))
-      update shouldBe Map(primEcu -> CustomImage(targetUpdate.image, Uri()))
+      update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
     }.futureValue
 
 
-    val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, CustomImage(targetUpdate.image, Uri()).image).generate)
+    val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, CustomImage(targetUpdate.to.image, Uri()).image).generate)
     val devManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestTarget).generate
     updateManifestOk(device, devManifestTarget)
 

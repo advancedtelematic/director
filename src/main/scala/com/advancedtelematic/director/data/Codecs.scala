@@ -71,6 +71,9 @@ object Codecs {
   implicit val decoderTargetUpdate: Decoder[TargetUpdate] = deriveDecoder
   implicit val encoderTargetUpdate: Encoder[TargetUpdate] = deriveEncoder
 
+  implicit val decoderTargetUpdateRequest: Decoder[TargetUpdateRequest] = deriveDecoder
+  implicit val encoderTargetUpdateRequest: Encoder[TargetUpdateRequest] = deriveEncoder
+
   implicit val multiTargetUpdateCreatedEncoder: Encoder[MultiTargetUpdateRequest] = deriveEncoder
   implicit val multiTargetUpdateCreatedDecoder: Decoder[MultiTargetUpdateRequest] = deriveDecoder
 

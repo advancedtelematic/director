@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
@@ -9,6 +8,7 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.SetVersion
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -17,18 +17,6 @@ import io.circe.Json
 import io.circe.syntax._
 
 class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests with SetVersion {
-  trait NamespaceTag {
-    val value: String
-  }
-
-  def withNamespace[T](ns: String)(fn: NamespaceTag => T): T =
-    fn(new NamespaceTag { val value = ns })
-
-  implicit class Namespaced(value: HttpRequest) {
-    def namespaced(implicit namespaceTag: NamespaceTag): HttpRequest =
-      value.addHeader(RawHeader("x-ats-namespace", namespaceTag.value))
-  }
-
   def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val device = DeviceId.generate
 

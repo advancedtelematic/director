@@ -35,26 +35,36 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .groupBy(_.device)
       .map{case (devId, q) => (devId, q.map(_.version).max.getOrElse(0))}
 
-    def notInACampaign: Query[Rep[DeviceId], DeviceId, Seq] = query
-      .join(Schema.deviceCurrentTarget).on(_ === _.device)
-      .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
-      .joinLeft(devTargets).on(_._1 === _._1)
-      .map{case ((devId, curTarg), devUpdate) => (devId, curTarg, devUpdate.map(_._2).getOrElse(curTarg))}
-      .filter{ case(_, cur, lastScheduled) => cur === lastScheduled}
-      .map(_._1)
+    def notInACampaign: Query[Rep[DeviceId], DeviceId, Seq] = {
+      val reportedButNotInACampaign = query
+        .join(Schema.deviceCurrentTarget).on(_ === _.device)
+        .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
+        .joinLeft(devTargets).on(_._1 === _._1)
+        .map{case ((devId, curTarg), devUpdate) => (devId, curTarg, devUpdate.map(_._2).getOrElse(curTarg))}
+        .filter{ case(_, cur, lastScheduled) => cur === lastScheduled}
+        .map(_._1)
+
+      val notReported = query.filterNot(dev => dev.in(Schema.deviceCurrentTarget.map(_.device)))
+
+      reportedButNotInACampaign.union(notReported)
+    }
   }
+
+  protected [db] def devicesNotInACampaign(devices: Seq[DeviceId]): Query[Rep[DeviceId], DeviceId, Seq] =
+    Schema.ecu.map(_.device).filter(_.inSet(devices)).notInACampaign
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, HardwareIdentifier]] =
+  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, (HardwareIdentifier, Option[Image])]] =
     byDevice(namespace, device)
-      .map(x => x.ecuSerial -> x.hardwareId)
+      .joinLeft(Schema.currentImage).on(_.ecuSerial === _.id)
+      .map{case (x,y) => (x.ecuSerial, x.hardwareId, y)}
       .result
       .failIfEmpty(DeviceMissing)
-      .map(_.toMap)
+      .map(_.map{case (id, hw, img) => id -> ((hw, img.map(_.image)))}.toMap)
 
   protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
     byDevice(namespace, device)

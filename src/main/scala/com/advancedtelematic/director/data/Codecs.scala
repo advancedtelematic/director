@@ -15,12 +15,12 @@ object Codecs {
   implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>
     value.refineTry[ValidEcuSerial].toOption
   }
-  implicit val keyEncoderEcuSerial: KeyEncoder[EcuSerial] = KeyEncoder[String].contramap(_.get)
+  implicit val keyEncoderEcuSerial: KeyEncoder[EcuSerial] = KeyEncoder[String].contramap(_.value)
 
   implicit val keyDecoderHardwareIdentifier: KeyDecoder[HardwareIdentifier] = KeyDecoder.instance { value =>
     value.refineTry[ValidHardwareIdentifier].toOption
   }
-  implicit val keyEncoderHardwareIdentifier: KeyEncoder[HardwareIdentifier] = KeyEncoder[String].contramap(_.get)
+  implicit val keyEncoderHardwareIdentifier: KeyEncoder[HardwareIdentifier] = KeyEncoder[String].contramap(_.value)
 
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder

@@ -9,7 +9,7 @@ object AdminRequest {
     import eu.timepit.refined.api.Refined
     // TODO: for backwards compatible reasons we allow the hardware_identifier to not be present in the request
     // and use the ecu_serial as the hardware_identifer
-    lazy val hardwareId: HardwareIdentifier = hardware_identifier.getOrElse(Refined.unsafeApply(ecu_serial.get))
+    lazy val hardwareId: HardwareIdentifier = hardware_identifier.getOrElse(Refined.unsafeApply(ecu_serial.value))
   }
   object RegisterEcu {
     def apply (ecu_serial: EcuSerial, hardware_identifier: HardwareIdentifier, clientKey: ClientKey): RegisterEcu =

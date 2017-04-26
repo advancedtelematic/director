@@ -15,10 +15,10 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceReposito
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import de.heikoseeberger.akkahttpcirce.CirceSupport._
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace])
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)

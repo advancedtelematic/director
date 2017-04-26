@@ -12,11 +12,10 @@ libraryDependencies ++= {
   val akkaV = "2.4.14"
   val akkaHttpV = "10.0.3"
   val scalaTestV = "3.0.0"
-  val slickV = "3.1.1"
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.56"
-  val tufV = "0.0.1-77-g83be762"
-  val libatsV = "0.0.1-45-gba2a71b"
+  val tufV = "0.0.1-81-g49ae5df"
+  val libatsV = "0.0.1-55-ga018979"
   val circeConfigV = "0.0.2"
 
   Seq(
@@ -34,7 +33,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats" % libatsV,
     "com.advancedtelematic" %% "libats-messaging" % libatsV,
     "com.advancedtelematic" %% "libats-messaging-datatype" % libatsV,
-    "com.advancedtelematic" %% "libats-metrics" % libatsV,
+    "com.advancedtelematic" %% "libats-metrics-akka" % libatsV changing(),
     "com.advancedtelematic" %% "libats-slick" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "circe-config" % circeConfigV,
@@ -44,8 +43,6 @@ libraryDependencies ++= {
 
     "org.scala-lang.modules" %% "scala-async" % "0.9.6",
 
-    "com.typesafe.slick" %% "slick" % slickV,
-    "com.typesafe.slick" %% "slick-hikaricp" % slickV,
     "org.mariadb.jdbc" % "mariadb-java-client" % "1.4.4",
     "org.flywaydb" % "flyway-core" % "4.0.3"
   )

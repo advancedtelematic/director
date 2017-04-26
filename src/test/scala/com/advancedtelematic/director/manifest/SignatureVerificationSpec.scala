@@ -46,7 +46,7 @@ class SignatureVerificationSpec extends DirectorSpec {
 
     val sig = {
       val orig = sign(keys.getPrivate, data)
-      val newSig = updateBit(orig.sig.get).refineTry[ValidSignature].get
+      val newSig = updateBit(orig.sig.value).refineTry[ValidSignature].get
       orig.copy(sig = newSig)
     }
     val clientKey = ClientKey(RSA, keys.getPublic)

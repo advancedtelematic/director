@@ -13,7 +13,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import eu.timepit.refined.api.Refined
 import io.circe.Json
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 object Schema {
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -162,7 +162,7 @@ object Schema {
   }
   protected [db] val rootFiles = TableQuery[RootFilesTable]
 
-  implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.value.toString, HashMethod.withName)
+  implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
   type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
   class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")

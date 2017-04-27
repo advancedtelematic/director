@@ -11,7 +11,7 @@ import com.advancedtelematic.director.db.SetVersion
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
-import de.heikoseeberger.akkahttpcirce.CirceSupport._
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import io.circe.syntax._
@@ -98,7 +98,7 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
   def findPublicKey(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): ClientKey = {
     import com.advancedtelematic.libtuf.data.ClientCodecs._
     Get(Uri(apiUri(s"admin/devices/${device.show}/ecus/public_key"))
-          .withQuery(Uri.Query("ecu_serial" -> ecuSerial.get))).namespaced ~> routes ~> check {
+          .withQuery(Uri.Query("ecu_serial" -> ecuSerial.value))).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[ClientKey]
     }

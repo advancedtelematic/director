@@ -7,8 +7,8 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdate, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.data.Namespace
-import de.heikoseeberger.akkahttpcirce.CirceSupport._
-import slick.driver.MySQLDriver.api.Database
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import slick.jdbc.MySQLProfile.api.Database
 
 import scala.async.Async._
 import scala.concurrent.ExecutionContext

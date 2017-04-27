@@ -19,7 +19,7 @@ object SignatureVerification {
 
   def verify(clientKey: ClientKey)(sig: Signature, data: Array[Byte]): Try[Boolean] = {
     if(log.isDebugEnabled) {
-      log.debug(s"Verifying signature '${sig.sig.get}' of data '${Sha256Digest.digest(data)}' using key '${Sha256Digest.digest(clientKey.keyval.getEncoded)}'")
+      log.debug(s"Verifying signature '${sig.sig.value}' of data '${Sha256Digest.digest(data)}' using key '${Sha256Digest.digest(clientKey.keyval.getEncoded)}'")
     }
     if (!keyTypeMatchSignature(clientKey.keytype, sig.method)) {
       Failure(Errors.SignatureMethodMismatch)

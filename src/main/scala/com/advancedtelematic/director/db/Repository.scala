@@ -8,7 +8,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType
 import io.circe.Json
 
 import scala.concurrent.{ExecutionContext, Future}
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 import scala.util.{Failure, Success}
 import Errors._

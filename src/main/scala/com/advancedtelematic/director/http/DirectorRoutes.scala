@@ -6,12 +6,12 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.manifest.Verifier.Verifier
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
-import slick.driver.MySQLDriver.api._
 
 
 class DirectorRoutes(verifier: ClientKey => Verifier,

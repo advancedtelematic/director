@@ -7,7 +7,7 @@ import com.advancedtelematic.libats.data.Namespace
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 object DeviceUpdateResult {
   sealed abstract class DeviceUpdateResult

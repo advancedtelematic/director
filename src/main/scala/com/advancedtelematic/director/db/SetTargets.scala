@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.UpdateType
 import com.advancedtelematic.libats.data.Namespace
 
 import scala.concurrent.{ExecutionContext, Future}
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 
 object SetTargets extends AdminRepositorySupport

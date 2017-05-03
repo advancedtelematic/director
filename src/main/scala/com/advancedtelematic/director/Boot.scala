@@ -2,7 +2,7 @@ package com.advancedtelematic.director
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.server.{Directives, Route}
+import akka.http.scaladsl.server.{Directive, Directive0, Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
 import com.typesafe.config.{Config, ConfigFactory}
@@ -79,9 +79,13 @@ object Boot extends BootApp
     metricRegistry.register("jvm.os", OsMetricSet)
     InfluxDbMetricsReporter.start(x, metricRegistry, AkkaHttpMetricsSink.apply(x))
   }
+
+  val meter = metricRegistry.meter("director.requests")
+  val countRequests: Directive0 = mapRequest { x => meter.mark(); x }
+
   val routes: Route =
     new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route ~
-    (versionHeaders(version) & logResponseMetrics(projectName)) {
+    (versionHeaders(version) & logResponseMetrics(projectName) & countRequests) {
       new DirectorRoutes(SignatureVerification.verify, coreClient).routes
     }
 

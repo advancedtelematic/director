@@ -152,7 +152,6 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
       val device1 = registerNSDeviceOk(afn, bfn)
       val device2 = registerNSDeviceOk(afn)
 
-      setCampaign(device1, 0).futureValue
       setCampaign(device1, 1).futureValue
 
       val pag = getAffected("a")()
@@ -166,7 +165,8 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
       val device1 = registerNSDeviceOk(afn, bfn)
       val device2 = registerNSDeviceOk(afn)
 
-      setCampaign(device1, 0).futureValue
+      setCampaign(device1, 1).futureValue
+      setDeviceVersion(device1, 1).futureValue
 
       val pag = getAffected("a")()
       pag.total shouldBe 2
@@ -195,8 +195,6 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
   }
 
   test("devices/id gives a list of ecuresponses") {
-
-
     withNamespace("check ecuresponse") {implicit ns =>
       val images = Seq(afn, bfn)
       val (device, primEcu, ecusSerials) = createDeviceWithImages(images : _*)

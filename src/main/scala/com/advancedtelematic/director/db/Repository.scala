@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, HardwareIdentifier, MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, FileCacheRequest, HardwareIdentifier, MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
@@ -20,7 +21,7 @@ trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
 }
 
-protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport {
+protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport with FileCacheRequestRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
@@ -112,7 +113,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
         .handleIntegrityErrors(EcuAlreadyRegistered)
 
     val act = clean.andThen(DBIO.sequence(ecus.map(register)))
-
+      .andThen(deviceRepository.createEmptyTarget(namespace, device))
     db.run(act.map(_ => ()).transactionally)
   }
 
@@ -198,13 +199,13 @@ trait DeviceRepositorySupport {
   def deviceRepository(implicit db: Database, ec: ExecutionContext) = new DeviceRepository()
 }
 
-protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) {
+protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) extends FileCacheRequestRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import DataType.{CurrentImage, DeviceCurrentTarget, EcuSerial}
+  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateTarget, EcuSerial}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -221,13 +222,19 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def persistAll(namespace: Namespace, ecuManifests: Seq[EcuManifest]): Future[Unit] =
     db.run(persistAllAction(namespace, ecuManifests))
 
+  protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
+    val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
+    (Schema.deviceTargets += DeviceUpdateTarget(device, updateId = None, targetVersion = 0))
+      .andThen(fileCacheRequestRepository.persistAction(fcr))
+  }
+
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
     def register(reg: RegisterEcu) =
       (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
         .handleIntegrityErrors(EcuAlreadyRegistered)
 
     val dbAct = byDevice(namespace, device).exists.result.flatMap {
-      case false => DBIO.sequence(ecus.map(register)).map(_ => ())
+      case false => DBIO.sequence(ecus.map(register)).andThen(createEmptyTarget(namespace, device))
       case true  => DBIO.failed(DeviceAlreadyRegistered)
     }
 

@@ -108,7 +108,11 @@ trait Generators {
     checksum <- GenChecksum
   } yield TargetUpdate(target, checksum, size)
 
+  val GenTargetUpdateRequest: Gen[TargetUpdateRequest] = for {
+    targetUpdate <- GenTargetUpdate
+  } yield TargetUpdateRequest(None, targetUpdate)
+
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
-    targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdate))
+    targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdateRequest))
   } yield MultiTargetUpdateRequest(targets)
 }

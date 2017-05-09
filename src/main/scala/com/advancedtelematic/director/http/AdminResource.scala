@@ -64,6 +64,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     }
   }
 
+  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
+    SetMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+  }
+
   def fetchRoot(namespace: Namespace): Route = {
     complete(rootFilesRepository.find(namespace))
   }
@@ -74,6 +78,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
       val limit  = mLimit.getOrElse(50L)
       complete(adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit))
     }
+
+  def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
+    SetMultiTargets.findAffected(namespace, devices, updateId)
+  }
 
   def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = complete {
     adminRepository.findPublicKey(namespace, device, ecuSerial)
@@ -87,6 +95,14 @@ class AdminResource(extractNamespace: Directive1[Namespace])
       pathPrefix("images") {
         (get & path("affected")) {
           findAffectedDevices(ns)
+        }
+      } ~
+      pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
+        (put & entity(as[Seq[DeviceId]])) { devices =>
+          setMultiTargetUpdateForDevices(ns, devices, updateId)
+        } ~
+        (get & path("affected") & entity(as[Seq[DeviceId]])) { devices =>
+          findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
         }
       } ~
       pathPrefix("devices") {

@@ -7,13 +7,13 @@ import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarg
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, HardwareIdentifier, Image, MultiTargetUpdateRequest, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
-import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
-trait Requests extends DirectorSpec with ResourceSpec {
+trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
   def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/devices"), regDev)
 
   def registerDeviceOk(regDev: RegisterDevice): Unit =

@@ -163,7 +163,8 @@ object Schema {
   protected [db] val rootFiles = TableQuery[RootFilesTable]
 
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
-  type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long, Namespace)
+  type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long,
+                 Option[TargetFilename], Option[HashMethod], Option[Refined[String, ValidChecksum]], Option[Long], Namespace)
   class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
@@ -171,12 +172,31 @@ object Schema {
     def hashMethod = column[HashMethod]("hash_method")
     def targetHash = column[Refined[String, ValidChecksum]]("target_hash")
     def targetSize = column[Long]("target_size")
+    def fromTarget = column[Option[TargetFilename]]("from_target")
+    def fromHashMethod = column[Option[HashMethod]]("from_hash_method")
+    def fromTargetHash = column[Option[Refined[String, ValidChecksum]]]("from_target_hash")
+    def fromTargetSize = column[Option[Long]]("from_target_size")
     def namespace = column[Namespace]("namespace")
 
-    def * = (id, hardwareId, target, hashMethod, targetHash, targetSize, namespace).shaped <>
-      ((x: MTURow) => MultiTargetUpdate(x._1, x._2, x._3, Checksum(x._4, x._5), x._6, x._7),
-       (x: MultiTargetUpdate) =>
-         Some((x.id, x.hardwareId, x.target, x.checksum.method, x.checksum.hash, x.targetLength, x.namespace)))
+    private def fromTargetOption(mtarget: Option[TargetFilename], mhashMethod: Option[HashMethod],
+                                 mhash: Option[Refined[String, ValidChecksum]], msize: Option[Long]): Option[TargetUpdate] = for {
+      target <- mtarget
+      hashMethod <- mhashMethod
+      hash <- mhash
+      size <- msize
+    } yield TargetUpdate(target, Checksum(hashMethod, hash), size)
+
+    def * = (id, hardwareId, target, hashMethod, targetHash, targetSize, fromTarget, fromHashMethod, fromTargetHash, fromTargetSize, namespace) <> (
+      (_: MTURow) match {
+        case (id, hardwareId, target, hashMethod, targetHash, targetSize, fromTarget, fromHashMethod, fromTargetHash, fromTargetSize, namespace) =>
+          val from = fromTargetOption(fromTarget, fromHashMethod, fromTargetHash, fromTargetSize)
+          MultiTargetUpdate(id, hardwareId, from, target, Checksum(hashMethod, targetHash), targetSize, namespace)
+      }, (x: MultiTargetUpdate) => {
+        def from[T](fn: TargetUpdate => T): Option[T] = x.fromTarget.map(fn)
+        Some((x.id, x.hardwareId, x.target, x.checksum.method, x.checksum.hash, x.targetLength,
+              from(_.target), from(_.checksum.method), from(_.checksum.hash), from(_.targetLength), x.namespace))
+      }
+    )
 
     def pk = primaryKey("mtu_pk", (id, hardwareId))
   }

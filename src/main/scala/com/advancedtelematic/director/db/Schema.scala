@@ -6,9 +6,10 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.{FileCacheRequestStatus, LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
-import com.advancedtelematic.libtuf.data.TufDataType.HashMethod.HashMethod
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HashMethod, RepoId, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import eu.timepit.refined.api.Refined

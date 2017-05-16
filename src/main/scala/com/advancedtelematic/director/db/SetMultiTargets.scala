@@ -1,11 +1,11 @@
 package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, EcuSerial, LaunchedMultiTargetUpdate,
-  MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{CustomImage, LaunchedMultiTargetUpdate, MultiTargetUpdate}
 import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.UpdateType
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 

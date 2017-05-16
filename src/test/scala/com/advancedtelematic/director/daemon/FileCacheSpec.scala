@@ -4,11 +4,11 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.{TestActorRef, TestKitBase}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.http.Requests
 import com.advancedtelematic.director.util.{DirectorSpec, FakeRoleStore}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._

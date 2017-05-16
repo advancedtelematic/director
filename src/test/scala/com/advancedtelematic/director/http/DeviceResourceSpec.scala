@@ -13,6 +13,7 @@ import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, 
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import io.circe.syntax._
 

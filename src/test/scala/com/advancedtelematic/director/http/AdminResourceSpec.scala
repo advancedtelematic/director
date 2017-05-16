@@ -4,13 +4,13 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.SetVersion
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 import io.circe.Json

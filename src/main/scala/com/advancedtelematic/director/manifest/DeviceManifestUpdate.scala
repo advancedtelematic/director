@@ -3,11 +3,11 @@ package com.advancedtelematic.director.manifest
 import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.DeviceId
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, OperationResult}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import org.slf4j.LoggerFactory

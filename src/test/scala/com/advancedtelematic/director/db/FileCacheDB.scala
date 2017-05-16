@@ -1,8 +1,9 @@
 package com.advancedtelematic.director.db
 
 import akka.Done
-import com.advancedtelematic.director.data.DataType.{DeviceId, DeviceUpdateTarget}
+import com.advancedtelematic.director.data.DataType.{DeviceUpdateTarget}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import java.time.Instant

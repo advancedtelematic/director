@@ -1,9 +1,9 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.data.DataType.UpdateId
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
 
 class MultiTargetUpdatesResourceSpec extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
 

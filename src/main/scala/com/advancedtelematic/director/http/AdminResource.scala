@@ -9,12 +9,12 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport,
   SetMultiTargets, SetTargets}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._

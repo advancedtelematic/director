@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename, ClientHashes => Hashes}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
 
 object AdminRequest {
   import DataType._

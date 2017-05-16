@@ -9,6 +9,7 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 

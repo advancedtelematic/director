@@ -6,6 +6,7 @@ import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
 import com.advancedtelematic.libats.http.ErrorCode
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
 object ErrorCodes {
   val ConflictingSnapshot = ErrorCode("snapshot_already_exists")

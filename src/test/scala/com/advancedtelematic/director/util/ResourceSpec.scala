@@ -89,8 +89,8 @@ object FakeRoleStore extends KeyserverClient {
 }
 
 object FakeCoreClient extends CoreClient {
-  import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
   import com.advancedtelematic.director.data.DeviceRequest.OperationResult
+  import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
   import java.util.concurrent.ConcurrentHashMap
 
   private val reports: ConcurrentHashMap[UpdateId, Seq[OperationResult]] = new ConcurrentHashMap()

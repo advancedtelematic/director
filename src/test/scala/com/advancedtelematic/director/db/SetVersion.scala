@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.db
 
 import akka.Done
-import com.advancedtelematic.director.data.DataType.{DeviceId, DeviceCurrentTarget, DeviceUpdateTarget}
+import com.advancedtelematic.director.data.DataType.{DeviceCurrentTarget, DeviceUpdateTarget}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 

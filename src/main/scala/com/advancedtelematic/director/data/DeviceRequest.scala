@@ -1,12 +1,13 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.Json
 
 import java.time.Instant
 
 object DeviceRequest {
-  import DataType.{EcuSerial, Image}
+  import DataType.Image
 
   final case class EcuManifest(timeserver_time: Instant,
                                installed_image: Image,

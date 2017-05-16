@@ -1,14 +1,15 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.director.data.AdminRequest._
+import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DeviceRequest._
+import com.advancedtelematic.director.data.DataType.{FileInfo, Image, ValidHardwareIdentifier}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceRegistration, EcuManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libtuf.data.ClientDataType._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{HashMethod, ValidChecksum, ValidEcuSerial}
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, KeyType, SignatureMethod, SignedPayload, ValidKeyId, ValidSignature}
 import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._

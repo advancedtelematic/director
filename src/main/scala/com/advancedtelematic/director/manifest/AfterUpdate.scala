@@ -3,12 +3,12 @@ package com.advancedtelematic.director.manifest
 import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.client.CoreClient
-import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate,
   LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}

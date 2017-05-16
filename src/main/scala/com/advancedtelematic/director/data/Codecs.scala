@@ -1,21 +1,18 @@
 package com.advancedtelematic.director.data
 
+import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
 import io.circe.{Decoder, Encoder, JsonObject, KeyDecoder, KeyEncoder}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
   import AdminRequest._
-  import DataType._
   import DeviceRequest._
   import io.circe.generic.semiauto._
-
-  implicit val keyDecoderEcuSerial: KeyDecoder[EcuSerial] = KeyDecoder.instance { value =>
-    value.refineTry[ValidEcuSerial].toOption
-  }
-  implicit val keyEncoderEcuSerial: KeyEncoder[EcuSerial] = KeyEncoder[String].contramap(_.value)
 
   implicit val keyDecoderHardwareIdentifier: KeyDecoder[HardwareIdentifier] = KeyDecoder.instance { value =>
     value.refineTry[ValidHardwareIdentifier].toOption
@@ -28,7 +25,7 @@ object Codecs {
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
 
-  implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder[CustomImage]
+  implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder
   implicit val encoderCustomImage: Encoder[CustomImage] = deriveEncoder
 
   /*** Device Request ***/
@@ -91,7 +88,6 @@ object AkkaHttpUnmarshallingSupport {
   import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
   import akka.http.scaladsl.util.FastFuture
 
-  import DataType._
   implicit val ecuSerial: FromStringUnmarshaller[EcuSerial] =
     Unmarshaller{ec => x => FastFuture(x.refineTry[ValidEcuSerial])}
 }

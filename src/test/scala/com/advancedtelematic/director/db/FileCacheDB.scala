@@ -12,13 +12,12 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 trait FileCacheDB {
-  def makeFilesExpire(device: DeviceId, version: Int)
+  def makeFilesExpire(device: DeviceId)
                      (implicit db: Database, ec: ExecutionContext): Future[Done] = db.run {
     Schema.fileCache
       .filter(_.device === device)
-      .filter(_.version === version)
       .map(_.expires)
-      .update(Instant.now.minus(1, ChronoUnit.DAYS))
+      .update(Instant.now.minus(10, ChronoUnit.DAYS))
   }.map(_ => Done)
 
   def pretendToGenerate()(implicit db: Database, ec: ExecutionContext): Future[Done] = db.run {

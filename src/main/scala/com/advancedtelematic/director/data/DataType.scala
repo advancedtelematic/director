@@ -8,7 +8,6 @@ import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
-import java.util.UUID
 import java.time.Instant
 
 import com.advancedtelematic.libats.slick.codecs.SlickEnum

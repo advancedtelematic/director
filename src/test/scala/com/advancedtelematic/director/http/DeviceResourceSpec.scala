@@ -5,6 +5,7 @@ import java.security.PublicKey
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
+import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
@@ -247,7 +248,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     schedule(device, targets, updateId)
 
-    val operation = OperationResult("update", 0, "Yeah that worked")
+    val operation = OperationResult(updateId.show, 0, "Yeah that worked")
     val custom = CustomManifest(operation)
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(custom)).generate }.map { sig =>
       sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
@@ -281,7 +282,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     schedule(device, targets, updateId)
 
-    val operation = OperationResult("update", 4, "sad face")
+    val operation = OperationResult(updateId.show, 4, "sad face")
     val custom = CustomManifest(operation)
 
     val ecuManifestsTarget = ecuManifests.map { secu =>

@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceUpdateTarget, FileCacheRequest, Image}
+import com.advancedtelematic.director.data.DataType.{FileCacheRequest, Image}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.Namespace

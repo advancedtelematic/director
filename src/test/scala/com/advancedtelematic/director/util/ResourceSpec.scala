@@ -6,6 +6,7 @@ import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
@@ -110,6 +111,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   val defaultNs = Namespace("default")
 
+  implicit val msgPub = MessageBusPublisher.ignore
   def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient, FakeRoleStore).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)

@@ -9,6 +9,7 @@ import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.director.roles.{RolesCache, RolesGeneration}
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -24,7 +25,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: ClientKey => Verifier,
                      coreClient: CoreClient,
                      tuf: KeyserverClient)
-                    (implicit db: Database, ec: ExecutionContext)
+                    (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
     with RootFilesRepositorySupport {

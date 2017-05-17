@@ -8,6 +8,7 @@ import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
@@ -21,7 +22,8 @@ class DirectorRoutes(verifier: ClientKey => Verifier,
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,
-                     mat: Materializer) extends VersionInfo {
+                     mat: Materializer,
+                     messageBusPublisher: MessageBusPublisher) extends VersionInfo {
   import Directives._
 
   val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor

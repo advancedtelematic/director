@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
 
 object AdminRequest {
@@ -25,4 +25,6 @@ object AdminRequest {
 
   final case class EcuInfoImage(filepath: TargetFilename, size: Long, hash: Hashes)
   final case class EcuInfoResponse(id: EcuSerial, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
+
+  final case class QueueResponse(updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage])
 }

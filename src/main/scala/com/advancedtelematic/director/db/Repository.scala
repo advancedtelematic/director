@@ -23,7 +23,7 @@ trait AdminRepositorySupport {
 }
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport with FileCacheRequestRepositorySupport {
-  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
+  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu, QueueResponse}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Image}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
@@ -113,6 +113,31 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
       .failIfNotSingle(MissingEcu)
       .map{case (typ, key) => ClientKey(typ, key)}
+  }
+
+  def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
+    def queueResult(version: Int, update: Option[UpdateId]): DBIO[QueueResponse] =
+      fetchTargetVersionAction(namespace, device, version).map(QueueResponse(update,_))
+
+    val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
+      .filter(_.device === device)
+      .map(_.deviceCurrentTarget)
+      .result
+      .failIfMany()
+      .map(_.getOrElse(0))
+
+    def allUpdatesScheduledAfter(fromVersion: Int): DBIO[Seq[(Int, Option[UpdateId])]] = Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version > fromVersion)
+      .sortBy(_.version)
+      .map(x => (x.version, x.update))
+      .result
+
+    for {
+      currentVersion <- versionOfDevice
+      updates <- allUpdatesScheduledAfter(currentVersion)
+      queue <- DBIO.sequence(updates.map((queueResult _).tupled))
+    } yield queue
   }
 
   def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {

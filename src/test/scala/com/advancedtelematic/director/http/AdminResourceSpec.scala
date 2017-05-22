@@ -4,8 +4,9 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
+import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.db.SetVersion
+import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.PaginationResult
@@ -16,7 +17,7 @@ import eu.timepit.refined.api.Refined
 import io.circe.Json
 import io.circe.syntax._
 
-class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests with SetVersion {
+class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec with Requests with SetVersion {
   def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val device = DeviceId.generate
 
@@ -90,6 +91,20 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
       status shouldBe StatusCodes.OK
       responseAs[ClientKey]
     }
+  }
+
+  def setRandomTargets(device: DeviceId, ecuSerials: Seq[EcuSerial])(implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
+    val targets = ecuSerials.map{ ecu =>
+      ecu -> GenCustomImage.generate
+    }.toMap
+
+    setTargets(device, SetTarget(targets)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    pretendToGenerate().futureValue
+
+    targets
   }
 
   val afn: TargetFilename = Refined.unsafeApply("a")
@@ -196,6 +211,47 @@ class AdminResourceSpec extends DirectorSpec with ResourceSpec with Requests wit
       ecuInfos.foreach {ecuInfo =>
         ecuInfo.image.filepath shouldBe ecus(ecuInfo.id)
       }
+    }
+  }
+
+  test("device/queue (device not reported)") {
+    withRandomNamespace {implicit ns =>
+      val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+      val targets = setRandomTargets(device, ecuSerials)
+
+      val q = deviceQueueOk(device)
+      q.map(_.targets) shouldBe Seq(targets)
+    }
+  }
+
+  test("device/queue (device reported)") {
+    withRandomNamespace {implicit ns =>
+      val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+
+      val reportedVersions = 42
+      setCampaign(device, reportedVersions).futureValue
+      setDeviceVersion(device, reportedVersions).futureValue
+
+      val targets = setRandomTargets(device, ecuSerials)
+
+      val q = deviceQueueOk(device)
+      q.map(_.targets) shouldBe Seq(targets)
+    }
+  }
+
+  test("device/queue (device reported) with bigger queue") {
+    withRandomNamespace {implicit ns =>
+      val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+
+      val reportedVersions = 42
+      setCampaign(device, reportedVersions).futureValue
+      setDeviceVersion(device, reportedVersions).futureValue
+
+      val targets = setRandomTargets(device, ecuSerials)
+      val targets2 = setRandomTargets(device, ecuSerials)
+
+      val q = deviceQueueOk(device)
+      q.map(_.targets) shouldBe Seq(targets, targets2)
     }
   }
 }

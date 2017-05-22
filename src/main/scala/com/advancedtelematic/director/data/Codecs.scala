@@ -82,6 +82,9 @@ object Codecs {
 
   implicit val ecuInfoResponseEncoder: Encoder[EcuInfoResponse] = deriveEncoder
   implicit val ecuInfoResponseDecoder: Decoder[EcuInfoResponse] = deriveDecoder
+
+  implicit val queueResponseEncoder: Encoder[QueueResponse] = deriveEncoder
+  implicit val queueResponseDecoder: Decoder[QueueResponse] = deriveDecoder
 }
 
 object AkkaHttpUnmarshallingSupport {

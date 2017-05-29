@@ -5,16 +5,16 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
+import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.typesafe.config.{Config, ConfigFactory}
 import java.security.Security
-
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter, InfluxDbMetricsReporterSettings, OsMetricSet}
 import com.codahale.metrics.jvm.ThreadStatesGaugeSet
@@ -72,6 +72,7 @@ object Boot extends BootApp
   log.info(s"Starting $version on http://$host:$port")
 
   val coreClient = new CoreHttpClient(coreUri)
+  val tuf = new KeyserverHttpClient(tufUri)
 
   Security.addProvider(new BouncyCastleProvider())
   metricsReporterSettings.foreach{ x =>
@@ -82,7 +83,7 @@ object Boot extends BootApp
   val routes: Route =
     new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route ~
     (versionHeaders(version) & logResponseMetrics(projectName)) {
-      new DirectorRoutes(SignatureVerification.verify, coreClient).routes
+      new DirectorRoutes(SignatureVerification.verify, coreClient, tuf).routes
     }
 
   Http().bindAndHandle(routes, host, port)

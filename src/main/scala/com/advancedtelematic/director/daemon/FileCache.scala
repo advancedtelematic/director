@@ -7,23 +7,10 @@ import cats.syntax.show.toShowOps
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
-import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
-import com.advancedtelematic.libtuf.crypt.Sha256Digest
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
-import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType, SignedPayload}
+import com.advancedtelematic.director.db.FileCacheRequestRepositorySupport
+import com.advancedtelematic.director.roles.RolesGeneration
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
-import io.circe.Json
-import io.circe.syntax._
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 
-import com.advancedtelematic.libats.codecs.AkkaCirce.refinedEncoder
-
-import scala.async.Async._
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import slick.driver.MySQLDriver.api._
 
@@ -86,71 +73,18 @@ object FileCacheWorker {
 
 class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends Actor
     with ActorLogging
-    with AdminRepositorySupport
-    with FileCacheRepositorySupport
-    with FileCacheRequestRepositorySupport
-    with RepoNameRepositorySupport {
+    with FileCacheRequestRepositorySupport {
 
   implicit val ec = context.dispatcher
+  val rolesGeneration = new RolesGeneration(tuf)
 
-  def generateTargetFile(repoId: RepoId, fcr: FileCacheRequest): Future[SignedPayload[TargetsRole]] = async {
-    val targets = await(adminRepository.fetchTargetVersion(fcr.namespace, fcr.device, fcr.targetVersion))
-
-    val clientsTarget = targets.map { case (ecu_serial, image) =>
-      val item = ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length,
-                                  Some(Json.obj("ecuIdentifier" -> ecu_serial.asJson,
-                                           "uri" -> image.uri.asJson)))
-      image.filepath -> item
-    }
-
-    val targetsRole = TargetsRole(expires = Instant.now.plus(31, ChronoUnit.DAYS),
-                                  targets = clientsTarget,
-                                  version = fcr.targetVersion)
-    await(tuf.sign(repoId, RoleType.TARGETS, targetsRole))
-  }
-
-  def generateSnapshotFile(repoId: RepoId, targetsRole: SignedPayload[TargetsRole], version: Int): Future[SignedPayload[SnapshotRole]] = async {
-    val targetsFile = targetsRole.asJson.canonical.getBytes
-    val targetChecksum = Sha256Digest.digest(targetsFile)
-
-    val metaMap = Map(RoleType.TARGETS.toMetaPath -> MetaItem(Map(targetChecksum.method -> targetChecksum.hash), targetsFile.length))
-
-    val snapshotRole = SnapshotRole(meta = metaMap,
-                                    expires = Instant.now.plus(31, ChronoUnit.DAYS),
-                                    version = version)
-
-    await(tuf.sign(repoId, RoleType.SNAPSHOT, snapshotRole))
-  }
-
-  def generateTimestampFile(repoId: RepoId, snapshotRole: SignedPayload[SnapshotRole], version: Int): Future[SignedPayload[TimestampRole]] = async {
-    val snapshotFile = snapshotRole.asJson.canonical.getBytes
-    val snapshotChecksum = Sha256Digest.digest(snapshotFile)
-
-    val metaMap = Map(RoleType.SNAPSHOT.toMetaPath -> MetaItem(Map(snapshotChecksum.method -> snapshotChecksum.hash), snapshotFile.length))
-
-    val timestampRole = TimestampRole(meta = metaMap,
-                                      expires = Instant.now.plus(31, ChronoUnit.DAYS),
-                                      version = version)
-
-    await(tuf.sign(repoId, RoleType.TIMESTAMP, timestampRole))
-  }
-
-  def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = async {
-    val repo = await(repoNameRepository.getRepo(fcr.namespace))
-
-    val targetsRole = await(generateTargetFile(repo, fcr))
-    val snapshotRole = await(generateSnapshotFile(repo, targetsRole, fcr.targetVersion))
-    val timestampRole = await(generateTimestampFile(repo, snapshotRole, fcr.timestampVersion))
-
-    await(fileCacheRepository.storeJson(fcr.device, fcr.timestampVersion, targetsRole, snapshotRole, timestampRole))
-  }
 
   override def receive: Receive = {
     case fcr: FileCacheRequest =>
       log.info("Received file cache request for {} targetVersion: {} timestampVersion: {}",
                fcr.device.show, fcr.targetVersion, fcr.timestampVersion)
 
-      processFileCacheRequest(fcr)
+      rolesGeneration.processFileCacheRequest(fcr)
         .flatMap { _ => fileCacheRequestRepository.updateRequest(fcr.copy(status = SUCCESS)) }
         .map(Success)
         .recoverWith {

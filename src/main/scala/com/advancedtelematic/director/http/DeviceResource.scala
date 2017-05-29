@@ -8,10 +8,12 @@ import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, Device
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RootFilesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
+import com.advancedtelematic.director.roles.{RolesCache, RolesGeneration}
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.slf4j.LoggerFactory
 
@@ -20,7 +22,8 @@ import slick.jdbc.MySQLProfile.api._
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: ClientKey => Verifier,
-                     coreClient: CoreClient)
+                     coreClient: CoreClient,
+                     tuf: KeyserverClient)
                     (implicit db: Database, ec: ExecutionContext)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
@@ -32,27 +35,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
-
-  def fetchTargets(ns: Namespace, device: DeviceId): Route = {
-    val action = deviceRepository.getNextVersion(device).flatMap { version =>
-      fileCacheRepository.fetchTarget(device, version)
-    }
-    complete(action)
-  }
-
-  def fetchSnapshot(ns: Namespace, device: DeviceId): Route = {
-    val action = deviceRepository.getNextVersion(device).flatMap { version =>
-      fileCacheRepository.fetchSnapshot(device, version)
-    }
-    complete(action)
-  }
-
-  def fetchTimestamp(ns: Namespace, device: DeviceId): Route = {
-    val action = deviceRepository.getNextVersion(device).flatMap { version =>
-      fileCacheRepository.fetchTimestamp(device, version)
-    }
-    complete(action)
-  }
+  private val rolesGeneration = new RolesGeneration(tuf)
+  private val rolesCache = new RolesCache(rolesGeneration)
 
   def fetchRoot(ns: Namespace): Route = {
     complete(rootFilesRepository.find(ns))
@@ -82,9 +66,15 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       get {
         path(RoleType.JsonRoleTypeMetaPath) {
           case RoleType.ROOT => fetchRoot(ns)
-          case RoleType.TARGETS => fetchTargets(ns, device)
-          case RoleType.SNAPSHOT => fetchSnapshot(ns, device)
-          case RoleType.TIMESTAMP => fetchTimestamp(ns, device)
+          case RoleType.TARGETS =>
+            val f = rolesCache.fetchTargets(ns, device)
+            complete(f)
+          case RoleType.SNAPSHOT =>
+            val f = rolesCache.fetchSnapshot(ns, device)
+            complete(f)
+          case RoleType.TIMESTAMP =>
+            val f = rolesCache.fetchTimestamp(ns, device)
+            complete(f)
         }
       }
     }

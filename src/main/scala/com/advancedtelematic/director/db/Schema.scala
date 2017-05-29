@@ -13,15 +13,17 @@ import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import eu.timepit.refined.api.Refined
 import io.circe.Json
+import java.time.Instant
 import slick.jdbc.MySQLProfile.api._
 
 object Schema {
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
-  import com.advancedtelematic.libtuf.data.TufSlickMappings._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions.javaInstantMapping
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
@@ -129,10 +131,11 @@ object Schema {
     def version = column[Int]("version")
     def device  = column[DeviceId]("device")
     def fileEntity = column[Json]("file_entity")
+    def expires  = column[Instant]("expires")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 
-    override def * = (role, version, device, fileEntity) <>
+    override def * = (role, version, device, expires, fileEntity) <>
       ((FileCache.apply _).tupled, FileCache.unapply)
   }
   protected [db] val fileCache = TableQuery[FileCacheTable]
@@ -141,12 +144,13 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def targetVersion = column[Int]("target_version")
     def device = column[DeviceId]("device")
+    def update = column[Option[UpdateId]]("update_uuid")
     def status = column[FileCacheRequestStatus.Status]("status")
     def timestampVersion = column[Int]("timestamp_version")
 
     def primKey = primaryKey("file_cache_request_pk", (timestampVersion, device))
 
-    override def * = (namespace, targetVersion, device, status, timestampVersion) <>
+    override def * = (namespace, targetVersion, device, update, status, timestampVersion) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]

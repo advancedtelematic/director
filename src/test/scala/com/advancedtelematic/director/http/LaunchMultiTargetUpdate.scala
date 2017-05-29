@@ -6,12 +6,13 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 
-class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with ResourceSpec with Requests {
+class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with FileCacheDB with ResourceSpec with Requests {
 
   val ato: TargetUpdate = GenTargetUpdate.generate.copy(target = Refined.unsafeApply("a"))
   val bto: TargetUpdate = GenTargetUpdate.generate.copy(target = Refined.unsafeApply("b"))
@@ -72,7 +73,9 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Res
   def launchMtu(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =
     Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), devices).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[Seq[DeviceId]]
+      val affected = responseAs[Seq[DeviceId]]
+      pretendToGenerate().futureValue
+      affected
     }
 
   test("multi_target_updates/affected Can get devices that match mtu") {

@@ -9,7 +9,7 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, SetTargets}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
@@ -17,10 +17,11 @@ import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
-    with ResourceSpec with Requests {
+    with FileCacheDB with ResourceSpec with Requests {
 
   def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
     SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
+    pretendToGenerate().futureValue
   }
 
   def deviceVersion(deviceId: DeviceId): Option[Int] = {

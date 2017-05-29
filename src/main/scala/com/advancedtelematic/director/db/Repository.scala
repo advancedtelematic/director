@@ -7,6 +7,7 @@ import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import io.circe.Json
+import java.time.Instant
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
@@ -161,9 +162,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     val act = (Schema.ecuTargets
       ++= targets.map{ case (ecuSerial, image) => EcuTarget(namespace, version, ecuSerial, image)})
 
-    val updateDeviceTargets = Schema.deviceTargets += DeviceUpdateTarget(device, updateId, version)
-
-    act.andThen(updateDeviceTargets).map(_ => ()).transactionally
+    act.map(_ => ()).transactionally
   }
 
   protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
@@ -177,6 +176,12 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     new_targets = previousMap ++ targets
     _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
   } yield new_version
+
+  def updateDeviceTargets(device: DeviceId, updateId: Option[UpdateId], version: Int): Future[DeviceUpdateTarget] = db.run {
+    val target = DeviceUpdateTarget(device, updateId, version)
+    (Schema.deviceTargets += target)
+      .map(_ => target)
+  }
 
   def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
     updateTargetAction(namespace, device, updateId, targets).transactionally
@@ -215,7 +220,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateTarget, EcuSerial}
+  import DataType.{CurrentImage, DeviceCurrentTarget, EcuSerial}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -233,9 +238,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(persistAllAction(namespace, ecuManifests))
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
-    val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
-    (Schema.deviceTargets += DeviceUpdateTarget(device, updateId = None, targetVersion = 0))
-      .andThen(fileCacheRequestRepository.persistAction(fcr))
+    val fcr = FileCacheRequest(namespace, 0, device, None, FileCacheRequestStatus.PENDING, 0)
+    fileCacheRequestRepository.persistAction(fcr)
   }
 
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
@@ -321,27 +325,28 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
 
   def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
 
-  protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
-    (Schema.fileCache += FileCache(role, version, device, file))
+  protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, expires: Instant, file: Json): DBIO[Unit] =
+    Schema.fileCache.insertOrUpdate(FileCache(role, version, device, expires, file))
       .handleIntegrityErrors(err)
       .map(_ => ())
 
-  private def storeTargetsAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
-    storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, file)
-
-  private def storeSnapshotAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
-    storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, file)
-
-  private def storeTimestampAction(device: DeviceId, version: Int, file: Json): DBIO[Unit] =
-    storeRoleTypeAction(RoleType.TIMESTAMP, ConflictingTimestamp)(device, version, file)
-
-  def storeJson(device: DeviceId, version: Int, targets: SignedPayload[TargetsRole],
+  def storeJson(device: DeviceId, version: Int, expires: Instant, targets: SignedPayload[TargetsRole],
                 snapshots: SignedPayload[SnapshotRole], timestamp: SignedPayload[TimestampRole]): Future[Unit] = db.run {
-    storeTargetsAction(device, version, targets.asJson)
-      .andThen(storeSnapshotAction(device, version, snapshots.asJson))
-      .andThen(storeTimestampAction(device, version, timestamp.asJson))
+    storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, expires, targets.asJson)
+      .andThen(storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, expires, snapshots.asJson))
+      .andThen(storeRoleTypeAction(RoleType.TIMESTAMP, ConflictingTimestamp)(device, version, expires, timestamp.asJson))
       .transactionally
   }
+
+  def haveExpired(device: DeviceId, version: Int): Future[Boolean] = db.run {
+    Schema.fileCache
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .filter(_.role === RoleType.TIMESTAMP)
+      .map(_.expires)
+      .result
+      .failIfNotSingle(MissingTimestamp)
+  }.map (_.isBefore(Instant.now()))
 }
 
 
@@ -377,6 +382,16 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
       .update(req.status)
       .handleSingleUpdateError(MissingFileCacheRequest)
       .map(_ => ())
+  }
+
+  def findTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Int] = db.run {
+    Schema.fileCacheRequest
+      .filter(_.namespace === namespace)
+      .filter(_.timestampVersion === version)
+      .filter(_.device === device)
+      .map(_.targetVersion)
+      .result
+      .failIfNotSingle(MissingFileCacheRequest)
   }
 }
 

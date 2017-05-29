@@ -110,7 +110,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   val defaultNs = Namespace("default")
 
-  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient).routes
+  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient, FakeRoleStore).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

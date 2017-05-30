@@ -57,7 +57,7 @@ class FileCacheSpec extends DirectorSpec
 
     eventually(timeout, interval) {
       isAvailable(device, "timestamp.json")
-      isAvailable(device, "snapshots.json")
+      isAvailable(device, "snapshot.json")
       isAvailable(device, "targets.json")
       isAvailable(device, "root.json")
     }

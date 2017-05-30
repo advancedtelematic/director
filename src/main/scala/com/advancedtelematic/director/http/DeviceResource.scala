@@ -11,7 +11,7 @@ import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, Devic
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.slf4j.LoggerFactory
 
@@ -80,17 +80,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       get {
-        path("root.json") {
-          fetchRoot(ns)
-        } ~
-        path("targets.json") {
-          fetchTargets(ns, device)
-        } ~
-        path("snapshots.json") {
-          fetchSnapshot(ns, device)
-        } ~
-        path("timestamp.json") {
-          fetchTimestamp(ns, device)
+        path(RoleType.JsonRoleTypeMetaPath) {
+          case RoleType.ROOT => fetchRoot(ns)
+          case RoleType.TARGETS => fetchTargets(ns, device)
+          case RoleType.SNAPSHOT => fetchSnapshot(ns, device)
+          case RoleType.TIMESTAMP => fetchTimestamp(ns, device)
         }
       }
     }

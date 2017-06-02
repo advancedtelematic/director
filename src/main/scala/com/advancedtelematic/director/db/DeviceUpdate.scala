@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, DeviceUpdateTarget, EcuSerial, FileCacheRequest, Image, UpdateId}
+import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, FileCacheRequest, Image, UpdateId}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.Namespace
@@ -71,9 +71,8 @@ object DeviceUpdate extends AdminRepositorySupport
     val dbAct = for {
       latestVersion <- adminRepository.getLatestVersion(namespace, device)
       nextTimestampVersion = latestVersion + 1
-      fcr = FileCacheRequest(namespace, version, device, FileCacheRequestStatus.PENDING, nextTimestampVersion)
+      fcr = FileCacheRequest(namespace, version, device, None, FileCacheRequestStatus.PENDING, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
-      _ <- Schema.deviceTargets += DeviceUpdateTarget(device, None, nextTimestampVersion)
       _ <- fileCacheRequestRepository.persistAction(fcr)
     } yield (latestVersion)
 

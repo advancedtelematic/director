@@ -8,6 +8,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
 import java.util.UUID
+import java.time.Instant
 
 import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.slick.codecs.SlickEnum
@@ -69,9 +70,9 @@ object DataType {
 
   final case class DeviceCurrentTarget(device: DeviceId, targetVersion: Int)
 
-  final case class FileCache(role: RoleType, version: Int, device: DeviceId, file: Json)
+  final case class FileCache(role: RoleType, version: Int, device: DeviceId, expires: Instant, file: Json)
 
-  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId,
+  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId, updateId: Option[UpdateId],
                                     status: FileCacheRequestStatus.Status, timestampVersion: Int)
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)

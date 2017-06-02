@@ -87,6 +87,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     adminRepository.findPublicKey(namespace, device, ecuSerial)
   }
 
+  def queueForDevice(namespace: Namespace, device: DeviceId): Route = complete {
+    adminRepository.findQueue(namespace, device)
+  }
+
   val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
       (get & path("root.json")) {
@@ -118,7 +122,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
               getPublicKey(ns, device, ecuSerial)
             } ~
             path("images") {
-                listInstalledImages(ns, device)
+              listInstalledImages(ns, device)
+            } ~
+            path("queue") {
+              queueForDevice(ns, device)
             }
           } ~
           path("targets") {

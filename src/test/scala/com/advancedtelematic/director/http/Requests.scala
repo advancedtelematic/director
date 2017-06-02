@@ -3,11 +3,12 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.{HttpRequest, StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Route
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget, QueueResponse}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -74,5 +75,14 @@ trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
     Get(apiUri(s"multi_target_updates/${id.show}")) ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Map[HardwareIdentifier, Image]]
+    }
+
+  def deviceQueue(deviceId: DeviceId): HttpRequest =
+    Get(apiUri(s"admin/devices/${deviceId.show}/queue"))
+
+  def deviceQueueOk(deviceId: DeviceId)(implicit ns: NamespaceTag): Seq[QueueResponse] =
+    deviceQueue(deviceId).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[QueueResponse]]
     }
 }

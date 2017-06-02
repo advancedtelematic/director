@@ -14,3 +14,5 @@ project/target
 .scala_dependencies
 .worksheet
 .idea/
+
+director_entrypoint.d

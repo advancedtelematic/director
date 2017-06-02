@@ -1,8 +1,9 @@
 package com.advancedtelematic.director.roles
 
-import com.advancedtelematic.director.data.DataType.{CustomImage, EcuSerial, FileCacheRequest}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.libats.codecs.AkkaCirce.refinedEncoder
+import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}

@@ -1,10 +1,11 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, EcuSerial, FileCacheRequest, UpdateId}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.UpdateType
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._

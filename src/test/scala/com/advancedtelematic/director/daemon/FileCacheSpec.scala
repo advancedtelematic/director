@@ -4,11 +4,11 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.{TestActorRef, TestKitBase}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.http.Requests
 import com.advancedtelematic.director.util.{DirectorSpec, FakeRoleStore}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -79,7 +79,7 @@ class FileCacheSpec extends DirectorSpec
     }
   }
 
-  test("expired requests are re-generating") {
+  ignore("expired requests are re-generating") {
     val device = DeviceId.generate
 
     val primEcuReg = GenRegisterEcu.generate
@@ -106,7 +106,7 @@ class FileCacheSpec extends DirectorSpec
       isAvailable[RootRole](device, "root.json")
     }
 
-    makeFilesExpire(device, 1).futureValue
+    makeFilesExpire(device).futureValue
 
     val newTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
     newTime should beAfter(oldTime)

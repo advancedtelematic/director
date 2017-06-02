@@ -3,14 +3,13 @@ package com.advancedtelematic.director.data
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, TargetFilename, ClientHashes => Hashes}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, DeviceId, TargetFilename, UpdateId}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import eu.timepit.refined.api.{Refined, Validate}
 import io.circe.Json
-import java.util.UUID
 import java.time.Instant
 
-import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.slick.codecs.SlickEnum
 
 object FileCacheRequestStatus extends CirceEnum with SlickEnum {
@@ -33,16 +32,6 @@ object UpdateType extends CirceEnum with SlickEnum {
 
 object DataType {
   import RoleType.RoleType
-
-  final case class DeviceId(uuid: UUID) extends UUIDKey
-  object DeviceId extends UUIDKeyObj[DeviceId]
-
-  final case class UpdateId(uuid: UUID) extends UUIDKey
-  object UpdateId extends UUIDKeyObj[UpdateId]
-
-  final case class ValidEcuSerial()
-  type EcuSerial = Refined[String, ValidEcuSerial]
-  implicit val validEcuSerial: Validate.Plain[String, ValidEcuSerial] = ValidationUtils.validInBetween(min = 1, max = 64, ValidEcuSerial())
 
   final case class ValidHardwareIdentifier()
   type HardwareIdentifier = Refined[String, ValidHardwareIdentifier]

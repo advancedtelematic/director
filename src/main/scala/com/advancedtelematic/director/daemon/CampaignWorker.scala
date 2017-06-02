@@ -3,15 +3,13 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceId, FileInfo, UpdateId}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Errors => DBErrors}
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, HashMethod, UpdateId, ValidChecksum, ValidTargetFilename}
 import com.advancedtelematic.libats.messaging_datatype.Messages.CampaignLaunched
-import com.advancedtelematic.libtuf.data.ClientDataType.ValidTargetFilename
-import com.advancedtelematic.libtuf.data.TufDataType.ValidChecksum
-import com.advancedtelematic.libtuf.data.TufDataType.HashMethod
 import org.slf4j.LoggerFactory
 
 import scala.async.Async._

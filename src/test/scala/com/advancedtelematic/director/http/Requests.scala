@@ -5,10 +5,11 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, HardwareIdentifier, Image, MultiTargetUpdateRequest, UpdateId}
+import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._

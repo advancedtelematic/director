@@ -14,6 +14,7 @@ import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
+import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter, InfluxDbMetricsReporterSettings, OsMetricSet}
@@ -73,6 +74,7 @@ object Boot extends BootApp
 
   val coreClient = new CoreHttpClient(coreUri)
   val tuf = new KeyserverHttpClient(tufUri)
+  implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
 
   Security.addProvider(new BouncyCastleProvider())
   metricsReporterSettings.foreach{ x =>
@@ -80,6 +82,7 @@ object Boot extends BootApp
     metricRegistry.register("jvm.os", OsMetricSet)
     InfluxDbMetricsReporter.start(x, metricRegistry, AkkaHttpMetricsSink.apply(x))
   }
+
   val routes: Route =
     new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route ~
     (versionHeaders(version) & logResponseMetrics(projectName)) {

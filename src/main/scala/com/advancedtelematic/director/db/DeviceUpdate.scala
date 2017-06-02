@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, EcuSerial, FileCacheRequest, Image, UpdateId}
+import com.advancedtelematic.director.data.DataType.{FileCacheRequest, Image}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}

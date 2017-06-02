@@ -6,6 +6,7 @@ import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
@@ -89,8 +90,8 @@ object FakeRoleStore extends KeyserverClient {
 }
 
 object FakeCoreClient extends CoreClient {
-  import com.advancedtelematic.director.data.DataType.{DeviceId, UpdateId}
   import com.advancedtelematic.director.data.DeviceRequest.OperationResult
+  import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
   import java.util.concurrent.ConcurrentHashMap
 
   private val reports: ConcurrentHashMap[UpdateId, Seq[OperationResult]] = new ConcurrentHashMap()
@@ -110,6 +111,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
 
   val defaultNs = Namespace("default")
 
+  implicit val msgPub = MessageBusPublisher.ignore
   def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient, FakeRoleStore).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)

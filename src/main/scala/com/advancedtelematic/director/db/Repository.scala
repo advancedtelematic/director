@@ -1,10 +1,11 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, Ecu, EcuTarget, FileCacheRequest, HardwareIdentifier, MultiTargetUpdate, UpdateId}
+import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, HardwareIdentifier, MultiTargetUpdate}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
 import io.circe.Json
 import java.time.Instant
@@ -15,7 +16,6 @@ import slick.jdbc.MySQLProfile.api._
 import scala.util.{Failure, Success}
 import Errors._
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientDataType.TargetFilename
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 
 trait AdminRepositorySupport {
@@ -24,7 +24,7 @@ trait AdminRepositorySupport {
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport with FileCacheRequestRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu}
-  import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, EcuSerial, Image, UpdateId}
+  import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Image}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -220,7 +220,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import DataType.{CurrentImage, DeviceCurrentTarget, EcuSerial}
+  import DataType.{CurrentImage, DeviceCurrentTarget}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu

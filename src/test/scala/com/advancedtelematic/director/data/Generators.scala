@@ -6,9 +6,10 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
 import com.advancedtelematic.libtuf.crypt.RsaKeyPair
 import com.advancedtelematic.libtuf.data.TufDataType._
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant

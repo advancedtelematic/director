@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.roles
 
-import com.advancedtelematic.director.data.DataType.{DeviceId, FileCacheRequest}
+import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport}
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import io.circe.Json
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}

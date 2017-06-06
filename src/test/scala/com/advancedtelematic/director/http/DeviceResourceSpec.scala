@@ -3,8 +3,7 @@ package com.advancedtelematic.director.http
 import java.util.concurrent.ConcurrentHashMap
 import java.security.PublicKey
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
@@ -347,7 +346,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
 
     val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri())))
+    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, primEcuReg.hardwareId, Uri(), None)))
     val updateId = UpdateId.generate
 
     schedule(device, targets, updateId)

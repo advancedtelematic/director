@@ -17,7 +17,6 @@ import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
-import scala.async.Async._
 import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace])
@@ -46,13 +45,11 @@ class AdminResource(extractNamespace: Directive1[Namespace])
   }
 
   def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
-    val act = async {
-      val ecus = await(deviceRepository.findEcus(namespace, device)).map(_.ecuSerial).toSet
-
+    val act = deviceRepository.findEcuSerials(namespace, device).flatMap{ ecus =>
       if (!targets.updates.keys.toSet.subsetOf(ecus)) {
-        await(FastFuture.failed(Errors.TargetsNotSubSetOfDevice))
+        FastFuture.failed(Errors.TargetsNotSubSetOfDevice)
       } else {
-        await(SetTargets.setTargets(namespace, Seq(device -> targets)))
+        SetTargets.setTargets(namespace, Seq(device -> targets))
       }
     }
     complete(act)

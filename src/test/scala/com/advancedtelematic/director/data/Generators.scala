@@ -75,9 +75,16 @@ trait Generators {
     fi <- GenFileInfo
   } yield Image(fp, fi)
 
+  lazy val GenStaticDelta: Gen[StaticDelta] = for {
+    cs <- GenChecksum
+    len <- Gen.posNum[Long]
+  } yield StaticDelta(cs, len)
+
   lazy val GenCustomImage: Gen[CustomImage] = for {
     im <- GenImage
-  } yield CustomImage(im.filepath, im.fileinfo, Uri("http://www.example.com"))
+    hw <- GenHardwareIdentifier
+    sd <- Gen.option(GenStaticDelta)
+  } yield CustomImage(im, hw, Uri("http://www.example.com"), sd)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
@@ -116,4 +123,14 @@ trait Generators {
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
     targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdateRequest))
   } yield MultiTargetUpdateRequest(targets)
+
+  def GenNMultiTargetUpdateRequest(n: Int): Gen[MultiTargetUpdateRequest] = for {
+    targets <- Gen.mapOfN(n, Gen.zip(GenHardwareIdentifier, GenTargetUpdateRequest))
+  } yield MultiTargetUpdateRequest(targets)
+
+  val GenMultiTargetUpdateDeltaRegistration: Gen[MultiTargetUpdateDeltaRegistration] =
+    Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenStaticDelta)).map(MultiTargetUpdateDeltaRegistration)
+
+  def GenNMultiTargetUpdateDeltaRegistration(n: Int): Gen[MultiTargetUpdateDeltaRegistration] =
+    Gen.mapOfN(n, Gen.zip(GenHardwareIdentifier, GenStaticDelta)).map(MultiTargetUpdateDeltaRegistration)
 }

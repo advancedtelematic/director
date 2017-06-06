@@ -82,7 +82,7 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Namespace, Int, EcuSerial, TargetFilename, Long, Checksum, Uri)
+  type EcuTargetRow = (Namespace, Int, EcuSerial, TargetFilename, Long, Checksum)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
@@ -92,17 +92,28 @@ object Schema {
     def checksum = column[Checksum]("checksum")
     def uri = column[Uri]("uri")
 
+    def deltaHashMethod = column[Option[HashMethod]]("delta_hash_method")
+    def deltaHash = column[Option[Refined[String,ValidChecksum]]]("delta_hash")
+    def deltaSize = column[Option[Long]]("delta_size")
+
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
 
-    override def * = (namespace, version, id, filepath, length, checksum, uri) <> (
-      (_: EcuTargetRow) match {
-        case (namespace, version, id, filepath, length, checksum, uri) =>
-          EcuTarget(namespace, version, id, CustomImage(filepath, FileInfo(Map(checksum.method -> checksum.hash), length), uri))
-      },
-      (x: EcuTarget) => Some((x.namespace, x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length,
-                              Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.image.uri)))
+    override def * = (namespace, version, id, filepath, length, checksum, uri, deltaHashMethod, deltaHash, deltaSize) <>
+      ({ case (namespace, version, id, filepath, length, checksum, uri, deltaHashMethod, deltaHash, deltaSize) =>
+           val delta = for {
+             method <- deltaHashMethod
+             hash <- deltaHash
+             size <- deltaSize
+           } yield StaticDelta(Checksum(method, hash), size)
+
+           EcuTarget(namespace, version, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), uri, delta)
+       },
+       (x: EcuTarget) => Some((x.namespace, x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length,
+                               Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.uri,
+                               x.delta.map(_.checksum.method), x.delta.map(_.checksum.hash), x.delta.map(_.length)))
+      )
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
@@ -207,6 +218,24 @@ object Schema {
   }
 
   protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
+
+  class MultiTargetUpdateDeltaTable(tag: Tag) extends Table[MultiTargetUpdateDelta](tag, "multi_target_update_deltas") {
+    def id = column[UpdateId]("id")
+    def hardwareId = column[HardwareIdentifier]("hardware_identifier")
+    def deltaHashMethod = column[HashMethod]("delta_hash_method")
+    def deltaHash = column[Refined[String, ValidChecksum]]("delta_hash")
+    def deltaSize = column[Long]("delta_size")
+
+    def pk = primaryKey("mtu_delta_pk", (id, hardwareId))
+
+    override def * = (id, hardwareId, deltaHashMethod, deltaHash, deltaSize) <> (
+      { case (id, hardwareId, deltaHashMethod, deltaHash, deltaSize) =>
+          MultiTargetUpdateDelta(id, hardwareId, Checksum(deltaHashMethod, deltaHash), deltaSize)
+      }, (x: MultiTargetUpdateDelta) => Some((x.id, x.hardwareId, x.checksum.method, x.checksum.hash, x.size))
+      )
+  }
+
+  protected [db] val multiTargetDeltas = TableQuery[MultiTargetUpdateDeltaTable]
 
   class LaunchedMultiTargetUpdatesTable(tag: Tag) extends Table[LaunchedMultiTargetUpdate](tag, "launched_multi_target_updates") {
     def device = column[DeviceId]("device")

@@ -4,14 +4,13 @@ import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdate, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{MultiTargetUpdate, MultiTargetUpdateRequest, MultiTargetUpdateDeltaRegistration}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
 
-import scala.async.Async._
 import scala.concurrent.ExecutionContext
 
 class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit db: Database, ec: ExecutionContext)
@@ -19,12 +18,9 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
 
   import Directives._
 
-  def getTargetInfo(id: UpdateId, ns: Namespace): Route = {
-    val f = async {
-      val rows = await(multiTargetUpdatesRepository.fetch(id, ns))
-      rows.foldLeft(Map[HardwareIdentifier, Image]()) { (map, mtu) =>
-        map + (mtu.hardwareId -> mtu.image)
-      }
+  def getTargetInfo(ns: Namespace, id: UpdateId): Route = {
+    val f = multiTargetUpdatesRepository.fetch(id, ns).map { rows =>
+      rows.map(mtu => mtu.hardwareId -> mtu.image).toMap
     }
     complete(f)
   }
@@ -32,15 +28,27 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
   def createMultiTargetUpdate(ns: Namespace): Route = {
     entity(as[MultiTargetUpdateRequest]) { mtu =>
       val updateId = UpdateId.generate
-      val m = MultiTargetUpdate(mtu, updateId, ns)
-      complete(StatusCodes.Created -> multiTargetUpdatesRepository.create(m).map(_ => updateId))
+      val f = multiTargetUpdatesRepository.create(MultiTargetUpdate(mtu, updateId, ns)).map(_ => updateId)
+      complete(StatusCodes.Created -> f)
     }
   }
 
+  def setStaticDelta(ns: Namespace, id: UpdateId): Route =
+    entity(as[MultiTargetUpdateDeltaRegistration]) { deltaUpdates =>
+      val f = multiTargetUpdatesRepository.setStaticDelta(ns, id, deltaUpdates.deltas.toSeq)
+        .map (_ => ())
+      complete(StatusCodes.NoContent -> f)
+    }
+
   val route = extractNamespace { ns =>
     pathPrefix("multi_target_updates") {
-      (pathPrefix(UpdateId.Path) & get) { updateRequestId =>
-        getTargetInfo(updateRequestId, ns)
+      pathPrefix(UpdateId.Path) { updateRequestId =>
+        get {
+          getTargetInfo(ns, updateRequestId)
+        } ~
+        (put & path("static_delta")) {
+          setStaticDelta(ns, updateRequestId)
+        }
       } ~
       (post & pathEnd) {
         createMultiTargetUpdate(ns)

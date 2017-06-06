@@ -3,7 +3,7 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo, Image}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Errors => DBErrors}
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.Namespace
@@ -28,8 +28,11 @@ object CampaignWorker extends AdminRepositorySupport {
       val image = await(Future.fromTry(getImage(cl)))
 
       val primEcus = await(Future.sequence(deviceIds.map(adminRepository.getPrimaryEcuForDevice)))
+        .map { case (prim, hw) =>
+          SetTarget(Map(prim -> CustomImage(image, hw, cl.pkgUri, None)))
+      }
 
-      val devTargets = deviceIds.zip(primEcus.map(prim => SetTarget(Map(prim -> image))))
+      val devTargets = deviceIds.zip(primEcus)
       val updateId = Some(UpdateId(cl.updateId))
 
       await(SetTargets.setTargets(Namespace(cl.namespace), devTargets, updateId))
@@ -47,8 +50,8 @@ object CampaignWorker extends AdminRepositorySupport {
     }
   }
 
-  private def getImage(cl: CampaignLaunched): Try[CustomImage] = for {
+  private def getImage(cl: CampaignLaunched): Try[Image] = for {
     hash <- cl.pkgChecksum.refineTry[ValidChecksum]
     filepath <- cl.pkg.mkString.refineTry[ValidTargetFilename]
-  } yield CustomImage(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt), cl.pkgUri)
+  } yield Image(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt))
 }

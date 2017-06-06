@@ -1,8 +1,8 @@
 package com.advancedtelematic.director.roles
 
-import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest, TargetCustom}
+import com.advancedtelematic.director.data.Codecs.encoderTargetCustom
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
-import com.advancedtelematic.libats.codecs.AkkaCirce.refinedEncoder
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
@@ -11,7 +11,7 @@ import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
-import io.circe.{Encoder, Json}
+import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -31,10 +31,9 @@ class RolesGeneration(tuf: KeyserverClient)
   }
 
   def targetsRole(targets: Map[EcuSerial, CustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
-    val clientsTarget = targets.map { case (ecu_serial, image) =>
-      image.filepath -> ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length,
-                                         Some(Json.obj("ecuIdentifier" -> ecu_serial.asJson,
-                                                       "uri" -> image.uri.asJson)))
+    val clientsTarget = targets.map { case (ecu_serial, CustomImage(image, hw, uri, delta)) =>
+      val targetCustom = TargetCustom(ecu_serial, hw, uri, delta)
+      image.filepath -> ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length, Some(targetCustom.asJson))
     }
 
     TargetsRole(expires = expires,

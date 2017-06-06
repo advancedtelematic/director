@@ -32,14 +32,13 @@ object DeviceUpdate extends AdminRepositorySupport
                              (ifNot : Map[EcuSerial, Image] => DBIO[DeviceUpdateResult])
                              (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] =
     adminRepository.fetchTargetVersionAction(namespace, device, next_version).flatMap { targets =>
-      val translatedTargets = targets.mapValues(_.image)
-      if (translatedTargets == translatedManifest) {
+      if (targets == translatedManifest) {
         for {
           _ <- deviceRepository.updateDeviceVersionAction(device, next_version)
           updateId <- adminRepository.fetchUpdateIdAction(namespace, device, next_version)
         } yield UpdatedSuccessfully(next_version, updateId)
       } else {
-        ifNot(translatedTargets)
+        ifNot(targets)
       }
     }
 

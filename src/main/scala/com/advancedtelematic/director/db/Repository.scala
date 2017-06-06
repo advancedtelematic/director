@@ -117,7 +117,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
 
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
     def queueResult(version: Int, update: Option[UpdateId]): DBIO[QueueResponse] =
-      fetchTargetVersionAction(namespace, device, version).map(QueueResponse(update,_))
+      fetchEcuTargetAction(namespace, device, version).map{ ecuTarget =>
+        QueueResponse(update, ecuTarget.map{case (k,v) => k -> v.image})
+      }
 
     val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
       .filter(_.device === device)
@@ -170,25 +172,29 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfMany()
       .map(_.flatten)
 
-  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
+  protected [db] def fetchEcuTargetAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, EcuTarget]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
       .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
-      .map(_._2)
+      .map(x => (x._1.ecuSerial,x._2))
       .result
-      .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
+      .map(_.toMap)
+
+  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, Image]] =
+    fetchEcuTargetAction(namespace, device, version).map(_.map{case (k,v) => k -> v.image})
+
+  protected [db] def fetchCustomTargetAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
+      .map{case (ecu, ecuTarget) => ecu.ecuSerial -> ((ecu.hardwareId, ecuTarget))}
+      .result
+      .map(_.toMap.map{case (k, (hw, v)) => k -> CustomImage(v.image, hw, v.uri, v.delta)})
 
   def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
-    db.run(fetchTargetVersionAction(namespace, device, version))
-
-  protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
-                                        version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
-    val act = (Schema.ecuTargets
-      ++= targets.map{ case (ecuSerial, image) => EcuTarget(namespace, version, ecuSerial, image)})
-
-    act.map(_ => ()).transactionally
-  }
+    db.run(fetchCustomTargetAction(namespace, device, version))
 
   protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
     version <- getLatestVersion(namespace, device).asTry.flatMap {
@@ -196,10 +202,11 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)
     }
-    previousMap <- fetchTargetVersionAction(namespace, device, version)
+    previousMap <- fetchCustomTargetAction(namespace, device, version)
     new_version = version + 1
-    new_targets = previousMap ++ targets
-    _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
+    _ <- Schema.ecuTargets ++= (previousMap ++ targets).map{ case (ecuId, custom) =>
+      EcuTarget(namespace, new_version, ecuId, custom.image, custom.uri, custom.delta)
+    }
   } yield new_version
 
   def updateDeviceTargets(device: DeviceId, updateId: Option[UpdateId], version: Int): Future[DeviceUpdateTarget] = db.run {
@@ -212,11 +219,11 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     updateTargetAction(namespace, device, updateId, targets).transactionally
   }
 
-  def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
+  def getPrimaryEcuForDevice(device: DeviceId): Future[(EcuSerial, HardwareIdentifier)] = db.run {
     Schema.ecu
       .filter(_.device === device)
       .filter(_.primary)
-      .map(_.ecuSerial)
+      .map(x => (x.ecuSerial, x.hardwareId))
       .result
       .failIfNotSingle(DeviceMissingPrimaryEcu)
   }
@@ -282,6 +289,10 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
+
+  def findEcuSerials(namespace: Namespace, device: DeviceId): Future[Set[EcuSerial]] = db.run {
+    byDevice(namespace,device).map(_.ecuSerial).to[Set].result
+  }
 
   protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Option[Int]] =
     Schema.deviceCurrentTarget
@@ -486,6 +497,7 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateDelta, StaticDelta}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
@@ -505,6 +517,46 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
     (Schema.multiTargets ++= rows)
       .handleIntegrityErrors(ConflictingMultiTargetUpdate)
       .map(_ => ())
+  }
+
+  protected [db] def fetchDeltasAction(id: UpdateId, ns: Namespace): DBIO[Map[HardwareIdentifier, StaticDelta]] =
+    Schema.multiTargetDeltas
+      .filter(_.id === id)
+      .result
+      .map(_.map(mtud => mtud.hardwareId -> StaticDelta(mtud.checksum, mtud.size)).toMap)
+
+  def setStaticDelta(ns: Namespace, id: UpdateId, rows: Seq[(HardwareIdentifier, StaticDelta)])
+      : Future[Seq[MultiTargetUpdateDelta]] = db.run {
+    val mtuRows = rows.map{case (hw, delta) => MultiTargetUpdateDelta(id, hw, delta.checksum, delta.length)}
+
+    val checkNoPreviousDeltas: DBIO[Unit] = Schema.multiTargetDeltas
+      .filter(_.id === id)
+      .length
+      .result
+      .flatMap {
+        case 0 => DBIO.successful(())
+        case _ => DBIO.failed(ConflictStaticDelta)
+    }
+
+    val checkDeltasIsSubset: DBIO[Unit] = Schema.multiTargets
+      .filter(_.namespace === ns)
+      .filter(_.id === id)
+      .map(_.hardwareId)
+      .result
+      .flatMap { hw =>
+        if (rows.map(_._1).toSet.subsetOf(hw.toSet)) {
+          DBIO.successful(())
+        } else {
+          DBIO.failed(PreconditionStaticDelta)
+        }
+    }
+
+    val act = for {
+      _ <- checkNoPreviousDeltas
+      _ <- checkDeltasIsSubset
+      _ <- Schema.multiTargetDeltas ++= mtuRows
+    } yield mtuRows
+    act.transactionally
   }
 }
 

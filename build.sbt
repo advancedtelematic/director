@@ -59,6 +59,7 @@ scalacOptions in Compile ++= Seq(
 )
 
 scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
+scalacOptions in (Test, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
 
 testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),

@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.data.DataType.{CustomImage, HardwareIdentifier, LaunchedMultiTargetUpdate, MultiTargetUpdate, StaticDelta}
+import com.advancedtelematic.director.data.DataType.{CustomImage, DiffInfo, HardwareIdentifier, LaunchedMultiTargetUpdate, MultiTargetUpdate}
 import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.UpdateType
 import com.advancedtelematic.libats.data.Namespace
@@ -16,16 +16,16 @@ object SetMultiTargets extends AdminRepositorySupport
     with UpdateTypesRepositorySupport {
 
   protected [db] def resolve(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdate],
-                             delta: Map[HardwareIdentifier, StaticDelta])
+                             diffs: Map[HardwareIdentifier, DiffInfo])
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
     val hwTargets = hwRows.map(mtu => mtu.hardwareId -> ((mtu.fromTarget, Uri(), mtu.image))).toMap
     for {
       ecus <- adminRepository.fetchHwMappingAction(namespace, device)
     } yield ecus.mapValues { case (hw, oimage) =>
         hwTargets.get(hw).collect {
-          case (None, uri, target) => CustomImage(target, hw, uri, delta.get(hw))
+          case (None, uri, target) => CustomImage(target, hw, uri, diffs.get(hw))
           case (Some(fromTarget), uri, target) if oimage.forall(_ == fromTarget.image)
-              => CustomImage(target, hw, uri, delta.get(hw))
+              => CustomImage(target, hw, uri, diffs.get(hw))
         }
     }.collect{ case (k, Some(v)) => k -> v}
   }
@@ -57,10 +57,10 @@ object SetMultiTargets extends AdminRepositorySupport
   }
 
   protected [db] def launchDeviceUpdate(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdate],
-                                        delta: Map[HardwareIdentifier, StaticDelta], updateId: UpdateId)
+                                        diffs: Map[HardwareIdentifier, DiffInfo], updateId: UpdateId)
                                        (implicit db: Database, ec: ExecutionContext): DBIO[DeviceId] = {
     val dbAct = for {
-      targets <- resolve(namespace, device, hwRows, delta)
+      targets <- resolve(namespace, device, hwRows, diffs)
       new_version <- SetTargets.deviceAction(namespace, device, Some(updateId), targets)
       _ <- launchedMultiTargetUpdateRepository.persistAction(LaunchedMultiTargetUpdate(device, updateId, new_version, LaunchedMultiTargetUpdateStatus.Pending))
       _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
@@ -78,8 +78,8 @@ object SetMultiTargets extends AdminRepositorySupport
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkMany(namespace, devices, hwRows)
-      delta <- multiTargetUpdatesRepository.fetchDeltasAction(updateId, namespace)
-      _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, delta, updateId)})
+      diffs <- multiTargetUpdatesRepository.fetchDiffsAction(updateId, namespace)
+      _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, diffs, updateId)})
     } yield toUpdate
 
     dbAct.transactionally

@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget, QueueResponse}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest, MultiTargetUpdateDeltaRegistration}
+import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest, MultiTargetUpdateDiffRegistration}
 import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
@@ -77,15 +77,15 @@ trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
       responseAs[Map[HardwareIdentifier, Image]]
     }
 
-  def registerDelta(id: UpdateId, delta: MultiTargetUpdateDeltaRegistration): HttpRequest =
-    Put(apiUri(s"multi_target_updates/${id.show}/static_delta"), delta)
+  def registerDiff(id: UpdateId, diff: MultiTargetUpdateDiffRegistration): HttpRequest =
+    Put(apiUri(s"multi_target_updates/${id.show}/diff"), diff)
 
-  def registerDeltaOk(id: UpdateId, delta: MultiTargetUpdateDeltaRegistration): Unit =
-    registerDeltaExpect(id, delta)(StatusCodes.NoContent)
+  def registerDiffOk(id: UpdateId, diff: MultiTargetUpdateDiffRegistration): Unit =
+    registerDiffExpect(id, diff)(StatusCodes.NoContent)
 
-  def registerDeltaExpect(id: UpdateId, delta: MultiTargetUpdateDeltaRegistration)
+  def registerDiffExpect(id: UpdateId, diff: MultiTargetUpdateDiffRegistration)
                          (expect: StatusCode): Unit =
-    registerDelta(id, delta) ~> routes ~> check {
+    registerDiff(id, diff) ~> routes ~> check {
       status shouldBe expect
     }
 

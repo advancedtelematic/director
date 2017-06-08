@@ -4,7 +4,7 @@ import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{MultiTargetUpdate, MultiTargetUpdateRequest, MultiTargetUpdateDeltaRegistration}
+import com.advancedtelematic.director.data.DataType.{MultiTargetUpdate, MultiTargetUpdateRequest, MultiTargetUpdateDiffRegistration}
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
@@ -33,11 +33,11 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
     }
   }
 
-  def setStaticDelta(ns: Namespace, id: UpdateId): Route =
-    entity(as[MultiTargetUpdateDeltaRegistration]) { deltaUpdates =>
-      val f = multiTargetUpdatesRepository.setStaticDelta(ns, id, deltaUpdates.deltas.toSeq)
-        .map (_ => ())
-      complete(StatusCodes.NoContent -> f)
+  def setDiff(ns: Namespace, id: UpdateId): Route =
+    entity(as[MultiTargetUpdateDiffRegistration]) { diffUpdates =>
+      val f = multiTargetUpdatesRepository.setDiffInfo(ns, id, diffUpdates.diffs.toSeq)
+        .map (_ => StatusCodes.NoContent)
+      complete(f)
     }
 
   val route = extractNamespace { ns =>
@@ -46,8 +46,8 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
         get {
           getTargetInfo(ns, updateRequestId)
         } ~
-        (put & path("static_delta")) {
-          setStaticDelta(ns, updateRequestId)
+        (put & path("diff")) {
+          setDiff(ns, updateRequestId)
         }
       } ~
       (post & pathEnd) {

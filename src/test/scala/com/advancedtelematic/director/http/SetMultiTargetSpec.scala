@@ -108,14 +108,14 @@ class SetMultiTargetSpec extends DirectorSpec
       regEcu.hardwareId -> GenTargetUpdateRequest.generate
     }
 
-    val staticDeltas = mtus.map { case (hw, _) => hw -> GenStaticDelta.generate}
+    val diffs = mtus.map { case (hw, _) => hw -> GenDiffInfo.generate}
 
     val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
 
-    registerDeltaOk(updateId, MultiTargetUpdateDeltaRegistration(staticDeltas.toMap))
+    registerDiffOk(updateId, MultiTargetUpdateDiffRegistration(diffs.toMap))
 
-    val expected = ecusThatWillUpdate.zip(mtus).zip(staticDeltas).map { case ((ecu, (hw, mtu)), (_, delta)) =>
-      ecu.ecu_serial -> CustomImage(mtu.to.image, hw, Uri(), Some(delta))
+    val expected = ecusThatWillUpdate.zip(mtus).zip(diffs).map { case ((ecu, (hw, mtu)), (_, diff)) =>
+      ecu.ecu_serial -> CustomImage(mtu.to.image, hw, Uri(), Some(diff))
     }.toMap
 
     SetMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue

@@ -23,7 +23,7 @@ object ErrorCodes {
   val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
   val MissingUpdateType = ErrorCode("missing_update_type")
   val MissingDevice = ErrorCode("missing_device")
-  val PreconditionStaticDelta = ErrorCode("precondition_static_delta")
+  val PreconditionDiff = ErrorCode("precondition_diff")
 }
 
 object Errors {
@@ -63,9 +63,9 @@ object Errors {
   val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists[LaunchedMultiTargetUpdate]
   val MissingLaunchedMultiTargetUpdate = MissingEntity[LaunchedMultiTargetUpdate]
 
-  val ConflictStaticDelta = EntityAlreadyExists[MultiTargetUpdateDelta]
-  val PreconditionStaticDelta = RawError(ErrorCodes.PreconditionStaticDelta, StatusCodes.PreconditionFailed,
-                                         "The static delta does not correspond to the multi target update")
+  val ConflictDiff = EntityAlreadyExists[MultiTargetUpdateDiff]
+  val PreconditionDiff = RawError(ErrorCodes.PreconditionDiff, StatusCodes.PreconditionFailed,
+                                         "The diff does not correspond to the multi target update")
 
   val MissingDevice = RawError(ErrorCodes.MissingDevice, StatusCodes.NotFound, "The device is not found")
   val MissingEcu = MissingEntity[Ecu]

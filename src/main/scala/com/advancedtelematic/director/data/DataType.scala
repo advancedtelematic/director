@@ -40,16 +40,17 @@ object DataType {
   final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
 
-  final case class StaticDelta(checksum: Checksum, length: Long)
-  final case class TargetCustom(ecu_serial: EcuSerial, hardwareId: HardwareIdentifier, uri: Uri, delta: Option[StaticDelta])
-  final case class CustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, delta: Option[StaticDelta])
+  final case class TargetCustom(ecuIdentifier: EcuSerial, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
+
+  final case class DiffInfo(checksum: Checksum, length: Long)
+  final case class CustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, clientKey: ClientKey)
 
   final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 
-  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, image: Image, uri: Uri, delta: Option[StaticDelta])
+  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, image: Image, uri: Uri, diff: Option[DiffInfo])
 
   final case class DeviceUpdateTarget(device: DeviceId, updateId: Option[UpdateId], targetVersion: Int)
 
@@ -73,7 +74,7 @@ object DataType {
     }
   }
 
-  final case class MultiTargetUpdateDelta(id: UpdateId, hardwareId: HardwareIdentifier, checksum: Checksum, size: Long)
+  final case class MultiTargetUpdateDiff(id: UpdateId, hardwareId: HardwareIdentifier, checksum: Checksum, size: Long)
 
   object MultiTargetUpdate {
     def apply(mtu: MultiTargetUpdateRequest, id: UpdateId, namespace: Namespace): Seq[MultiTargetUpdate] =
@@ -95,7 +96,7 @@ object DataType {
 
   final case class MultiTargetUpdateRequest(targets: Map[HardwareIdentifier, TargetUpdateRequest])
 
-  final case class MultiTargetUpdateDeltaRegistration(deltas: Map[HardwareIdentifier, StaticDelta])
+  final case class MultiTargetUpdateDiffRegistration(diffs: Map[HardwareIdentifier, DiffInfo])
 
   final case class LaunchedMultiTargetUpdate(device: DeviceId, update: UpdateId, timestampVersion: Int,
                                              status: LaunchedMultiTargetUpdateStatus.Status)

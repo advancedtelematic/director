@@ -191,7 +191,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
       .map{case (ecu, ecuTarget) => ecu.ecuSerial -> ((ecu.hardwareId, ecuTarget))}
       .result
-      .map(_.toMap.map{case (k, (hw, v)) => k -> CustomImage(v.image, hw, v.uri, v.delta)})
+      .map(_.toMap.map{case (k, (hw, v)) => k -> CustomImage(v.image, hw, v.uri, v.diff)})
 
   def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
     db.run(fetchCustomTargetAction(namespace, device, version))
@@ -205,7 +205,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     previousMap <- fetchCustomTargetAction(namespace, device, version)
     new_version = version + 1
     _ <- Schema.ecuTargets ++= (previousMap ++ targets).map{ case (ecuId, custom) =>
-      EcuTarget(namespace, new_version, ecuId, custom.image, custom.uri, custom.delta)
+      EcuTarget(namespace, new_version, ecuId, custom.image, custom.uri, custom.diff)
     }
   } yield new_version
 
@@ -497,7 +497,7 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateDelta, StaticDelta}
+  import com.advancedtelematic.director.data.DataType.{DiffInfo, MultiTargetUpdateDiff}
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
@@ -519,26 +519,26 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
       .map(_ => ())
   }
 
-  protected [db] def fetchDeltasAction(id: UpdateId, ns: Namespace): DBIO[Map[HardwareIdentifier, StaticDelta]] =
-    Schema.multiTargetDeltas
+  protected [db] def fetchDiffsAction(id: UpdateId, ns: Namespace): DBIO[Map[HardwareIdentifier, DiffInfo]] =
+    Schema.multiTargetDiffs
       .filter(_.id === id)
       .result
-      .map(_.map(mtud => mtud.hardwareId -> StaticDelta(mtud.checksum, mtud.size)).toMap)
+      .map(_.map(mtud => mtud.hardwareId -> DiffInfo(mtud.checksum, mtud.size)).toMap)
 
-  def setStaticDelta(ns: Namespace, id: UpdateId, rows: Seq[(HardwareIdentifier, StaticDelta)])
-      : Future[Seq[MultiTargetUpdateDelta]] = db.run {
-    val mtuRows = rows.map{case (hw, delta) => MultiTargetUpdateDelta(id, hw, delta.checksum, delta.length)}
+  def setDiffInfo(ns: Namespace, id: UpdateId, rows: Seq[(HardwareIdentifier, DiffInfo)])
+      : Future[Seq[MultiTargetUpdateDiff]] = db.run {
+    val mtuRows = rows.map{case (hw, delta) => MultiTargetUpdateDiff(id, hw, delta.checksum, delta.length)}
 
-    val checkNoPreviousDeltas: DBIO[Unit] = Schema.multiTargetDeltas
+    val checkNoPreviousDiffs: DBIO[Unit] = Schema.multiTargetDiffs
       .filter(_.id === id)
       .length
       .result
       .flatMap {
         case 0 => DBIO.successful(())
-        case _ => DBIO.failed(ConflictStaticDelta)
+        case _ => DBIO.failed(ConflictDiff)
     }
 
-    val checkDeltasIsSubset: DBIO[Unit] = Schema.multiTargets
+    val checkDiffsIsSubset: DBIO[Unit] = Schema.multiTargets
       .filter(_.namespace === ns)
       .filter(_.id === id)
       .map(_.hardwareId)
@@ -547,14 +547,14 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
         if (rows.map(_._1).toSet.subsetOf(hw.toSet)) {
           DBIO.successful(())
         } else {
-          DBIO.failed(PreconditionStaticDelta)
+          DBIO.failed(PreconditionDiff)
         }
     }
 
     val act = for {
-      _ <- checkNoPreviousDeltas
-      _ <- checkDeltasIsSubset
-      _ <- Schema.multiTargetDeltas ++= mtuRows
+      _ <- checkNoPreviousDiffs
+      _ <- checkDiffsIsSubset
+      _ <- Schema.multiTargetDiffs ++= mtuRows
     } yield mtuRows
     act.transactionally
   }

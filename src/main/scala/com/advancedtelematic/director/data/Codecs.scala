@@ -25,8 +25,8 @@ object Codecs {
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
 
-  implicit val decoderStaticDelta: Decoder[StaticDelta] = deriveDecoder
-  implicit val encoderStaticDelta: Encoder[StaticDelta] = deriveEncoder
+  implicit val decoderDiffInfo: Decoder[DiffInfo] = deriveDecoder
+  implicit val encoderDiffInfo: Encoder[DiffInfo] = deriveEncoder
 
   implicit val decoderTargetCustom: Decoder[TargetCustom] = deriveDecoder
   implicit val encoderTargetCustom: Encoder[TargetCustom] = deriveEncoder
@@ -80,8 +80,8 @@ object Codecs {
   implicit val multiTargetUpdateCreatedEncoder: Encoder[MultiTargetUpdateRequest] = deriveEncoder
   implicit val multiTargetUpdateCreatedDecoder: Decoder[MultiTargetUpdateRequest] = deriveDecoder
 
-  implicit val multiTargetUpdateDeltaRegistrationEncoder: Encoder[MultiTargetUpdateDeltaRegistration] = deriveEncoder
-  implicit val multiTargetUpdateDeltaRegistrationDecoder: Decoder[MultiTargetUpdateDeltaRegistration] = deriveDecoder
+  implicit val multiTargetUpdateDiffRegistrationEncoder: Encoder[MultiTargetUpdateDiffRegistration] = deriveEncoder
+  implicit val multiTargetUpdateDiffRegistrationDecoder: Decoder[MultiTargetUpdateDiffRegistration] = deriveDecoder
 
   implicit val findAffectedRequestEncoder: Encoder[FindAffectedRequest] = deriveEncoder
   implicit val findAffectedRequestDecoder: Decoder[FindAffectedRequest] = deriveDecoder

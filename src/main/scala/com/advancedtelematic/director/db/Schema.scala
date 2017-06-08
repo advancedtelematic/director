@@ -82,7 +82,6 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Namespace, Int, EcuSerial, TargetFilename, Long, Checksum)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
@@ -92,27 +91,27 @@ object Schema {
     def checksum = column[Checksum]("checksum")
     def uri = column[Uri]("uri")
 
-    def deltaHashMethod = column[Option[HashMethod]]("delta_hash_method")
-    def deltaHash = column[Option[Refined[String,ValidChecksum]]]("delta_hash")
-    def deltaSize = column[Option[Long]]("delta_size")
+    def diffHashMethod = column[Option[HashMethod]]("diff_hash_method")
+    def diffHash = column[Option[Refined[String,ValidChecksum]]]("diff_hash")
+    def diffSize = column[Option[Long]]("diff_size")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
 
-    override def * = (namespace, version, id, filepath, length, checksum, uri, deltaHashMethod, deltaHash, deltaSize) <>
-      ({ case (namespace, version, id, filepath, length, checksum, uri, deltaHashMethod, deltaHash, deltaSize) =>
+    override def * = (namespace, version, id, filepath, length, checksum, uri, diffHashMethod, diffHash, diffSize) <>
+      ({ case (namespace, version, id, filepath, length, checksum, uri, diffHashMethod, diffHash, diffSize) =>
            val delta = for {
-             method <- deltaHashMethod
-             hash <- deltaHash
-             size <- deltaSize
-           } yield StaticDelta(Checksum(method, hash), size)
+             method <- diffHashMethod
+             hash <- diffHash
+             size <- diffSize
+           } yield DiffInfo(Checksum(method, hash), size)
 
            EcuTarget(namespace, version, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), uri, delta)
        },
        (x: EcuTarget) => Some((x.namespace, x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length,
                                Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.uri,
-                               x.delta.map(_.checksum.method), x.delta.map(_.checksum.hash), x.delta.map(_.length)))
+                               x.diff.map(_.checksum.method), x.diff.map(_.checksum.hash), x.diff.map(_.length)))
       )
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
@@ -219,23 +218,23 @@ object Schema {
 
   protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
 
-  class MultiTargetUpdateDeltaTable(tag: Tag) extends Table[MultiTargetUpdateDelta](tag, "multi_target_update_deltas") {
+  class MultiTargetUpdateDiffTable(tag: Tag) extends Table[MultiTargetUpdateDiff](tag, "multi_target_update_diffs") {
     def id = column[UpdateId]("id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def deltaHashMethod = column[HashMethod]("delta_hash_method")
-    def deltaHash = column[Refined[String, ValidChecksum]]("delta_hash")
-    def deltaSize = column[Long]("delta_size")
+    def diffHashMethod = column[HashMethod]("diff_hash_method")
+    def diffHash = column[Refined[String, ValidChecksum]]("diff_hash")
+    def diffSize = column[Long]("diff_size")
 
     def pk = primaryKey("mtu_delta_pk", (id, hardwareId))
 
-    override def * = (id, hardwareId, deltaHashMethod, deltaHash, deltaSize) <> (
-      { case (id, hardwareId, deltaHashMethod, deltaHash, deltaSize) =>
-          MultiTargetUpdateDelta(id, hardwareId, Checksum(deltaHashMethod, deltaHash), deltaSize)
-      }, (x: MultiTargetUpdateDelta) => Some((x.id, x.hardwareId, x.checksum.method, x.checksum.hash, x.size))
+    override def * = (id, hardwareId, diffHashMethod, diffHash, diffSize) <> (
+      { case (id, hardwareId, diffHashMethod, diffHash, diffSize) =>
+          MultiTargetUpdateDiff(id, hardwareId, Checksum(diffHashMethod, diffHash), diffSize)
+      }, (x: MultiTargetUpdateDiff) => Some((x.id, x.hardwareId, x.checksum.method, x.checksum.hash, x.size))
       )
   }
 
-  protected [db] val multiTargetDeltas = TableQuery[MultiTargetUpdateDeltaTable]
+  protected [db] val multiTargetDiffs = TableQuery[MultiTargetUpdateDiffTable]
 
   class LaunchedMultiTargetUpdatesTable(tag: Tag) extends Table[LaunchedMultiTargetUpdate](tag, "launched_multi_target_updates") {
     def device = column[DeviceId]("device")

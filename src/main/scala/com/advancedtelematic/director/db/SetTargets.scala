@@ -15,8 +15,8 @@ object SetTargets extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport
     with UpdateTypesRepositorySupport {
 
-  protected [db] def deviceAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage])
-                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] =
+  protected [db] def setDeviceTargetsAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage])
+                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] =
     adminRepository.updateTargetAction(namespace, device, updateId, targets).flatMap { new_version =>
       val fcr = FileCacheRequest(namespace, new_version, device, updateId, FileCacheRequestStatus.PENDING, new_version)
       fileCacheRequestRepository.persistAction(fcr).map(_ => new_version)
@@ -25,7 +25,7 @@ object SetTargets extends AdminRepositorySupport
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)], updateId: Option[UpdateId] = None)
                 (implicit db: Database, ec: ExecutionContext): Future[Unit] = {
     def devAction(device: DeviceId, targets: SetTarget): DBIO[Int] =
-      deviceAction(namespace, device, updateId, targets.updates)
+      setDeviceTargetsAction(namespace, device, updateId, targets.updates)
 
     val updateType: DBIO[Unit] = updateId match {
       case None => DBIO.successful(())

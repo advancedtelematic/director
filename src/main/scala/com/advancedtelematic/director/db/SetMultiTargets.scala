@@ -15,9 +15,9 @@ object SetMultiTargets extends AdminRepositorySupport
     with LaunchedMultiTargetUpdateRepositorySupport
     with UpdateTypesRepositorySupport {
 
-  protected [db] def resolve(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdate])// updateId: UpdateId)
+  protected [db] def resolve(namespace: Namespace, device: DeviceId, mtus: Seq[MultiTargetUpdate])
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
-    val hwTargets = hwRows.map(mtu => mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.image, Uri())))).toMap
+    val hwTargets = mtus.map(mtu => mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.image, Uri())))).toMap
     for {
       ecus <- adminRepository.fetchHwMappingAction(namespace, device)
     } yield ecus.mapValues { case (hw, oimage) =>
@@ -28,14 +28,14 @@ object SetMultiTargets extends AdminRepositorySupport
     }.collect{ case (k, Some(v)) => k -> v}
   }
 
-  protected [db] def checkMany(namespace: Namespace, devices: Seq[DeviceId], hwRows: Seq[MultiTargetUpdate])
-                              (implicit db: Database, ec: ExecutionContext): DBIO[Seq[DeviceId]] = {
+  protected [db] def checkDevicesSupportUpdates(namespace: Namespace, devices: Seq[DeviceId], hwRows: Seq[MultiTargetUpdate])
+                                               (implicit db: Database, ec: ExecutionContext): DBIO[Seq[DeviceId]] = {
     def act(device: DeviceId): DBIO[Option[DeviceId]] = for {
       ecus <- adminRepository.fetchHwMappingAction(namespace, device)
       okay = hwRows.forall{ mtu =>
         ecus.exists {case (_, (hw, current)) =>
           hw == mtu.hardwareId && mtu.fromTarget.forall{ from =>
-            current.exists{ cur => cur == from.image}
+            current.contains(from.image)
           }
         }
       }
@@ -43,14 +43,14 @@ object SetMultiTargets extends AdminRepositorySupport
 
     for {
       devs <- adminRepository.devicesNotInACampaign(devices).result
-      affected <- DBIO.sequence(devs.map(act)).map(_.collect{case Some(v) => v})
+      affected <- DBIO.sequence(devs.map(act)).map(_.flatten)
     } yield affected
   }
 
   def findAffected(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId)
                   (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = db.run {
     multiTargetUpdatesRepository.fetchAction(updateId, namespace).flatMap { hwRows =>
-      checkMany(namespace, devices, hwRows)
+      checkDevicesSupportUpdates(namespace, devices, hwRows)
     }
   }
 
@@ -58,7 +58,7 @@ object SetMultiTargets extends AdminRepositorySupport
                                        (implicit db: Database, ec: ExecutionContext): DBIO[DeviceId] = {
     val dbAct = for {
       targets <- resolve(namespace, device, hwRows)
-      new_version <- SetTargets.deviceAction(namespace, device, Some(updateId), targets)
+      new_version <- SetTargets.setDeviceTargetsAction(namespace, device, Some(updateId), targets)
       _ <- launchedMultiTargetUpdateRepository.persistAction(LaunchedMultiTargetUpdate(device, updateId, new_version, LaunchedMultiTargetUpdateStatus.Pending))
       _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield device
@@ -74,7 +74,7 @@ object SetMultiTargets extends AdminRepositorySupport
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = db.run {
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
-      toUpdate <- checkMany(namespace, devices, hwRows)
+      toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
       _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
     } yield toUpdate
 

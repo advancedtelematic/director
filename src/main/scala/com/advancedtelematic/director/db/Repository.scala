@@ -123,7 +123,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
       .result
-      .failIfMany()
+      .failIfMany
       .map(_.getOrElse(0))
 
     def allUpdatesScheduledAfter(fromVersion: Int): DBIO[Seq[(Int, Option[UpdateId])]] = Schema.deviceTargets
@@ -167,7 +167,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.version === version)
       .map(_.update)
       .result
-      .failIfMany()
+      .failIfMany
       .map(_.flatten)
 
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
@@ -288,7 +288,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .filter(_.device === device)
       .map(_.deviceCurrentTarget)
       .result
-      .failIfMany()
+      .failIfMany
 
   def getCurrentVersion(device: DeviceId): Future[Int] = db.run{
     getCurrentVersionAction(device)

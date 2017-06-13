@@ -70,7 +70,7 @@ object DeviceUpdate extends AdminRepositorySupport
   private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, version: Int)
                                            (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
-      latestVersion <- adminRepository.getLatestVersion(namespace, device)
+      latestVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
       nextTimestampVersion = latestVersion + 1
       fcr = FileCacheRequest(namespace, version, device, None, FileCacheRequestStatus.PENDING, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)

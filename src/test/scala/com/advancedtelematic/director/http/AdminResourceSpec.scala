@@ -156,6 +156,7 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       val device2 = registerNSDeviceOk(afn)
 
       setCampaign(device1, 1).futureValue
+      pretendToGenerate.futureValue
 
       val pag = getAffected("a")()
       pag.total shouldBe 1

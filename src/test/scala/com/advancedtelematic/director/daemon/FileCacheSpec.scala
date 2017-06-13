@@ -23,6 +23,7 @@ import org.scalatest.matchers.{Matcher, MatchResult}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
+import scala.concurrent.Future
 
 class FileCacheSpec extends DirectorSpec
     with BeforeAndAfterAll
@@ -77,6 +78,30 @@ class FileCacheSpec extends DirectorSpec
       isAvailable[TargetsRole](device, "targets.json")
       isAvailable[RootRole](device, "root.json")
     }
+  }
+
+  test("Can schedule several updates for the same device at the same time") {
+    val device = DeviceId.generate
+
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+
+    val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
+    registerDeviceOk(regDev)
+
+    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
+    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
+
+    updateManifestOk(device, devManifest)
+
+    val targets = for (_ <- 0 until 10) yield {
+      val targetImage = GenCustomImage.generate
+      SetTarget(Map(primEcu -> targetImage))
+    }
+
+    Future.traverse(targets){ target =>
+      SetTargets.setTargets(defaultNs, Seq(device -> target))
+    }.futureValue
   }
 
   ignore("expired requests are re-generating") {

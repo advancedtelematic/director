@@ -153,10 +153,12 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     db.run(act.map(_ => ()).transactionally)
   }
 
-  protected [db] def getLatestVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
-    Schema.deviceTargets
+  protected [db] def getLatestScheduledVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
+    Schema.fileCacheRequest
+      .filter(_.namespace === namespace)
       .filter(_.device === device)
-      .map(_.version)
+      .map(_.timestampVersion)
+      .forUpdate
       .max
       .result
       .failIfNone(NoTargetsScheduled)
@@ -191,7 +193,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
-    version <- getLatestVersion(namespace, device).asTry.flatMap {
+    version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
       case Success(x) => DBIO.successful(x)
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)

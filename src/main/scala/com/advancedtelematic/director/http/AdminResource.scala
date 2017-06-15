@@ -24,7 +24,6 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
-import scala.async.Async._
 import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace],
@@ -51,40 +50,41 @@ class AdminResource(extractNamespace: Directive1[Namespace],
 
     regDev.ecus.find(_.ecu_serial == primEcu) match {
       case None => complete( Errors.PrimaryIsNotListedForDevice )
-      case Some(_) => complete( StatusCodes.Created ->
-                                 adminRepository.createDevice(namespace, regDev.vin, primEcu, regDev.ecus))
+      case Some(_) =>
+        val f = adminRepository.createDevice(namespace, regDev.vin, primEcu, regDev.ecus).map(StatusCodes.Created -> _)
+        complete(f)
     }
   }
 
   def listInstalledImages(namespace: Namespace, device: DeviceId): Route = {
-    complete(adminRepository.findImages(namespace, device))
+    val f = adminRepository.findImages(namespace, device)
+    complete(f)
   }
 
   def getDevice(namespace: Namespace, device: DeviceId): Route = {
-    complete(adminRepository.findDevice(namespace, device))
+    val f = adminRepository.findDevice(namespace, device)
+    complete(f)
   }
 
   def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
-    val act = async {
-      val ecus = await(deviceRepository.findEcus(namespace, device)).map(_.ecuSerial).toSet
-
+    val act = deviceRepository.findEcuSerials(namespace, device).flatMap { ecus =>
       if (!targets.updates.keys.toSet.subsetOf(ecus)) {
-        await(FastFuture.failed(Errors.TargetsNotSubSetOfDevice))
+        FastFuture.failed(Errors.TargetsNotSubSetOfDevice)
       } else {
-        await(SetTargets.setTargets(namespace, Seq(device -> targets)))
+        SetTargets.setTargets(namespace, Seq(device -> targets))
       }
     }
     complete(act)
   }
 
   def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
-    complete {
-      setMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
-    }
+    val f = setMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
+    complete(f)
   }
 
-  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
-    setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+    complete(f)
   }
 
   def fetchRoot(namespace: Namespace): Route = {
@@ -103,27 +103,31 @@ class AdminResource(extractNamespace: Directive1[Namespace],
     (parameters('limit.as[Long].?) & parameters('offset.as[Long].?) & entity(as[FindAffectedRequest])) { (mLimit, mOffset, image) =>
       val offset = mOffset.getOrElse(0L)
       val limit  = mLimit.getOrElse(50L)
-      complete(adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit))
+      val f = adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit)
+      complete(f)
     }
 
   def findHardwareIdentifiers(namespace: Namespace): Route =
     (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)) { (mLimit, mOffset) =>
       val offset = mOffset.getOrElse(0L)
       val limit  = mLimit.getOrElse(50L).min(1000)
-      complete(adminRepository.findAllHardwareIdentifiers(namespace, offset = offset, limit = limit))
+      val f = adminRepository.findAllHardwareIdentifiers(namespace, offset = offset, limit = limit)
+      complete(f)
     }
 
-
-  def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
-    setMultiTargets.findAffected(namespace, devices, updateId)
+  def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
+    val f = setMultiTargets.findAffected(namespace, devices, updateId)
+    complete(f)
   }
 
-  def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = complete {
-    adminRepository.findPublicKey(namespace, device, ecuSerial)
+  def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = {
+    val f = adminRepository.findPublicKey(namespace, device, ecuSerial)
+    complete(f)
   }
 
-  def queueForDevice(namespace: Namespace, device: DeviceId): Route = complete {
-    adminRepository.findQueue(namespace, device)
+  def queueForDevice(namespace: Namespace, device: DeviceId): Route = {
+    val f = adminRepository.findQueue(namespace, device)
+    complete(f)
   }
 
   def autoUpdateRoute(ns: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route =

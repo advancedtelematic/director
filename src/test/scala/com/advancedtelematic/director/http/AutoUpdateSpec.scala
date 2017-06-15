@@ -1,45 +1,21 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import cats.syntax.show._
 import com.advancedtelematic.director.daemon.TufTargetWorker
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetMultiTargets}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.codecs.CirceAnyVal._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.TargetCustom
 import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName}
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum => TufChecksum, HardwareIdentifier, TargetName}
 import eu.timepit.refined.api.Refined
 
-class AutoUpdateSpec extends DirectorSpec with FileCacheDB with Requests with ResourceSpec {
+class AutoUpdateSpec extends DirectorSpec with FileCacheDB with NamespacedRequests with ResourceSpec {
 
-  def findAutoUpdate(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): Seq[TargetName] =
-    Get(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-      responseAs[Seq[TargetName]]
-    }
-
-  def deleteAllAutoUpdate(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): Unit =
-    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-    }
-
-  def setAutoUpdate(device: DeviceId, ecuSerial: EcuSerial, target: TargetName)(implicit ns: NamespaceTag): Unit = {
-    Put(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-    }
-  }
-
-  def deleteAutoUpdate(device: DeviceId, ecuSerial: EcuSerial, target: TargetName)(implicit ns: NamespaceTag): Unit = {
-    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-    }
-  }
+  private def convertToTufChecksum(checksum: Checksum): TufChecksum = TufChecksum(checksum.method, checksum.hash)
 
   def regDevice(primEcuHw: HardwareIdentifier, otherEcuHw: HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val device = DeviceId.generate
@@ -49,9 +25,7 @@ class AutoUpdateSpec extends DirectorSpec with FileCacheDB with Requests with Re
 
     val primEcu = regEcus.head.ecu_serial
 
-    registerDevice(RegisterDevice(device, primEcu, regEcus)).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.Created
-    }
+    registerDeviceOk(RegisterDevice(device, primEcu, regEcus))
 
     val ecuManifests = regEcus.map {regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate}
     val devManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
@@ -70,7 +44,7 @@ class AutoUpdateSpec extends DirectorSpec with FileCacheDB with Requests with Re
     val targetFormat = Some(GenTargetFormat.generate)
 
     val custom = TargetCustom(name, version, hws, targetFormat)
-    (TufTargetAdded(ns.get, target.target, target.checksum, target.targetLength, Some(custom)), name)
+    (TufTargetAdded(ns.get, target.target, convertToTufChecksum(target.checksum), target.targetLength, Some(custom)), name)
   }
 
   val setMultiTargets = new SetMultiTargets
@@ -80,127 +54,115 @@ class AutoUpdateSpec extends DirectorSpec with FileCacheDB with Requests with Re
   val hw1: HardwareIdentifier = Refined.unsafeApply("hw1")
   val hw2: HardwareIdentifier = Refined.unsafeApply("hw2")
 
-  test("fetching non-existent autoupdate yield empty") {
-    withRandomNamespace { implicit ns =>
-      val device = DeviceId.generate
-      val ecuSerial= GenEcuSerial.generate
+  testWithNamespace("fetching non-existent autoupdate yield empty") { implicit ns =>
+    val device = DeviceId.generate
+    val ecuSerial= GenEcuSerial.generate
 
-      findAutoUpdate(device, ecuSerial) shouldBe Seq()
-    }
+    findAutoUpdate(device, ecuSerial) shouldBe Seq()
   }
 
-  test("setting/unsetting targetName shows up") {
-    withRandomNamespace { implicit ns =>
-      val (device, primEcu, ecus) = regDevice(hw0)
+  testWithNamespace("setting/unsetting targetName shows up") { implicit ns =>
+    val (device, primEcu, ecus) = regDevice(hw0)
 
-      val targetName = GenTargetName.generate
+    val targetName = GenTargetName.generate
 
-      setAutoUpdate(device, primEcu, targetName)
+    setAutoUpdate(device, primEcu, targetName)
 
-      findAutoUpdate(device, primEcu) shouldBe Seq(targetName)
+    findAutoUpdate(device, primEcu) shouldBe Seq(targetName)
 
-      deleteAutoUpdate(device, primEcu, targetName)
+    deleteAutoUpdate(device, primEcu, targetName)
 
-      findAutoUpdate(device, primEcu) shouldBe Seq()
-    }
+    findAutoUpdate(device, primEcu) shouldBe Seq()
   }
 
-  test("multiple ecus can have auto updates") {
-    withRandomNamespace { implicit ns =>
-      val (device, primEcu, Seq(ecu1, ecu2)) = regDevice(hw0, hw1, hw2)
+  testWithNamespace("multiple ecus can have auto updates") { implicit ns =>
+    val (device, primEcu, Seq(ecu1, ecu2)) = regDevice(hw0, hw1, hw2)
 
-      val targetName = GenTargetName.generate
+    val targetName = GenTargetName.generate
 
-      setAutoUpdate(device, ecu1, targetName)
-      setAutoUpdate(device, ecu2, targetName)
+    setAutoUpdate(device, ecu1, targetName)
+    setAutoUpdate(device, ecu2, targetName)
 
-      findAutoUpdate(device, ecu1) shouldBe Seq(targetName)
-      findAutoUpdate(device, ecu2) shouldBe Seq(targetName)
+    findAutoUpdate(device, ecu1) shouldBe Seq(targetName)
+    findAutoUpdate(device, ecu2) shouldBe Seq(targetName)
 
-      deleteAutoUpdate(device, ecu1, targetName)
-      deleteAutoUpdate(device, ecu2, targetName)
+    deleteAutoUpdate(device, ecu1, targetName)
+    deleteAutoUpdate(device, ecu2, targetName)
 
-      findAutoUpdate(device, ecu1) shouldBe Seq()
-      findAutoUpdate(device, ecu2) shouldBe Seq()
-    }
+    findAutoUpdate(device, ecu1) shouldBe Seq()
+    findAutoUpdate(device, ecu2) shouldBe Seq()
   }
 
-  test("ecu can have multiple auto updates") {
-    withRandomNamespace { implicit ns =>
-      val (device, primEcu, ecus) = regDevice(hw0)
+  testWithNamespace("ecu can have multiple auto updates") { implicit ns =>
+    val (device, primEcu, ecus) = regDevice(hw0)
 
-      val targetName1 = GenTargetName.generate
-      val targetName2 = GenTargetName.generate
+    val targetName1 = GenTargetName.generate
+    val targetName2 = GenTargetName.generate
 
-      setAutoUpdate(device, primEcu, targetName1)
-      setAutoUpdate(device, primEcu, targetName2)
+    setAutoUpdate(device, primEcu, targetName1)
+    setAutoUpdate(device, primEcu, targetName2)
 
-      findAutoUpdate(device, primEcu).toSet shouldBe Set(targetName1, targetName2)
+    findAutoUpdate(device, primEcu).toSet shouldBe Set(targetName1, targetName2)
 
-      deleteAutoUpdate(device, primEcu, targetName1)
-      findAutoUpdate(device, primEcu) shouldBe Seq(targetName2)
+    deleteAutoUpdate(device, primEcu, targetName1)
+    findAutoUpdate(device, primEcu) shouldBe Seq(targetName2)
 
-      deleteAutoUpdate(device, primEcu, targetName2)
-      findAutoUpdate(device, primEcu) shouldBe Seq()
+    deleteAutoUpdate(device, primEcu, targetName2)
+    findAutoUpdate(device, primEcu) shouldBe Seq()
 
-      setAutoUpdate(device, primEcu, targetName1)
-      setAutoUpdate(device, primEcu, targetName2)
-      findAutoUpdate(device, primEcu).toSet shouldBe Set(targetName1, targetName2)
+    setAutoUpdate(device, primEcu, targetName1)
+    setAutoUpdate(device, primEcu, targetName2)
+    findAutoUpdate(device, primEcu).toSet shouldBe Set(targetName1, targetName2)
 
-      deleteAllAutoUpdate(device, primEcu)
-      findAutoUpdate(device, primEcu) shouldBe Seq()
-    }
+    deleteAllAutoUpdate(device, primEcu)
+    findAutoUpdate(device, primEcu) shouldBe Seq()
   }
 
-  test("when TufTargetEvent fires, updates gets scheduled") {
-    withRandomNamespace { implicit ns =>
-      val (device1, primEcu1, ecus1) = regDevice(hw0)
-      val (device2, primEcu2, ecus2) = regDevice(hw0)
-      val (deviceN, primEcuN, ecusN) = regDevice(hw0)
+  testWithNamespace("when TufTargetEvent fires, updates gets scheduled") { implicit ns =>
+    val (device1, primEcu1, ecus1) = regDevice(hw0)
+    val (device2, primEcu2, ecus2) = regDevice(hw0)
+    val (deviceN, primEcuN, ecusN) = regDevice(hw0)
 
-      val (tufTargetAdded, targetName) = generateTufTargetAdded(hw0)
+    val (tufTargetAdded, targetName) = generateTufTargetAdded(hw0)
 
-      setAutoUpdate(device1, primEcu1, targetName)
-      setAutoUpdate(device2, primEcu2, targetName)
+    setAutoUpdate(device1, primEcu1, targetName)
+    setAutoUpdate(device2, primEcu2, targetName)
 
-      tufTargetWorker.action(tufTargetAdded).futureValue
-      pretendToGenerate().futureValue
+    tufTargetWorker.action(tufTargetAdded).futureValue
+    pretendToGenerate().futureValue
 
-      def checkQueue(device: DeviceId, primEcu: EcuSerial): Unit = {
-        val queue = deviceQueueOk(device)
-
-        queue.length shouldBe 1
-
-        val item = queue.head
-
-        item.targets.size shouldBe 1
-
-        item.targets(primEcu).filepath shouldBe tufTargetAdded.filename
-        item.targets(primEcu).fileinfo.length shouldBe tufTargetAdded.length
-      }
-
-      checkQueue(device1, primEcu1)
-      checkQueue(device2, primEcu2)
-
-      deviceQueueOk(deviceN) shouldBe Seq()
-    }
-  }
-
-  test("TufTargetEvent schedule for device with multiple matching ecus") {
-    withRandomNamespace { implicit ns =>
-      val (device, primEcu, Seq(ecu0, ecu1)) = regDevice(hw0, hw1, hw1)
-
-      val (tufTargetAdded, targetName) = generateTufTargetAdded(hw1)
-
-      setAutoUpdate(device, ecu0, targetName)
-      setAutoUpdate(device, ecu1, targetName)
-
-      tufTargetWorker.action(tufTargetAdded).futureValue
-      pretendToGenerate().futureValue
-
+    def checkQueue(device: DeviceId, primEcu: EcuSerial): Unit = {
       val queue = deviceQueueOk(device)
 
       queue.length shouldBe 1
+
+      val item = queue.head
+
+      item.targets.size shouldBe 1
+
+      item.targets(primEcu).image.filepath shouldBe tufTargetAdded.filename
+      item.targets(primEcu).image.fileinfo.length shouldBe tufTargetAdded.length
     }
+
+    checkQueue(device1, primEcu1)
+    checkQueue(device2, primEcu2)
+
+    deviceQueueOk(deviceN) shouldBe Seq()
+  }
+
+  testWithNamespace("TufTargetEvent schedule for device with multiple matching ecus") { implicit ns =>
+    val (device, primEcu, Seq(ecu0, ecu1)) = regDevice(hw0, hw1, hw1)
+
+    val (tufTargetAdded, targetName) = generateTufTargetAdded(hw1)
+
+    setAutoUpdate(device, ecu0, targetName)
+    setAutoUpdate(device, ecu1, targetName)
+
+    tufTargetWorker.action(tufTargetAdded).futureValue
+    pretendToGenerate().futureValue
+
+    val queue = deviceQueueOk(device)
+
+    queue.length shouldBe 1
   }
 }

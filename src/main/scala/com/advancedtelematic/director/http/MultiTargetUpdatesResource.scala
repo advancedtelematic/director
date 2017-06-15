@@ -4,16 +4,14 @@ import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdate, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.MultiTargetUpdateRequest
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
 import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
-import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
 
-import scala.async.Async._
 import scala.concurrent.ExecutionContext
 
 class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit db: Database, ec: ExecutionContext)
@@ -22,20 +20,20 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
   import Directives._
 
   def getTargetInfo(id: UpdateId, ns: Namespace): Route = {
-    val f = async {
-      val rows = await(multiTargetUpdatesRepository.fetch(id, ns))
-      rows.foldLeft(Map[HardwareIdentifier, Image]()) { (map, mtu) =>
-        map + (mtu.hardwareId -> mtu.image)
-      }
+    val f = multiTargetUpdatesRepository.fetch(id, ns).map { rows =>
+      rows.map(mtuRow => mtuRow.hardwareId -> mtuRow.targetUpdateRequest).toMap
     }
     complete(f)
   }
 
   def createMultiTargetUpdate(ns: Namespace): Route = {
-    entity(as[MultiTargetUpdateRequest]) { mtu =>
+    entity(as[MultiTargetUpdateRequest]) { mtuRequest =>
       val updateId = UpdateId.generate
-      val m = MultiTargetUpdate(mtu, updateId, ns)
-      complete(StatusCodes.Created -> multiTargetUpdatesRepository.create(m).map(_ => updateId))
+      val mtuRows = mtuRequest.multiTargetUpdateRows(updateId, ns)
+      val f = multiTargetUpdatesRepository.create(mtuRows).map{ _ =>
+        StatusCodes.Created -> updateId
+      }
+      complete(f)
     }
   }
 

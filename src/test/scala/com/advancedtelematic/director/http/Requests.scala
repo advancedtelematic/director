@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget, QueueResponse}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, LegacyDeviceManifest}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
@@ -77,10 +77,10 @@ trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
       responseAs[UpdateId]
     }
 
-  def fetchMultiTargetUpdate(id: UpdateId): Map[HardwareIdentifier, Image] =
+  def fetchMultiTargetUpdate(id: UpdateId): Map[HardwareIdentifier, TargetUpdateRequest] =
     Get(apiUri(s"multi_target_updates/${id.show}")) ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[Map[HardwareIdentifier, Image]]
+      responseAs[Map[HardwareIdentifier, TargetUpdateRequest]]
     }
 
   def deviceQueue(deviceId: DeviceId): HttpRequest =

@@ -52,7 +52,7 @@ object Errors {
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
   val EcuAlreadyRegistered = RawError(ErrorCodes.EcuAlreadyRegistered, StatusCodes.Conflict, "The ecu is already registered")
 
-  val ConflictingMultiTargetUpdate = EntityAlreadyExists[MultiTargetUpdate]
+  val ConflictingMultiTargetUpdate = EntityAlreadyExists[MultiTargetUpdateRow]
   val MissingMultiTargetUpdate = RawError(ErrorCodes.MissingMultiTargetUpdate, StatusCodes.NotFound, "multi-target update not found")
 
   val DeviceMissing = MissingEntity[DeviceId]

@@ -6,12 +6,13 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum => _, _}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.{BINARY, OSTREE, TargetFormat}
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
@@ -43,6 +44,12 @@ trait Generators {
 
   lazy val GenTargetFormat: Gen[TargetFormat] =
     Gen.oneOf(BINARY, OSTREE)
+
+  lazy val GenDiffInfo: Gen[DiffInfo] = for {
+    ch <- GenChecksum
+    size <- Gen.posNum[Long]
+    uri = Uri("http://example.com/fetch/delta")
+  } yield DiffInfo(ch, size, uri)
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
@@ -81,7 +88,8 @@ trait Generators {
 
   lazy val GenCustomImage: Gen[CustomImage] = for {
     im <- GenImage
-  } yield CustomImage(im.filepath, im.fileinfo, Uri("http://www.example.com"))
+    tf <- Gen.option(GenTargetFormat)
+  } yield CustomImage(im, Uri("http://www.example.com"), tf)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
@@ -131,7 +139,7 @@ trait Generators {
 
   val GenTargetUpdateRequest: Gen[TargetUpdateRequest] = for {
     targetUpdate <- GenTargetUpdate
-  } yield TargetUpdateRequest(None, targetUpdate)
+  } yield TargetUpdateRequest(None, targetUpdate, OSTREE, false)
 
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
     targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdateRequest))

@@ -30,16 +30,16 @@ class DirectorRepoSpec
 
   val dirNs = Namespace("director-repo-spec")
 
-  val keyserverClient = new FakeKeyserverClient()
-  val directorRepo = new DirectorRepo(keyserverClient)
+  val countKeyserverClient = new FakeKeyserverClient()
+  val directorRepo = new DirectorRepo(countKeyserverClient)
 
   test("Only create repo once") {
-    keyserverClient.count shouldBe 0
+    countKeyserverClient.count shouldBe 0
     val repoId = directorRepo.findOrCreate(dirNs).futureValue
-    keyserverClient.count shouldBe 1
+    countKeyserverClient.count shouldBe 1
     val repoId2 = directorRepo.findOrCreate(dirNs).futureValue
 
-    keyserverClient.count shouldBe 1
+    countKeyserverClient.count shouldBe 1
     repoId shouldBe repoId2
   }
 

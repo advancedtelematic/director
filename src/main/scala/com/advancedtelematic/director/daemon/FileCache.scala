@@ -9,7 +9,6 @@ import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}
 import com.advancedtelematic.director.db.FileCacheRequestRepositorySupport
 import com.advancedtelematic.director.roles.RolesGeneration
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 
 import scala.concurrent.duration._
 import slick.driver.MySQLDriver.api._
@@ -17,10 +16,11 @@ import slick.driver.MySQLDriver.api._
 object FileCacheDaemon {
   case object Tick
 
-  def props(tuf: KeyserverClient)(implicit db: Database):Props = Props(new FileCacheDaemon(tuf))
+  def props(rolesGeneration: RolesGeneration)(implicit db: Database): Props =
+    Props(new FileCacheDaemon(rolesGeneration))
 }
 
-class FileCacheDaemon(tuf: KeyserverClient)(implicit val db: Database) extends Actor
+class FileCacheDaemon(rolesGeneration: RolesGeneration)(implicit val db: Database) extends Actor
     with ActorLogging
     with FileCacheRequestRepositorySupport {
 
@@ -31,7 +31,7 @@ class FileCacheDaemon(tuf: KeyserverClient)(implicit val db: Database) extends A
   }
 
   private val worker = {
-    context.system.actorOf(FileCacheWorker.props(tuf))
+    context.system.actorOf(FileCacheWorker.props(rolesGeneration))
   }
 
   def waiting(totalTasks: Int, remaining: Int): Receive =
@@ -68,16 +68,15 @@ class FileCacheDaemon(tuf: KeyserverClient)(implicit val db: Database) extends A
 }
 
 object FileCacheWorker {
-  def props(tuf: KeyserverClient)(implicit db: Database): Props = Props(new FileCacheWorker(tuf))
+  def props(rolesGeneration: RolesGeneration)(implicit db: Database): Props =
+    Props(new FileCacheWorker(rolesGeneration))
 }
 
-class FileCacheWorker(tuf: KeyserverClient)(implicit val db: Database) extends Actor
+class FileCacheWorker(rolesGeneration: RolesGeneration)(implicit val db: Database) extends Actor
     with ActorLogging
     with FileCacheRequestRepositorySupport {
 
   implicit val ec = context.dispatcher
-  val rolesGeneration = new RolesGeneration(tuf)
-
 
   override def receive: Receive = {
     case fcr: FileCacheRequest =>

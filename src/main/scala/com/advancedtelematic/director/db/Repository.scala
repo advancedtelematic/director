@@ -1,14 +1,20 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdate}
+import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
+import com.advancedtelematic.director.data.UpdateType.UpdateType
+import com.advancedtelematic.director.db.Mappers._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.slick.codecs.SlickRefined._
+import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, RepoId, RoleType}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TufKey}
 import io.circe.Json
 import java.time.Instant
 
@@ -22,13 +28,11 @@ trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
 }
 
-protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport with FileCacheRequestRepositorySupport {
+protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
+    with FileCacheRequestRepositorySupport
+    with UpdateTypesRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu, QueueResponse}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Image}
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import com.advancedtelematic.libtuf.data.TufDataType.TufKey
   import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
@@ -154,10 +158,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   protected [db] def getLatestScheduledVersion(namespace: Namespace, device: DeviceId): DBIO[Int] =
-    Schema.fileCacheRequest
-      .filter(_.namespace === namespace)
+    Schema.deviceTargets
       .filter(_.device === device)
-      .map(_.timestampVersion)
+      .map(_.version)
       .forUpdate
       .max
       .result
@@ -189,18 +192,37 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.device === device)
       .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
       .map(_._2)
+      .map(x => x.id -> x.customImage)
       .result
-      .map(_.groupBy(_.ecuIdentifier).mapValues(_.head.image))
+      .map(_.toMap)
 
   def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
     db.run(fetchTargetVersionAction(namespace, device, version))
 
+  def fetchCustomTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, (HardwareIdentifier, CustomImage)]] = db.run {
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
+      .map{case (ecu, ecuTarget) => ecuTarget.id -> ((ecu.hardwareId, ecuTarget.customImage))}
+      .result
+      .map(_.toMap)
+  }
+
   protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
                                         version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
-      ++= targets.map{ case (ecuSerial, image) => EcuTarget(namespace, version, ecuSerial, image)})
+      ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)})
 
     act.map(_ => ()).transactionally
+  }
+
+  protected [db] def updateDeviceTargetsAction(device: DeviceId, updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
+    val target = DeviceUpdateTarget(device, updateId, version)
+
+    (Schema.deviceTargets += target)
+      .map(_ => target)
+      .handleIntegrityErrors(ConflictingTarget)
   }
 
   protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
@@ -214,12 +236,6 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     new_targets = previousMap ++ targets
     _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
   } yield new_version
-
-  def updateDeviceTargets(device: DeviceId, updateId: Option[UpdateId], version: Int): Future[DeviceUpdateTarget] = db.run {
-    val target = DeviceUpdateTarget(device, updateId, version)
-    (Schema.deviceTargets += target)
-      .map(_ => target)
-  }
 
   def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
     updateTargetAction(namespace, device, updateId, targets).transactionally
@@ -263,6 +279,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
       .map(_.toMap)
   }
+
+  def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] = db.run {
+    Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .exists
+      .result
+  }
 }
 
 trait DeviceRepositorySupport {
@@ -272,10 +296,7 @@ trait DeviceRepositorySupport {
 protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) extends FileCacheRequestRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import DataType.{CurrentImage, DeviceCurrentTarget}
+  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateTarget}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -294,7 +315,8 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
     val fcr = FileCacheRequest(namespace, 0, device, None, FileCacheRequestStatus.PENDING, 0)
-    fileCacheRequestRepository.persistAction(fcr)
+    (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0))
+      .andThen(fileCacheRequestRepository.persistAction(fcr))
   }
 
   def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
@@ -313,6 +335,9 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
+  def findEcuSerials(namespace: Namespace, device: DeviceId): Future[Set[EcuSerial]] =
+    db.run(byDevice(namespace, device).map(_.ecuSerial).to[Set].result)
+
   protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Option[Int]] =
     Schema.deviceCurrentTarget
       .filter(_.device === device)
@@ -320,28 +345,10 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .result
       .failIfMany
 
-  def getCurrentVersion(device: DeviceId): Future[Int] = db.run{
+  def getCurrentVersion(device: DeviceId): Future[Int] = db.run {
     getCurrentVersionAction(device)
       .failIfNone(MissingCurrentTarget)
   }
-
-  protected [db] def getNextVersionAction(device: DeviceId): DBIO[Int] = {
-    val devVer = getCurrentVersionAction(device)
-      .failIfNone(MissingCurrentTarget)
-
-    val targetVer = Schema.deviceTargets
-      .filter(_.device === device)
-      .map(_.version)
-      .max
-      .result
-      .failIfNone(NoTargetsScheduled)
-
-    devVer.zip(targetVer).map { case (device_version, target_version) =>
-      scala.math.min(device_version + 1, target_version)
-    }
-  }
-
-  def getNextVersion(device: DeviceId): Future[Int] = db.run(getNextVersionAction(device))
 
   protected [db] def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
@@ -355,7 +362,6 @@ trait FileCacheRepositorySupport {
 }
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
@@ -402,6 +408,15 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .result
       .failIfNotSingle(MissingTimestamp)
   }.map (_.isBefore(Instant.now()))
+
+  def versionIsCached(device: DeviceId, version: Int): Future[Boolean] = db.run {
+    Schema.fileCache
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .filter(_.role === RoleType.TIMESTAMP)
+      .exists
+      .result
+  }
 }
 
 
@@ -411,8 +426,6 @@ trait FileCacheRequestRepositorySupport {
 
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.FileCacheRequestStatus._
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import DataType.FileCacheRequest
 
   protected [db] def persistAction(req: FileCacheRequest): DBIO[Unit] =
@@ -456,9 +469,6 @@ trait RepoNameRepositorySupport {
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
   import DataType.RepoName
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 
   def getRepo(ns: Namespace): Future[RepoId] = db.run {
     Schema.repoNames
@@ -483,22 +493,29 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 
-  protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdate]] =
+  protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
     Schema.multiTargets
       .filter(_.id === id)
       .filter(_.namespace === ns)
       .result
       .failIfEmpty(MissingMultiTargetUpdate)
 
-  def fetch(id: UpdateId, ns: Namespace): Future[Seq[MultiTargetUpdate]] = db.run {
+  def fetch(id: UpdateId, ns: Namespace): Future[Seq[MultiTargetUpdateRow]] = db.run {
     fetchAction(id, ns)
   }
 
-  def create(rows: Seq[MultiTargetUpdate]): Future[Unit] = db.run {
+  def requireDiff(ns: Namespace, id: UpdateId): Future[Boolean] = db.run {
+    Schema.multiTargets
+      .filter(_.namespace === ns)
+      .filter(_.id === id)
+      .map(_.generateDiff)
+      .result
+      .failIfEmpty(MissingMultiTargetUpdate)
+      .map(_.contains(true))
+  }
+
+  def create(rows: Seq[MultiTargetUpdateRow]): Future[Unit] = db.run {
     (Schema.multiTargets ++= rows)
       .handleIntegrityErrors(ConflictingMultiTargetUpdate)
       .map(_ => ())
@@ -512,8 +529,6 @@ trait LaunchedMultiTargetUpdateRepositorySupport {
 protected class LaunchedMultiTargetUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.DataType.LaunchedMultiTargetUpdate
   import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import Schema.launchedMultiTargetUpdates
 
   protected [db] def persistAction(lmtu: LaunchedMultiTargetUpdate): DBIO[LaunchedMultiTargetUpdate] =
@@ -540,20 +555,20 @@ trait UpdateTypesRepositorySupport {
 }
 
 protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.UpdateType.UpdateType
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-
   protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] =
     (Schema.updateTypes += ((updateId, ofType)))
       .handleIntegrityErrors(ConflictingUpdateType)
       .map(_ => ())
 
-  def getType(updateId: UpdateId): Future[UpdateType] = db.run {
+  protected [db] def getTypeAction(updateId: UpdateId): DBIO[UpdateType] =
     Schema.updateTypes
       .filter(_.update === updateId)
       .map(_.updateType)
       .result
       .failIfNotSingle(MissingUpdateType)
+
+  def getType(updateId: UpdateId): Future[UpdateType] = db.run {
+    getTypeAction(updateId)
   }
 }
 
@@ -563,11 +578,7 @@ trait AutoUpdateRepositorySupport {
 
 protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
   import com.advancedtelematic.director.data.DataType.{AutoUpdate, TargetUpdate}
-  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libtuf.data.TufDataType.TargetName
-  import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   def persist(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[AutoUpdate] = db.run {
     val autoUpdate = AutoUpdate(namespace, device, ecuSerial, targetName)

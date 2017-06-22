@@ -4,11 +4,12 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import com.advancedtelematic.director.data.DataType.CustomImage
+import com.advancedtelematic.director.data.DataType.{CustomImage, HardwareIdentifier}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.libats.codecs.CirceRefined._
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
@@ -60,6 +61,23 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
 
   def registerNSDeviceOk(images: TargetFilename*)(implicit ns: NamespaceTag): DeviceId = createDeviceWithImages(images : _*)._1
 
+  def registerHWDeviceOk(hws: HardwareIdentifier*)(implicit ns: NamespaceTag): DeviceId = {
+    val device = DeviceId.generate
+
+    val regEcus = hws.map { hw =>
+      GenRegisterEcu.generate.copy(hardware_identifier = Some(hw))
+    }
+
+    val primEcu = regEcus.head.ecu_serial
+    val regDev = RegisterDevice(device, primEcu, regEcus)
+
+    registerDevice(regDev).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    device
+  }
+
   def getAffected(filepath: String) (limit: Option[Long]= None, offset: Option[Long] = None)
                  (implicit ns: NamespaceTag): PaginationResult[DeviceId] = {
     val query = Uri.Query(limit.map("limit" -> _.toString).toMap ++ offset.map("offset" -> _.toString).toMap)
@@ -68,6 +86,21 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
     Get(Uri(apiUri(s"admin/images/affected")).withQuery(query), entity).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       val pag = responseAs[PaginationResult[DeviceId]]
+      pag.limit shouldBe limit.getOrElse(50L)
+      pag.offset shouldBe offset.getOrElse(0L)
+      (pag.values.length <= pag.limit) shouldBe true
+      pag.values.length shouldBe scala.math.max(0, scala.math.min(pag.total - pag.offset, pag.limit))
+      pag
+    }
+  }
+
+  def getHw(limit: Option[Long]= None, offset: Option[Long] = None)
+                 (implicit ns: NamespaceTag): PaginationResult[HardwareIdentifier] = {
+    val query = Uri.Query(limit.map("limit" -> _.toString).toMap ++ offset.map("offset" -> _.toString).toMap)
+
+    Get(Uri(apiUri(s"admin/devices/hardware_identifiers")).withQuery(query)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val pag = responseAs[PaginationResult[HardwareIdentifier]]
       pag.limit shouldBe limit.getOrElse(50L)
       pag.offset shouldBe offset.getOrElse(0L)
       (pag.values.length <= pag.limit) shouldBe true
@@ -111,6 +144,8 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
   val bfn: TargetFilename = Refined.unsafeApply("b")
   val cfn: TargetFilename = Refined.unsafeApply("c")
   val dfn: TargetFilename = Refined.unsafeApply("d")
+  val ahw: HardwareIdentifier = Refined.unsafeApply("a")
+  val bhw: HardwareIdentifier = Refined.unsafeApply("b")
   test("images/affected Can get devices with an installed image filename") {
     withNamespace("ns get several") {implicit ns =>
       val device1 = registerNSDeviceOk(afn, bfn)
@@ -175,6 +210,17 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       val pag = getAffected("a")()
       pag.total shouldBe 2
       pag.values.toSet shouldBe Set(device1, device2)
+    }
+  }
+
+  test("devices/hardware_identifiers returns all hardware_ids") {
+    withRandomNamespace { implicit ns =>
+      val device1 = registerHWDeviceOk(ahw, bhw)
+      val device2 = registerHWDeviceOk(bhw)
+
+      val pag = getHw()
+      pag.total shouldBe 2
+      pag.values.toSet shouldBe Set(ahw,bhw)
     }
   }
 

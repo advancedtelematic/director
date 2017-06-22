@@ -235,6 +235,13 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
   }
 
+  def findAllHardwareIdentifiers(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .map(_.hardwareId)
+      .distinct
+      .paginateAndSortResult(identity, offset = offset, limit = limit)
+  }
 }
 
 trait DeviceRepositorySupport {

@@ -79,6 +79,14 @@ class AdminResource(extractNamespace: Directive1[Namespace])
       complete(adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit))
     }
 
+  def findHardwareIdentifiers(namespace: Namespace): Route =
+    (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)) { (mLimit, mOffset) =>
+      val offset = mOffset.getOrElse(0L)
+      val limit  = mLimit.getOrElse(50L).min(1000)
+      complete(adminRepository.findAllHardwareIdentifiers(namespace, offset = offset, limit = limit))
+    }
+
+
   def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
     SetMultiTargets.findAffected(namespace, devices, updateId)
   }
@@ -112,6 +120,9 @@ class AdminResource(extractNamespace: Directive1[Namespace])
       pathPrefix("devices") {
         (post & entity(as[RegisterDevice]))  { regDev =>
           registerDevice(ns, regDev)
+        } ~
+        (get & path("hardware_identifiers")) {
+          findHardwareIdentifiers(ns)
         } ~
         pathPrefix(DeviceId.Path) { device =>
           get {

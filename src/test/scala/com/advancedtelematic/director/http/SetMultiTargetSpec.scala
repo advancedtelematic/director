@@ -8,7 +8,6 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceReposito
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
-import scala.async.Async._
 
 class SetMultiTargetSpec extends DirectorSpec
     with AdminRepositorySupport
@@ -34,7 +33,7 @@ class SetMultiTargetSpec extends DirectorSpec
     SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
 
-    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
+    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, primEcuReg.hardwareId, Uri(), None))
   }
 
   test("only ecus that match the hardwareId will be scheduled") {
@@ -56,16 +55,12 @@ class SetMultiTargetSpec extends DirectorSpec
     val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
 
     val expected = ecusThatWillUpdate.zip(mtus).map { case (ecu, (hw, mtu)) =>
-      ecu.ecu_serial -> CustomImage(mtu.to.image, Uri())
+      ecu.ecu_serial -> CustomImage(mtu.to.image, hw, Uri(), None)
     }.toMap
 
-    val f = async {
-      await(SetMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId))
-      val update = await(adminRepository.fetchTargetVersion(defaultNs, device, 1))
-      update shouldBe expected
-    }
-
-    f.futureValue
+    SetMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    update shouldBe expected
   }
 
   test("can succesfully update a multi-target update") {
@@ -86,19 +81,45 @@ class SetMultiTargetSpec extends DirectorSpec
 
     val mtuId = createMultiTargetUpdateOK(mtu)
 
-    async {
-      await(SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId))
-      val update = await(adminRepository.fetchTargetVersion(defaultNs, device, 1))
-      update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
-    }.futureValue
+    SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
+    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, primEcuReg.hardwareId, Uri(), None))
 
-
-    val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, CustomImage(targetUpdate.to.image, Uri()).image).generate)
+    val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, CustomImage(targetUpdate.to.image, primEcuReg.hardwareId, Uri(), None).image).generate)
     val devManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestTarget).generate
     updateManifestOk(device, devManifestTarget)
 
-    async {
-      await(deviceRepository.getCurrentVersion(device)) shouldBe 1
-    }.futureValue
+    deviceRepository.getCurrentVersion(device).futureValue shouldBe 1
+  }
+
+  test("update contains the static-Δ") {
+    val device = DeviceId.generate
+    val primEcuReg = GenRegisterEcu.generate
+
+    val ecusThatWillUpdate = GenRegisterEcu.listBetween(2,5).generate
+    val ecusThatWillNotUpdate = GenRegisterEcu.listBetween(2,5).generate
+
+    val ecus = primEcuReg :: (ecusThatWillUpdate ++ ecusThatWillNotUpdate)
+
+    val regDev = RegisterDevice(device, primEcuReg.ecu_serial, ecus)
+    registerDeviceOk(regDev)
+
+    val mtus = ecusThatWillUpdate.map { regEcu =>
+      regEcu.hardwareId -> GenTargetUpdateRequest.generate
+    }
+
+    val diffs = mtus.map { case (hw, _) => hw -> GenDiffInfo.generate}
+
+    val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
+
+    registerDiffOk(updateId, MultiTargetUpdateDiffRegistration(diffs.toMap))
+
+    val expected = ecusThatWillUpdate.zip(mtus).zip(diffs).map { case ((ecu, (hw, mtu)), (_, diff)) =>
+      ecu.ecu_serial -> CustomImage(mtu.to.image, hw, Uri(), Some(diff))
+    }.toMap
+
+    SetMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    update shouldBe expected
   }
 }

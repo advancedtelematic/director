@@ -1,10 +1,10 @@
 package com.advancedtelematic.director.data
 
+import java.time.Instant
+
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.Json
-
-import java.time.Instant
 
 object DeviceRequest {
   import DataType.Image
@@ -28,5 +28,4 @@ object DeviceRequest {
   }
 
   final case class CustomManifest(operation_result: OperationResult)
-
 }

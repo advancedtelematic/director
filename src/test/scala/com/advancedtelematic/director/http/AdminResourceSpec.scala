@@ -267,7 +267,7 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       val targets = setRandomTargets(device, ecuSerials)
 
       val q = deviceQueueOk(device)
-      q.map(_.targets) shouldBe Seq(targets)
+      q.map(_.targets) shouldBe Seq(targets.mapValues(_.image))
     }
   }
 
@@ -282,7 +282,7 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       val targets = setRandomTargets(device, ecuSerials)
 
       val q = deviceQueueOk(device)
-      q.map(_.targets) shouldBe Seq(targets)
+      q.map(_.targets) shouldBe Seq(targets.mapValues(_.image))
     }
   }
 
@@ -298,7 +298,7 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       val targets2 = setRandomTargets(device, ecuSerials)
 
       val q = deviceQueueOk(device)
-      q.map(_.targets) shouldBe Seq(targets, targets2)
+      q.map(_.targets) shouldBe Seq(targets.mapValues(_.image), targets2.mapValues(_.image))
     }
   }
 }

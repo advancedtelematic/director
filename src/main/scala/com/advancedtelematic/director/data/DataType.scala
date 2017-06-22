@@ -40,20 +40,17 @@ object DataType {
   final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
 
-  final case class CustomImage(filepath: TargetFilename, fileinfo: FileInfo, uri: Uri) {
-    def image: Image = Image(filepath, fileinfo)
-  }
+  final case class TargetCustom(ecuIdentifier: EcuSerial, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
 
-  object CustomImage {
-    def apply(img: Image, uri: Uri): CustomImage = CustomImage(img.filepath, img.fileinfo, uri)
-  }
+  final case class DiffInfo(checksum: Checksum, length: Long)
+  final case class CustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, clientKey: ClientKey)
 
   final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 
-  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, image: CustomImage)
+  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, image: Image, uri: Uri, diff: Option[DiffInfo])
 
   final case class DeviceUpdateTarget(device: DeviceId, updateId: Option[UpdateId], targetVersion: Int)
 
@@ -77,6 +74,8 @@ object DataType {
     }
   }
 
+  final case class MultiTargetUpdateDiff(id: UpdateId, hardwareId: HardwareIdentifier, checksum: Checksum, size: Long)
+
   object MultiTargetUpdate {
     def apply(mtu: MultiTargetUpdateRequest, id: UpdateId, namespace: Namespace): Seq[MultiTargetUpdate] =
       mtu.targets.toSeq.map {case (hardwareId, TargetUpdateRequest(from, target)) =>
@@ -96,6 +95,8 @@ object DataType {
   final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate)
 
   final case class MultiTargetUpdateRequest(targets: Map[HardwareIdentifier, TargetUpdateRequest])
+
+  final case class MultiTargetUpdateDiffRegistration(diffs: Map[HardwareIdentifier, DiffInfo])
 
   final case class LaunchedMultiTargetUpdate(device: DeviceId, update: UpdateId, timestampVersion: Int,
                                              status: LaunchedMultiTargetUpdateStatus.Status)

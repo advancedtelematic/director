@@ -2,30 +2,51 @@
   "id": "${JOB_NAME}",
   "uris": ["/root/docker.tar.gz"],
   "constraints": [["rack_id", "CLUSTER", "stateless"]],
-  "cpus": $USE_CPU,
-  "mem": $USE_MEM,
+  "cpus": "$USE_CPU",
+  "mem": "$USE_MEM",
   "instances": 1,
   "container": {
     "type": "DOCKER",
     "docker": {
       "image": "${IMAGE_ARTIFACT}",
-      "parameters": [{"key": "log-driver", "value": "syslog"}],
+      "parameters": [
+        {"key": "log-driver", "value": "syslog"},
+        {"key": "log-opt", "value": "tag=${JOB_NAME}" }],
       "forcePullImage": true,
       "network": "BRIDGE",
       "portMappings": [{
-        "containerPort": 8084,
+        "containerPort": 9001,
         "hostPort": 0,
         "protocol": "tcp"
       }]
     }
   },
   "env": {
+    "BIND_PORT": "9001",
+    "DB_MIGRATE": "true",
+    "DB_PASSWORD": "${DB_PASSWORD}",
+    "DB_URL": "${DB_URL}",
+    "DB_USER": "${DB_USER}",
+    "ENV_PREFIX": "${ENV_PREFIX}",
+    "INFLUXDB_HOST": "${INFLUXDB_HOST}",
+    "INFLUXDB_PORT": "${INFLUXDB_PORT}",
+    "INFLUXDB_URI": "${INFLUXDB_URI}",
+    "JAVA_OPTS": "${JAVA_OPTS}",
+    "KAFKA_BOOTSTRAP_SERVERS": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "KAFKA_GROUP_ID": "${KAFKA_GROUP_ID}",
+    "KAFKA_HOST": "${KAFKA_HOST}",
+    "KAFKA_TOPIC_SUFFIX": "${KAFKA_TOPIC_SUFFIX}",
+    "METRICS_DB": "${METRICS_DB}",
     "SERVICE_NAME": "${JOB_NAME}",
     "SERVICE_SCOPE": "internal",
     "SERVICE_TYPE": "http",
     "SERVICE_IMAGE": "${IMAGE_ARTIFACT}",
     "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health",
-    "JAVA_OPTS": "${JAVA_OPTS}"
+    "JAVA_OPTS": "${JAVA_OPTS}",
+    "SOTA_CORE_HOST": "${SOTA_CORE_HOST}",
+    "SOTA_CORE_PORT": "${SOTA_CORE_PORT}",
+    "TUF_KEYSERVER_HOST": "${TUF_KEYSERVER_HOST}",
+    "TUF_KEYSERVER_PORT": "${TUF_KEYSERVER_PORT}"
   },
   "healthChecks": [{
     "protocol": "HTTP",
@@ -37,8 +58,8 @@
   "id": "${JOB_NAME}-daemon",
   "uris": ["/root/docker.tar.gz"],
   "constraints": [["rack_id", "CLUSTER", "stateless"]],
-  "cpus": $USE_CPU,
-  "mem": $USE_MEM,
+  "cpus": "$USE_CPU",
+  "mem": "$USE_MEM",
   "instances": 1,
   "args": ["-main", "com.advancedtelematic.director.daemon.DaemonBoot"],
    "container": {
@@ -56,12 +77,31 @@
     }
   },
   "env": {
+    "BIND_PORT": "9001",
+    "DB_MIGRATE": "true",
+    "DB_PASSWORD": "${DB_PASSWORD}",
+    "DB_URL": "${DB_URL}",
+    "DB_USER": "${DB_USER}",
+    "ENV_PREFIX": "${ENV_PREFIX}",
+    "INFLUXDB_HOST": "${INFLUXDB_HOST}",
+    "INFLUXDB_PORT": "${INFLUXDB_PORT}",
+    "INFLUXDB_URI": "${INFLUXDB_URI}",
+    "JAVA_OPTS": "${JAVA_OPTS}",
+    "KAFKA_BOOTSTRAP_SERVERS": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "KAFKA_GROUP_ID": "${KAFKA_GROUP_ID}",
+    "KAFKA_HOST": "${KAFKA_HOST}",
+    "KAFKA_TOPIC_SUFFIX": "${KAFKA_TOPIC_SUFFIX}",
+    "METRICS_DB": "${METRICS_DB}",
     "SERVICE_NAME": "${JOB_NAME}-daemon",
     "SERVICE_SCOPE": "internal",
     "SERVICE_TYPE": "http",
     "SERVICE_IMAGE": "${IMAGE_ARTIFACT}",
     "SERVICE_HEALTH_CHECK": "curl --show-error --silent %<host>s:%<port>s/health",
-    "JAVA_OPTS": "${JAVA_OPTS}"
+    "JAVA_OPTS": "${JAVA_OPTS}",
+    "SOTA_CORE_HOST": "${SOTA_CORE_HOST}",
+    "SOTA_CORE_PORT": "${SOTA_CORE_PORT}",
+    "TUF_KEYSERVER_HOST": "${TUF_KEYSERVER_HOST}",
+    "TUF_KEYSERVER_PORT": "${TUF_KEYSERVER_PORT}"
   },
   "healthChecks": [{
     "protocol": "HTTP",

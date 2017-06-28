@@ -4,7 +4,7 @@ import akka.http.scaladsl.server.Directive1
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RootFilesRepositorySupport}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.director.roles.{RolesCache, RolesGeneration}
@@ -24,11 +24,11 @@ import slick.jdbc.MySQLProfile.api._
 class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: ClientKey => Verifier,
                      coreClient: CoreClient,
-                     tuf: KeyserverClient)
+                     keyserverClient: KeyserverClient)
                     (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
-    with RootFilesRepositorySupport {
+    with RepoNameRepositorySupport {
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
 
@@ -36,11 +36,14 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
-  private val rolesGeneration = new RolesGeneration(tuf)
+  private val rolesGeneration = new RolesGeneration(keyserverClient)
   private val rolesCache = new RolesCache(rolesGeneration)
 
-  def fetchRoot(ns: Namespace): Route = {
-    complete(rootFilesRepository.find(ns))
+  def fetchRoot(namespace: Namespace): Route = {
+    val f = repoNameRepository.getRepo(namespace).flatMap { repo =>
+      keyserverClient.fetchRootRole(repo)
+    }
+    complete(f)
   }
 
   def registerDevice(ns: Namespace, device: DeviceId, regDev: DeviceRegistration): Route = {

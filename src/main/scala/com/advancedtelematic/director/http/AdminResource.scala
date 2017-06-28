@@ -9,23 +9,33 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RootFilesRepositorySupport,
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
   SetMultiTargets, SetTargets}
+import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.TufCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
 import scala.async.Async._
 import slick.jdbc.MySQLProfile.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace])
+class AdminResource(extractNamespace: Directive1[Namespace],
+                    keyserverClient: KeyserverClient)
                    (implicit db: Database, ec: ExecutionContext, mat: Materializer)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
-    with RootFilesRepositorySupport {
+    with RepoNameRepositorySupport {
+
+  val directorRepo = new DirectorRepo(keyserverClient)
+
+  def createRepo(namespace: Namespace): Route = complete {
+    directorRepo.create(namespace).map(StatusCodes.Created -> _)
+  }
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {
     val primEcu = regDev.primary_ecu_serial
@@ -69,7 +79,10 @@ class AdminResource(extractNamespace: Directive1[Namespace])
   }
 
   def fetchRoot(namespace: Namespace): Route = {
-    complete(rootFilesRepository.find(namespace))
+    val f = repoNameRepository.getRepo(namespace).flatMap { repo =>
+      keyserverClient.fetchRootRole(repo)
+    }
+    complete(f)
   }
 
   def findAffectedDevices(namespace: Namespace): Route =
@@ -103,6 +116,11 @@ class AdminResource(extractNamespace: Directive1[Namespace])
     pathPrefix("admin") {
       (get & path("root.json")) {
          fetchRoot(ns)
+      } ~
+      path("repo") {
+        post {
+          createRepo(ns)
+        }
       } ~
       pathPrefix("images") {
         (get & path("affected")) {

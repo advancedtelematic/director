@@ -1,85 +1,67 @@
 package com.advancedtelematic.director.http
 
-import akka.actor.ActorSystem
-import akka.testkit.{TestActorRef, TestKitBase}
-import com.advancedtelematic.director.daemon.CreateRepoActor
-import com.advancedtelematic.director.db.{RepoNameRepositorySupport, RootFilesRepositorySupport}
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeRoleStore}
+import akka.http.scaladsl.model.{HttpRequest, StatusCodes}
+import com.advancedtelematic.director.daemon.CreateRepoWorker
+import com.advancedtelematic.director.db.RepoNameRepositorySupport
+import com.advancedtelematic.director.repo.DirectorRepo
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeRoleStore, ResourceSpec}
+import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
-import com.advancedtelematic.libtuf.data.TufDataType.RepoId
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
-import org.scalatest.BeforeAndAfterAll
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, SignedPayload}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 class RegisterNamespaceSpec extends DirectorSpec
-  with BeforeAndAfterAll
-  with Eventually
-  with DatabaseSpec
-  with DefaultPatience
-  with TestKitBase
-  with RepoNameRepositorySupport
-  with RootFilesRepositorySupport {
-
-  implicit lazy val system = ActorSystem(this.getClass.getSimpleName)
-
-  override def afterAll(): Unit = {
-    super.afterAll
-    system.terminate()
-  }
+    with Eventually
+    with DatabaseSpec
+    with DefaultPatience
+    with ResourceSpec
+    with RepoNameRepositorySupport {
 
   private val timeout = Timeout(Span(5, Seconds))
   private val interval = Interval(Span(200, Milliseconds))
 
-  test("creates root repository and root file for namespace") {
-    val testActorRef = TestActorRef(new CreateRepoActor(FakeRoleStore))
+  def createRepo(implicit ns: NamespaceTag): RepoId =
+    Post(apiUri("admin/repo")).namespaced ~> routes ~> check  {
+      status shouldBe StatusCodes.Created
+      responseAs[RepoId]
+    }
 
+  def fetchRoot(implicit ns: NamespaceTag): HttpRequest =
+    Get(apiUri("admin/root.json")).namespaced
+
+  def fetchRootOk(implicit ns: NamespaceTag): SignedPayload[RootRole] =
+    fetchRoot ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+  test("creates root repository and root file for namespace") {
+    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(FakeRoleStore))
     val namespace = Namespace("defaultNS")
 
-    testActorRef ! UserCreated(namespace.get)
+    createRepoWorker.action(UserCreated(namespace.get))
 
     eventually(timeout, interval) {
       val repoId = repoNameRepository.getRepo(namespace).futureValue
       repoId shouldBe a[RepoId]
 
-      val rootFile = rootFilesRepository.find(namespace).futureValue
-      rootFile.hcursor.downField("signed").downField("_type").as[String] shouldBe Right("Root")
+      val rootFile = FakeRoleStore.fetchRootRole(repoId).futureValue
+      rootFile.signed.hcursor.downField("_type").as[String] shouldBe Right("Root")
     }
   }
 
-  test("creating new namespace works if root.json is not available directly") {
-    val testActorRef = TestActorRef(new CreateRepoActor(new KeyserverClientWithFailure(1)))
-    val namespace = Namespace("namespace-for-late-root")
-    testActorRef ! UserCreated(namespace.get)
-
-    eventually(timeout, interval) {
-      val repoId = repoNameRepository.getRepo(namespace).futureValue
-      repoId shouldBe a[RepoId]
+  test("create repo via end-point") {
+    withRandomNamespace { implicit ns =>
+      val repoId = createRepo
+      fetchRootOk
     }
-  }
-
-}
-
-class KeyserverClientWithFailure(nrOfTries: Int) extends KeyserverClient {
-  import io.circe.{Decoder, Encoder, Json}
-  import com.advancedtelematic.libtuf.data.TufDataType._
-  import scala.concurrent.Future
-
-  import RoleType.RoleType
-
-  var remaining = nrOfTries
-
-  override def createRoot(repoId: RepoId): Future[Json] = Future.successful(Json.obj())
-  override def sign[T : Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = ???
-  override def fetchRootRole(repoId: RepoId): Future[SignedPayload[Json]] = if (remaining <= 0) {
-    Future.successful(SignedPayload(List(), Json.obj()))
-  } else {
-    remaining = remaining - 1
-    Future.failed(RootRoleNotFound)
   }
 }

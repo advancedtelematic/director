@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext
 
 class DirectorRoutes(verifier: ClientKey => Verifier,
                      coreClient: CoreClient,
-                     tufClient: KeyserverClient)
+                     keyserverClient: KeyserverClient)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      sys: ActorSystem,
@@ -32,8 +32,8 @@ class DirectorRoutes(verifier: ClientKey => Verifier,
     handleRejections(rejectionHandler) {
       ErrorHandler.handleErrors {
         pathPrefix("api" / "v1") {
-          new AdminResource(extractNamespace).route ~
-          new DeviceResource(extractNamespace, verifier, coreClient, tufClient).route ~
+          new AdminResource(extractNamespace, keyserverClient).route ~
+          new DeviceResource(extractNamespace, verifier, coreClient, keyserverClient).route ~
           new MultiTargetUpdatesResource(extractNamespace).route
         }
       }

@@ -8,8 +8,8 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.http.Requests
 import com.advancedtelematic.director.util.{DirectorSpec, FakeRoleStore}
+import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole}
@@ -50,8 +50,8 @@ class FileCacheSpec extends DirectorSpec
 
   test("Files are generated") {
     val testActorRef = TestActorRef(FileCacheDaemon.props(FakeRoleStore))
-    val createRepo = TestActorRef(CreateRepoActor.props(FakeRoleStore))
-    createRepo ! UserCreated(defaultNs.get)
+    val directorRepo = new DirectorRepo(FakeRoleStore)
+    directorRepo.create(defaultNs)
 
     val device = DeviceId.generate
 

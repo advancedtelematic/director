@@ -156,17 +156,6 @@ object Schema {
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]
 
-  class RootFilesTable(tag: Tag) extends Table[RootFile](tag, "root_files") {
-    def namespace = column[Namespace]("namespace")
-    def root = column[Json]("root_file")
-
-    def pk = primaryKey("root_files_pk", namespace)
-
-    override def * = (namespace, root) <>
-      ((RootFile.apply _).tupled, RootFile.unapply)
-  }
-  protected [db] val rootFiles = TableQuery[RootFilesTable]
-
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
   type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long,
                  Option[TargetFilename], Option[HashMethod], Option[Refined[String, ValidChecksum]], Option[Long], Namespace)

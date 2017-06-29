@@ -1,9 +1,9 @@
 [{
   "id": "${DEPLOY_ENV}/${JOB_NAME}",
   "uris": ["/root/docker.tar.gz"],
-  "constraints": [["rack_id", "CLUSTER", "stateless"]],
-  "cpus": "$USE_CPU",
-  "mem": "$USE_MEM",
+  "constraints": [["rack_id", "CLUSTER", "$MARATHON_CONSTRAINTS"]],
+  "cpus": $USE_CPU,
+  "mem": $USE_MEM,
   "instances": 1,
   "container": {
     "type": "DOCKER",
@@ -55,9 +55,9 @@
  {
   "id": "${DEPLOY_ENV}/${JOB_NAME}-daemon",
   "uris": ["/root/docker.tar.gz"],
-  "constraints": [["rack_id", "CLUSTER", "stateless"]],
-  "cpus": "$USE_CPU",
-  "mem": "$USE_MEM",
+  "constraints": [["rack_id", "CLUSTER", "$MARATHON_CONSTRAINTS"]],
+  "cpus": $USE_CPU,
+  "mem": $USE_MEM,
   "instances": 1,
   "args": ["-main", "com.advancedtelematic.director.daemon.DaemonBoot"],
    "container": {

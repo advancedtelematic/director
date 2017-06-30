@@ -66,8 +66,6 @@ object DataType {
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)
 
-  final case class RootFile(namespace: Namespace, rootFile: Json)
-
   final case class MultiTargetUpdate(id: UpdateId, hardwareId: HardwareIdentifier, fromTarget: Option[TargetUpdate],
                                      target: TargetFilename, checksum: Checksum,
                                      targetLength: Long, namespace: Namespace) {

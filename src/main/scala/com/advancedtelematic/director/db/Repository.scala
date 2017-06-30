@@ -453,41 +453,8 @@ protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext
       .handleIntegrityErrors(ConflictNamespaceRepo)
       .map(_ => repoName)
   }
-}
 
-trait RootFilesRepositorySupport {
-  def rootFilesRepository(implicit db: Database, ec: ExecutionContext) = new RootFilesRepository()
-}
-
-protected class RootFilesRepository()(implicit db: Database, ec: ExecutionContext) extends RepoNameRepositorySupport {
-  import DataType.RootFile
-  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.db.SlickExtensions._
-  import com.advancedtelematic.libats.slick.db.SlickCirceMapper._
-  import com.advancedtelematic.libats.slick.db.SlickPipeToUnit.pipeToUnit
-
-  def find(ns: Namespace): Future[Json] = db.run {
-    Schema.rootFiles
-      .filter(_.namespace === ns)
-      .map(_.root)
-      .result
-      .failIfNotSingle(MissingRootFile)
-  }
-
-  protected [db] def persistAction(ns: Namespace, rootFile: Json): DBIO[RootFile] = {
-    val root = RootFile(ns, rootFile)
-    (Schema.rootFiles += root)
-      .handleIntegrityErrors(ConflictingRootFile)
-      .map(_ => root)
-  }
-
-  def persistNamespaceRootFile(namespace: Namespace,
-                               rootFile: Json,
-                               repoId: RepoId): Future[Unit] = db.run {
-    persistAction(namespace, rootFile)
-      .andThen(repoNameRepository.persistAction(namespace, repoId))
-      .transactionally
-  }
+  def persist(ns: Namespace, repoId: RepoId): Future[RepoName] = db.run(persistAction(ns, repoId))
 }
 
 trait MultiTargetUpdatesRepositorySupport {

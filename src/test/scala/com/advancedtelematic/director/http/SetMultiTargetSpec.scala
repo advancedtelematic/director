@@ -17,6 +17,8 @@ class SetMultiTargetSpec extends DirectorSpec
     with ResourceSpec
     with Requests {
 
+  val setMultiTargets = new SetMultiTargets()
+
   test("can schedule a multi-target update") {
     val device = DeviceId.generate
     val primEcuReg = GenRegisterEcu.generate
@@ -31,7 +33,7 @@ class SetMultiTargetSpec extends DirectorSpec
 
     val mtuId = createMultiTargetUpdateOK(mtu)
 
-    SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
+    setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
 
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
@@ -60,7 +62,7 @@ class SetMultiTargetSpec extends DirectorSpec
     }.toMap
 
     val f = async {
-      await(SetMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId))
+      await(setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId))
       val update = await(adminRepository.fetchTargetVersion(defaultNs, device, 1))
       update shouldBe expected
     }
@@ -87,7 +89,7 @@ class SetMultiTargetSpec extends DirectorSpec
     val mtuId = createMultiTargetUpdateOK(mtu)
 
     async {
-      await(SetMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId))
+      await(setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId))
       val update = await(adminRepository.fetchTargetVersion(defaultNs, device, 1))
       update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri()))
     }.futureValue

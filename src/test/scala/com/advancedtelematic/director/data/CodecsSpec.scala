@@ -5,8 +5,9 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{FileInfo, Image, ValidHardwareIdentifier}
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceRegistration, EcuManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{HashMethod, ValidChecksum, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, KeyType, SignatureMethod, SignedPayload, ValidKeyId, ValidSignature}
@@ -14,6 +15,7 @@ import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._
 import java.time.Instant
+import java.util.UUID
 
 import eu.timepit.refined.api.Refined
 
@@ -151,5 +153,32 @@ class CodecsSpec extends DirectorSpec {
     )
 
     example(sample, parsed, "with custom field")
+  }
+
+  {
+    import com.advancedtelematic.director.data.Messages.UpdateSpec
+    import com.advancedtelematic.director.data.MessageCodecs._
+    import com.advancedtelematic.director.data.MessageDataType.{SOTA_Instant, UpdateStatus}
+    import java.time.format.DateTimeFormatter
+
+    val sample: String = """{"namespace":"the updateSpec namespace","device":"61d89c4f-b238-4fff-ad7a-b2f0a196230a","packageUuid":"32eb10cc-7431-4945-9b4b-145abb26f69e","status":"Finished","timestamp":"2017-07-03T12:35:32.353Z"}"""
+
+    val parsed: UpdateSpec = UpdateSpec(Namespace("the updateSpec namespace"),
+                                        DeviceId(UUID.fromString("61d89c4f-b238-4fff-ad7a-b2f0a196230a")),
+                                        UpdateId(UUID.fromString("32eb10cc-7431-4945-9b4b-145abb26f69e")),
+                                        UpdateStatus.Finished,
+                                        SOTA_Instant(Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse("2017-07-03T12:35:32.353Z"))))
+
+    example(sample, parsed, "UpdateSpec event")
+  }
+
+  {
+    import com.advancedtelematic.director.data.Messages.UpdateSpec
+    import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
+
+    val sample: String = "\"00000000-0000-0000-0000-000000000000\""
+    val parsed: UpdateId = UpdateSpec(Namespace("the updateSpec namespace"), DeviceId.generate, UpdateStatus.Failed).packageUuid
+
+    example(sample, parsed, "UpdateSpec creates zero uuid for packageUuid")
   }
 }

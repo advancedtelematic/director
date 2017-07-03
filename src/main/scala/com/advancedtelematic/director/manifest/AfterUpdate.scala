@@ -4,6 +4,8 @@ import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.DeviceRequest.{OperationResult => CoreOperationResult}
+import com.advancedtelematic.director.data.Messages.UpdateSpec
+import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate,
   LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
@@ -84,9 +86,11 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
   private def clearMultiTargetUpdate(namespace: Namespace, device: DeviceId, updateId: UpdateId,
                                  version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = {
     val status = LaunchedMultiTargetUpdateStatus.Failed
-    launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, status).flatMap {_ =>
-      messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations))
-    }
+    for {
+      _ <- launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, status)
+      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations))
+      _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Failed))
+    } yield ()
   }
 
   private def clearOldStyleCampaign(namespace: Namespace, device: DeviceId, updateId: UpdateId,
@@ -100,10 +104,12 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
 
   private def multiTargetUpdate(result: SuccessWithUpdateId): Future[Unit] = {
     val status = LaunchedMultiTargetUpdateStatus.Finished
-    launchedMultiTargetUpdateRepository.setStatus(result.device, result.updateId, result.timestampVersion, status).flatMap {_ =>
-    messageBusPublisher.publish(DeviceUpdateReport(result.namespace, result.device, result.updateId,
-                                                   result.timestampVersion, result.operations.getOrElse(Map())))
-    }
+    for {
+      _ <- launchedMultiTargetUpdateRepository.setStatus(result.device, result.updateId, result.timestampVersion, status)
+      _ <- messageBusPublisher.publish(DeviceUpdateReport(result.namespace, result.device, result.updateId,
+                                                          result.timestampVersion, result.operations.getOrElse(Map())))
+      _ <- messageBusPublisher.publish(UpdateSpec(result.namespace, result.device, UpdateStatus.Finished))
+    } yield ()
   }
 
   private def oldStyleCampaign(result: SuccessWithUpdateId): Future[Unit] = {

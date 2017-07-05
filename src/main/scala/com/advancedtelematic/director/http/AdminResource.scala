@@ -14,6 +14,7 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceReposito
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -25,13 +26,14 @@ import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace],
                     keyserverClient: KeyserverClient)
-                   (implicit db: Database, ec: ExecutionContext, mat: Materializer)
+                   (implicit db: Database, ec: ExecutionContext, mat: Materializer, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
     with RepoNameRepositorySupport {
 
   val directorRepo = new DirectorRepo(keyserverClient)
+  val setMultiTargets = new SetMultiTargets()
 
   def createRepo(namespace: Namespace): Route = complete {
     directorRepo.create(namespace).map(StatusCodes.Created -> _)
@@ -70,12 +72,12 @@ class AdminResource(extractNamespace: Directive1[Namespace],
 
   def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
     complete {
-      SetMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
+      setMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
     }
   }
 
   def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
-    SetMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+    setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
   }
 
   def fetchRoot(namespace: Namespace): Route = {
@@ -101,7 +103,7 @@ class AdminResource(extractNamespace: Directive1[Namespace],
 
 
   def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = complete {
-    SetMultiTargets.findAffected(namespace, devices, updateId)
+    setMultiTargets.findAffected(namespace, devices, updateId)
   }
 
   def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = complete {

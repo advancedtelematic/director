@@ -23,16 +23,19 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     with UpdateTypesRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Future[Unit] = async {
-    val ecus = await(deviceRepository.findEcus(namespace, device))
-    val ecuImages = await(Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan)))
+  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Future[Unit] = for {
+    ecus <- deviceRepository.findEcus(namespace, device)
+    ecuImages <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
+    _ <- ecuManifests(namespace, device, ecuImages)
+  } yield ()
 
+  def ecuManifests(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Unit] = async {
     val updateResult = {
-      val operations = deviceManifestOperationResults(signedDevMan.signed)
+      val operations = deviceManifestOperationResults(ecuImages)
       if (operations.isEmpty) {
         await(clientReportedNoErrors(namespace, device, ecuImages, None))
       } else if (operations.forall(_._2.isSuccess)) {
-          await(clientReportedNoErrors(namespace, device, ecuImages, Some(operations)))
+        await(clientReportedNoErrors(namespace, device, ecuImages, Some(operations)))
       } else {
         _log.info(s"Device ${device.show} reports errors during install: $operations")
         val currentVersion = await(deviceRepository.getCurrentVersion(device))
@@ -40,6 +43,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       }
     }
     await(afterUpdate.report(updateResult))
+
   }
 
   private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],
@@ -60,8 +64,8 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         Failed(namespace, device, currentVersion, None)
     }
 
-  private def deviceManifestOperationResults(deviceManifest: DeviceManifest): Map[EcuSerial, OperationResult] =
-    deviceManifest.ecu_version_manifest.par.map(_.signed).flatMap{ ecuManifest =>
+  private def deviceManifestOperationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, OperationResult] =
+    ecuManifests.par.flatMap{ ecuManifest =>
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map{ custom =>
         val op = custom.operation_result
         val image = ecuManifest.installed_image

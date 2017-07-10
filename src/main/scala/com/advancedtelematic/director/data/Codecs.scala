@@ -1,12 +1,15 @@
 package com.advancedtelematic.director.data
 
+import cats.syntax.either._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidEcuSerial}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.{Decoder, Encoder, JsonObject, KeyDecoder, KeyEncoder}
+import io.circe.syntax._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
@@ -38,7 +41,14 @@ object Codecs {
                        })
   }
 
-  implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder
+  val legacyDeviceManifestDecoder: Decoder[DeviceManifest] = Decoder.instance { cursor =>
+    for {
+      ecu <- cursor.downField("primary_ecu_serial").as[EcuSerial]
+      manifests <- cursor.downField("ecu_version_manifest").as[Seq[SignedPayload[EcuManifest]]]
+    } yield DeviceManifest(ecu, manifests.map(sman => sman.signed.ecu_serial -> sman.asJson).toMap)
+  }
+
+  implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder[DeviceManifest] or legacyDeviceManifestDecoder
   implicit val encoderDeviceManifest: Encoder[DeviceManifest] = deriveEncoder
 
   implicit val decoderDeviceRegistration: Decoder[DeviceRegistration] = deriveDecoder

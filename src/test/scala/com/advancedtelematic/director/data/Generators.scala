@@ -8,9 +8,8 @@ import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
 import com.advancedtelematic.libtuf.crypt.RsaKeyPair
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
-import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
@@ -96,12 +95,7 @@ trait Generators {
   def GenSignedEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
     GenSigned(GenEcuManifestWithImage(ecuSerial, image, custom))
   def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
-
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap))
-
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}))
+  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) = GenSignedValue(DeviceManifest(primeEcu, ecusManifests))
 
   def genIdentifier(maxLen: Int): Gen[String] = for {
   //use a minimum length of 10 to reduce possibility of naming conflicts

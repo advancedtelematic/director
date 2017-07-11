@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.data
 
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.Json
 
 import java.time.Instant
@@ -16,7 +17,7 @@ object DeviceRequest {
                                custom: Option[Json] = None)
 
   final case class DeviceManifest(primary_ecu_serial: EcuSerial,
-                                  ecu_version_manifests: Map[EcuSerial, Json])
+                                  ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
 
   final case class DeviceRegistration(primary_ecu_serial: EcuSerial,
                                       ecus: Seq[AdminRequest.RegisterEcu])

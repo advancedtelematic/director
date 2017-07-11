@@ -51,7 +51,7 @@ class FileCacheSpec extends DirectorSpec
   test("Files are generated") {
     val testActorRef = TestActorRef(FileCacheDaemon.props(FakeRoleStore))
     val directorRepo = new DirectorRepo(FakeRoleStore)
-    directorRepo.create(defaultNs)
+    directorRepo.findOrCreate(defaultNs)
 
     val device = DeviceId.generate
 

@@ -13,7 +13,7 @@ class CreateRepoWorker(directorRepo: DirectorRepo)(implicit ec: ExecutionContext
 
   def action(uc: UserCreated): Future[Done] = {
     val namespace = Namespace(uc.id)
-    directorRepo.create(namespace).map(_ => Done).recover {
+    directorRepo.findOrCreate(namespace).map(_ => Done).recover {
       case ConflictNamespaceRepo =>
         _log.info(s"The namespace $namespace already exists, skipping creation")
         Done

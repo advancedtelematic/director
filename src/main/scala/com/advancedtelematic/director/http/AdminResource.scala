@@ -36,7 +36,7 @@ class AdminResource(extractNamespace: Directive1[Namespace],
   val setMultiTargets = new SetMultiTargets()
 
   def createRepo(namespace: Namespace): Route = complete {
-    directorRepo.create(namespace).map(StatusCodes.Created -> _)
+    directorRepo.findOrCreate(namespace).map(StatusCodes.Created -> _)
   }
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {

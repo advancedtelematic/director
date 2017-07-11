@@ -103,6 +103,9 @@ trait Generators {
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
     GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}))
 
+  def GenSignedLegacyDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
+    GenSignedValue(LegacyDeviceManifest(primeEcu, ecusManifests))
+
   def genIdentifier(maxLen: Int): Gen[String] = for {
   //use a minimum length of 10 to reduce possibility of naming conflicts
     size <- Gen.choose(10, maxLen)

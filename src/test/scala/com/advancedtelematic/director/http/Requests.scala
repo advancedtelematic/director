@@ -6,7 +6,7 @@ import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget, QueueResponse}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.DeviceManifest
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, LegacyDeviceManifest}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
@@ -31,6 +31,11 @@ trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
       status shouldBe expected
     }
   }
+
+  def updateLegacyManifestOk(device: DeviceId, manifest: SignedPayload[LegacyDeviceManifest]): Unit =
+    Put(apiUri(s"device/${device.show}/manifest"), manifest) ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
 
   def updateManifest(device: DeviceId, manifest: SignedPayload[DeviceManifest]): HttpRequest =
     Put(apiUri(s"device/${device.show}/manifest"), manifest)

@@ -68,6 +68,23 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
   }
 
+  test("Device can update a registered device (legacy device manifest)") {
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+
+    val deviceManifest = GenSignedLegacyDeviceManifest(primEcu, ecuManifests).generate
+
+    updateLegacyManifestOk(device, deviceManifest)
+  }
+
   test("Device must have the ecu given as primary") {
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate

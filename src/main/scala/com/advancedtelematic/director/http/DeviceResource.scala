@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.server.Directive1
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, LegacyDeviceManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
@@ -63,8 +63,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       put {
-        (path("manifest") & entity(as[SignedPayload[DeviceManifest]])) { devMan =>
-          complete(deviceManifestUpdate.setDeviceManifest(ns, device, devMan))
+        path("manifest") {
+          entity(as[SignedPayload[DeviceManifest]]) { devMan =>
+            complete(deviceManifestUpdate.setDeviceManifest(ns, device, devMan))
+          } ~
+          entity(as[SignedPayload[LegacyDeviceManifest]]) { devMan =>
+            complete(deviceManifestUpdate.setLegacyDeviceManifest(ns, device, devMan))
+          }
         }
       } ~
       get {

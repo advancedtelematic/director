@@ -3,7 +3,7 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{FileInfo, Image, ValidHardwareIdentifier}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -224,13 +224,14 @@ class CodecsSpec extends DirectorSpec {
     val legacy_device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifest": [$ecu_manifest_sample]}""")
     val device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}}""")
 
-    val device_manifest_parsed: SignedPayload[DeviceManifest]
-      = wrapSigned(DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson)))
+    val legacy_device_manifest_parsed: SignedPayload[LegacyDeviceManifest] =
+      wrapSigned(LegacyDeviceManifest(ecuSerial, Seq(ecu_manifest_sample_parsed)))
+
+    val device_manifest_parsed: SignedPayload[DeviceManifest] =
+      wrapSigned(DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson)))
 
 
-    // we only need to decode the device manifest, hence we only test that
-    // since we don't have a legacy encoder
-    exampleDecode(legacy_device_manifest_sample, device_manifest_parsed, "legacy")
+    example(legacy_device_manifest_sample, legacy_device_manifest_parsed, "legacy")
 
     example(device_manifest_sample, device_manifest_parsed, "normal")
   }

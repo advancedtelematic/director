@@ -3,7 +3,7 @@ package com.advancedtelematic.director.manifest
 import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, LegacyDeviceManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.Namespace
@@ -22,6 +22,12 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     extends DeviceRepositorySupport
     with UpdateTypesRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
+
+  def setLegacyDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[LegacyDeviceManifest]): Future[Unit] = for {
+    ecus <- deviceRepository.findEcus(namespace, device)
+    ecuImages <- Future.fromTry(Verify.legacyDeviceManifest(ecus, verifier, signedDevMan))
+    _ <- ecuManifests(namespace, device, ecuImages)
+  } yield ()
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Future[Unit] = for {
     ecus <- deviceRepository.findEcus(namespace, device)

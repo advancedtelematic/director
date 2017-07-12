@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import com.advancedtelematic.director.data.DataType.{CustomImage, HardwareIdentifier}
+import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
@@ -12,7 +12,8 @@ import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceRefined._
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TufKey}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 import io.circe.Json
@@ -117,12 +118,11 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
     }
   }
 
-  def findPublicKey(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): ClientKey = {
-    import com.advancedtelematic.libtuf.data.ClientCodecs._
+  def findPublicKey(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): TufKey = {
     Get(Uri(apiUri(s"admin/devices/${device.show}/ecus/public_key"))
           .withQuery(Uri.Query("ecu_serial" -> ecuSerial.value))).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[ClientKey]
+      responseAs[TufKey]
     }
   }
 

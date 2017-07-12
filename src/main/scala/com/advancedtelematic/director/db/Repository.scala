@@ -1,12 +1,14 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, HardwareIdentifier, MultiTargetUpdate}
+import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdate}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
+import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
+import com.advancedtelematic.libtuf.crypt.TufCrypto
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, RepoId, RoleType}
 import io.circe.Json
 import java.time.Instant
 
@@ -15,8 +17,6 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.util.{Failure, Success}
 import Errors._
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
@@ -28,7 +28,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-  import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+  import com.advancedtelematic.libtuf.data.TufDataType.TufKey
   import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
@@ -104,15 +104,15 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Map(checksum.method -> checksum.hash)))
   }
 
-  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[ClientKey] = db.run {
+  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[TufKey] = db.run {
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
       .filter(_.ecuSerial === ecu_serial)
-      .map(x => (x.cryptoMethod, x.publicKey))
+      .map(x => (x.keyType, x.publicKey))
       .result
       .failIfNotSingle(MissingEcu)
-      .map{case (typ, key) => ClientKey(typ, key)}
+      .map{case (typ, key) => TufCrypto.convert(typ, key)}
   }
 
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {

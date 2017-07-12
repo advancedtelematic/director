@@ -15,7 +15,7 @@ import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.TufDataType.TufKey
 import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
@@ -126,7 +126,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
   test("Device update will only update correct ecus") {
     val taintedKeys = new ConcurrentHashMap[PublicKey, Unit]() // this is like a set
-    def testVerifier(c: ClientKey): Verifier.Verifier =
+    def testVerifier(c: TufKey): Verifier.Verifier =
       if (taintedKeys.contains(c.keyval)) {
         Verifier.alwaysReject
       } else {

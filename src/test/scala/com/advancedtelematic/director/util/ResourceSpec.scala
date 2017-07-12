@@ -8,16 +8,16 @@ import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.TufDataType.TufKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libats.test.DatabaseSpec
 import org.scalatest.Suite
 
 import scala.concurrent.Future
 
-object FakeRoleStore extends KeyserverClient {
-  import com.advancedtelematic.libtuf.crypt.RsaKeyPair
-  import com.advancedtelematic.libtuf.crypt.RsaKeyPair._
+object FakeKeyserverClient extends KeyserverClient {
+  import com.advancedtelematic.libtuf.crypt.TufCrypto
+  import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
   import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType._
@@ -30,35 +30,35 @@ object FakeRoleStore extends KeyserverClient {
   import scala.collection.JavaConverters._
   import scala.util.Try
 
+  private val keys = new ConcurrentHashMap[RepoId, KeyPair]()
+
   def publicKey(repoId: RepoId): PublicKey =
     keys.asScala(repoId).getPublic
 
   private def keyPair(repoId: RepoId): KeyPair =
     keys.asScala(repoId)
 
-  private val keys = new ConcurrentHashMap[RepoId, KeyPair]()
-
   def rootRole(repoId: RepoId) = {
     val rootKey = keys.asScala(repoId)
-    val clientKeys = Map(rootKey.id -> ClientKey(KeyType.RSA, rootKey.getPublic))
+    val clientKeys = Map(rootKey.getPublic.id -> RSATufKey(rootKey.getPublic))
 
     val roles = RoleType.ALL.map { role =>
-      role -> RoleKeys(List(rootKey.id), threshold = 1)
+      role -> RoleKeys(List(rootKey.getPublic.id), threshold = 1)
     }.toMap
 
     RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)
   }
 
   def generateKey(repoId: RepoId): KeyPair = {
-    val rootKey = RsaKeyPair.generate(1024)
-    keys.put(repoId, rootKey)
+    val (pub, sec) = TufCrypto.generateKeyPair(RsaKeyType, 2048)
+    keys.put(repoId, new KeyPair(pub.keyval, sec.keyval))
   }
 
-  override def createRoot(repoId: RepoId): Future[Json] = {
+  override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = {
     if (keys.contains(repoId)) {
       FastFuture.failed(RootRoleConflict)
     } else {
-      val _ = generateKey(repoId)
+      generateKey(repoId)
       FastFuture.successful(Json.obj())
     }
   }
@@ -83,9 +83,9 @@ object FakeRoleStore extends KeyserverClient {
 
   private def signWithRoot[T : Encoder](repoId: RepoId, payload: T): ClientSignature = {
     val key = keyPair(repoId)
-    RsaKeyPair
-      .sign(key.getPrivate, payload.asJson.canonical.getBytes)
-      .toClient(key.id)
+    TufCrypto
+      .sign(RsaKeyType, key.getPrivate, payload.asJson.canonical.getBytes)
+      .toClient(key.getPublic.id)
   }
 }
 
@@ -112,7 +112,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec {
   val defaultNs = Namespace("default")
 
   implicit val msgPub = MessageBusPublisher.ignore
-  def routesWithVerifier(verifier: ClientKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient, FakeRoleStore).routes
+  def routesWithVerifier(verifier: TufKey => Verifier.Verifier) = new DirectorRoutes(verifier, FakeCoreClient, FakeKeyserverClient).routes
 
   lazy val routes = routesWithVerifier(_ => Verifier.alwaysAccept)
 }

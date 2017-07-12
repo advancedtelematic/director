@@ -1,19 +1,24 @@
 package com.advancedtelematic.director.data
 
+import java.security.PublicKey
+
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, TufKey}
 
 object AdminRequest {
   import DataType._
 
-  final case class RegisterEcu(ecu_serial: EcuSerial, hardware_identifier: Option[HardwareIdentifier], clientKey: ClientKey) {
+  final case class RegisterEcu(ecu_serial: EcuSerial, hardware_identifier: Option[HardwareIdentifier], clientKey: TufKey) {
     import eu.timepit.refined.api.Refined
     // TODO: for backwards compatible reasons we allow the hardware_identifier to not be present in the request
     // and use the ecu_serial as the hardware_identifer
     lazy val hardwareId: HardwareIdentifier = hardware_identifier.getOrElse(Refined.unsafeApply(ecu_serial.value))
+    def keyType: KeyType = clientKey.keytype
+    def publicKey: PublicKey = clientKey.keyval
   }
   object RegisterEcu {
-    def apply (ecu_serial: EcuSerial, hardware_identifier: HardwareIdentifier, clientKey: ClientKey): RegisterEcu =
+    def apply (ecu_serial: EcuSerial, hardware_identifier: HardwareIdentifier, clientKey: TufKey): RegisterEcu =
       RegisterEcu(ecu_serial, Some(hardware_identifier), clientKey)
   }
 

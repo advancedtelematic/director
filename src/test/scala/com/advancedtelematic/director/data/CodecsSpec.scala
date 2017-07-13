@@ -3,11 +3,11 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{FileInfo, Image, ValidHardwareIdentifier}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceRegistration, EcuManifest, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, KeyType, SignatureMethod, SignedPayload, ValidKeyId, ValidSignature}
@@ -22,7 +22,7 @@ import eu.timepit.refined.api.Refined
 import scala.reflect.ClassTag
 
 class CodecsSpec extends DirectorSpec {
-  def example[T : Decoder : Encoder](sample: String, parsed: T, msg: String = "")(implicit ct: ClassTag[T]): Unit = {
+  def exampleDecode[T : Decoder](sample: String, parsed: T, msg: String = "")(implicit ct: ClassTag[T]): Unit = {
     val name = if (msg == "") {
       ct.runtimeClass.getSimpleName
     } else {
@@ -32,10 +32,23 @@ class CodecsSpec extends DirectorSpec {
     test(s"$name decodes correctly") {
       decode[T](sample) shouldBe Right(parsed)
     }
+  }
+
+  def exampleEncode[T : Encoder](sample: String, parsed: T, msg: String = "")(implicit ct: ClassTag[T]): Unit = {
+    val name = if (msg == "") {
+      ct.runtimeClass.getSimpleName
+    } else {
+      ct.runtimeClass.getSimpleName + s" ($msg)"
+    }
 
     test(s"$name encodes correctly}") {
       parse(sample) shouldBe Right(parsed.asJson)
     }
+  }
+
+  def example[T : ClassTag : Decoder : Encoder](sample: String, parsed: T, msg: String = ""): Unit = {
+    exampleDecode(sample, parsed, msg)
+    exampleEncode(sample, parsed, msg)
   }
 
   {
@@ -180,5 +193,46 @@ class CodecsSpec extends DirectorSpec {
     val parsed: UpdateId = UpdateSpec(Namespace("the updateSpec namespace"), DeviceId.generate, UpdateStatus.Failed).packageUuid
 
     example(sample, parsed, "UpdateSpec creates zero uuid for packageUuid")
+  }
+  {
+    def wrapSample(inner: String): String = s"""{"signatures": [{"method": "rsassa-pss", "sig": "df043006d4322a386cf85a6761a96bb8c92b2a41f4a4201badb8aae6f6dc17ef930addfa96a3d17f20533a01c158a7a33e406dd8291382a1bbab772bd2fa9804df043006d4322a386cf85a6761a96bb8c92b2a41f4a4201badb8aae6f6dc17ef930addfa96a3d17f20533a01c158a7a33e406dd8291382a1bbab772bd2fa9804", "keyid": "49309f114b857e4b29bfbff1c1c75df59f154fbc45539b2eb30c8a867843b2cb"}], "signed": $inner}"""
+
+    val ecu_manifest_sample: String = wrapSample("""{"timeserver_time": "2016-10-14T16:06:03Z", "installed_image": {"filepath": "/file2.txt", "fileinfo": {"hashes": {"sha256": "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a"}, "length": 21}}, "previous_timeserver_time": "2016-10-14T16:06:03Z", "ecu_serial": "ecu11111", "attacks_detected": ""}""")
+
+    def wrapSigned[T : Encoder](t: T): SignedPayload[T] =
+      SignedPayload(signatures = Vector(ClientSignature(
+                              method = SignatureMethod.RSASSA_PSS,
+                              sig = "df043006d4322a386cf85a6761a96bb8c92b2a41f4a4201badb8aae6f6dc17ef930addfa96a3d17f20533a01c158a7a33e406dd8291382a1bbab772bd2fa9804df043006d4322a386cf85a6761a96bb8c92b2a41f4a4201badb8aae6f6dc17ef930addfa96a3d17f20533a01c158a7a33e406dd8291382a1bbab772bd2fa9804".refineTry[ValidSignature].get,
+                              keyid = "49309f114b857e4b29bfbff1c1c75df59f154fbc45539b2eb30c8a867843b2cb".refineTry[ValidKeyId].get)),
+
+        signed = t)
+
+    val ecuSerial: EcuSerial = "ecu11111".refineTry[ValidEcuSerial].get
+    val ecu_manifest_sample_parsed: SignedPayload[EcuManifest]
+      = wrapSigned(EcuManifest(timeserver_time = Instant.ofEpochSecond(1476461163),
+                               installed_image = Image(
+                                 filepath = Refined.unsafeApply("/file2.txt"),
+                                 fileinfo = FileInfo(
+                                   hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+                                   length = 21)),
+                               previous_timeserver_time = Instant.ofEpochSecond(1476461163),
+                               ecu_serial = ecuSerial,
+                               attacks_detected = ""))
+
+    // notice that legacy spelled it `ecu_version_manifest` rather than `ecu_version_manifests`, and did not use a Map
+    // but only had a sequence of signed ecu_manifests
+    val legacy_device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifest": [$ecu_manifest_sample]}""")
+    val device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}}""")
+
+    val legacy_device_manifest_parsed: SignedPayload[LegacyDeviceManifest] =
+      wrapSigned(LegacyDeviceManifest(ecuSerial, Seq(ecu_manifest_sample_parsed)))
+
+    val device_manifest_parsed: SignedPayload[DeviceManifest] =
+      wrapSigned(DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson)))
+
+
+    example(legacy_device_manifest_sample, legacy_device_manifest_parsed, "legacy")
+
+    example(device_manifest_sample, device_manifest_parsed, "normal")
   }
 }

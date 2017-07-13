@@ -38,6 +38,9 @@ object Codecs {
                        })
   }
 
+  implicit val decoderLegacyDeviceManifest: Decoder[LegacyDeviceManifest] = deriveDecoder
+  implicit val encoderLegacyDeviceManifest: Encoder[LegacyDeviceManifest] = deriveEncoder
+
   implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder
   implicit val encoderDeviceManifest: Encoder[DeviceManifest] = deriveEncoder
 

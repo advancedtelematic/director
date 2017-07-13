@@ -116,11 +116,15 @@ class AdminResource(extractNamespace: Directive1[Namespace],
 
   val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
+      // this is deprecated, should use repo/root.json
       (get & path("root.json")) {
          fetchRoot(ns)
       } ~
-      path("repo") {
-        post {
+      pathPrefix("repo") {
+        (get & path("root.json")) {
+          fetchRoot(ns)
+        } ~
+        (post & pathEnd) {
           createRepo(ns)
         }
       } ~

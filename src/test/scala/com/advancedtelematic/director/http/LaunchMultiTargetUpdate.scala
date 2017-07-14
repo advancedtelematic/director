@@ -5,13 +5,17 @@ import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
+import io.circe.syntax._
+
+
 
 class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with FileCacheDB with ResourceSpec with Requests {
 
@@ -24,20 +28,8 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
   val chw: HardwareIdentifier = Refined.unsafeApply("c")
   val dhw: HardwareIdentifier = Refined.unsafeApply("d")
 
-  def registerNSDeviceOk(hwimages: (HardwareIdentifier, TargetUpdate)*)(implicit ns: NamespaceTag): DeviceId = {
-    val device = DeviceId.generate
-
-    val regEcus = hwimages.map { case (hw, _) =>
-      GenRegisterEcu.generate.copy(hardware_identifier = Some(hw))
-    }
-
-    val primEcu = regEcus.head.ecu_serial
-
-    registerDevice(RegisterDevice(device, primEcu, regEcus)).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.Created
-    }
-
-    val ecuManifest = hwimages.zip(regEcus.map(_.ecu_serial)).map {case ((hw, target), ecu) =>
+  def sendManifest(device: DeviceId, primEcu: EcuSerial)(hwimages: (EcuSerial, TargetUpdate)*)(implicit ns: NamespaceTag): Unit = {
+    val ecuManifest = hwimages.map {case (ecu, target) =>
       val sig = GenSignedEcuManifest(ecu).generate
       sig.copy(signed = sig.signed.copy(installed_image = target.image))
     }
@@ -45,6 +37,40 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     updateManifest(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+  }
+
+  def sendManifestCustom(device: DeviceId, primEcu: EcuSerial, target: TargetUpdate, custom: CustomManifest)(implicit ns: NamespaceTag): Unit = {
+    val ecuManifest = Seq {
+      val sig = GenSignedEcuManifest(primEcu).generate
+      sig.copy(signed = sig.signed.copy(installed_image = target.image, custom = Some(custom.asJson)))
+    }
+
+    updateManifest(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+  }
+
+  def registerDevice(hardwares : HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
+    val device = DeviceId.generate
+
+    val regEcus = hardwares.map { hw =>
+      GenRegisterEcu.generate.copy(hardware_identifier = Some(hw))
+    }
+    val primEcu = regEcus.head.ecu_serial
+
+    registerDevice(RegisterDevice(device, primEcu, regEcus)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    (device, primEcu, regEcus.map(_.ecu_serial))
+  }
+
+  def registerNSDeviceOk(hwimages: (HardwareIdentifier, TargetUpdate)*)(implicit ns: NamespaceTag): DeviceId = {
+    val (device, primEcu, ecus) = registerDevice(hwimages.map(_._1) : _*)
+
+    val manifest = ecus.zip(hwimages.map(_._2))
+
+    sendManifest(device, primEcu)(manifest :_*)
 
     device
   }
@@ -138,6 +164,42 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
       val affected = findAffected(update, Seq(device1, device2, device3))
 
       affected shouldBe Seq(device2)
+    }
+  }
+
+  test("mutli_target_upates update success") {
+    withRandomNamespace { implicit ns =>
+      val (device, prim, ecu) = registerDevice(ahw)
+      sendManifest(device, prim)(prim -> ato)
+
+      val update = createMtu(ahw -> bto)
+      val launched = launchMtu(update, Seq(device))
+
+      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "error")))
+    }
+  }
+
+  test("mutli_target_upates update failed") {
+    withRandomNamespace { implicit ns =>
+      val (device, prim, ecu) = registerDevice(ahw)
+      sendManifest(device, prim)(prim -> ato)
+
+      val update = createMtu(ahw -> bto)
+      val launched = launchMtu(update, Seq(device))
+
+      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 19, "error")))
+    }
+  }
+
+  test("mutli_target_upates update device reports wrong") {
+    withRandomNamespace { implicit ns =>
+      val (device, prim, ecu) = registerDevice(ahw)
+      sendManifest(device, prim)(prim -> ato)
+
+      val update = createMtu(ahw -> cto)
+      val launched = launchMtu(update, Seq(device))
+
+      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "error")))
     }
   }
 }

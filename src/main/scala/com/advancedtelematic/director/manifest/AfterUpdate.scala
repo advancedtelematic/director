@@ -54,7 +54,8 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
       val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, currentVersion))
       val updates:Seq[Option[UpdateId]] = await(adminRepository.getUpdatesFromTo(namespace, device, currentVersion, lastVersion))
 
-      updates.zip(currentVersion to lastVersion) match {
+      val toCancel = updates.zip((currentVersion to lastVersion).map(_ + 1))
+      toCancel match {
         case Nil => Unit
         case (up, version) +: rest =>
           val operationResults: Map[EcuSerial, OperationResult] = Map()

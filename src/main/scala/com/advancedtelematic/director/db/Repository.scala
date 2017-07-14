@@ -224,14 +224,13 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
-                       fromVersion: Int, toVersion: Int): Future[Seq[Option[UpdateId]]] = db.run {
+                       fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[UpdateId])]] = db.run {
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version > fromVersion)
       .filter(_.version <= toVersion)
       .map(x => (x.version, x.update))
       .sortBy(_._1)
-      .map(_._2)
       .result
   }
 

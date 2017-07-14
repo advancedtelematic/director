@@ -535,3 +535,52 @@ protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionCont
   }
 }
 
+trait AutoUpdateRepositorySupport {
+  def autoUpdateRepository(implicit db: Database, ec: ExecutionContext) = new AutoUpdateRepository()
+}
+
+protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.director.data.DataType.AutoUpdate
+  import com.advancedtelematic.libats.slick.codecs.SlickRefined._
+  import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+  import com.advancedtelematic.libats.slick.db.SlickExtensions._
+  import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+
+  def persist(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[AutoUpdate] = db.run {
+    val autoUpdate = AutoUpdate(namespace, device, ecuSerial, targetName)
+    (Schema.autoUpdates += autoUpdate)
+      .handleIntegrityErrors(ConflictingAutoUpdate)
+      .map(_ => autoUpdate)
+  }
+
+  def remove(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[Boolean] = db.run {
+    Schema
+      .autoUpdates
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .filter(_.ecuSerial === ecuSerial)
+      .filter(_.targetName === targetName)
+      .delete
+      .map(_ > 0)
+  }
+
+  def removeAll(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Future[Unit] = db.run {
+    Schema
+      .autoUpdates
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .filter(_.ecuSerial === ecuSerial)
+      .delete
+      .map(_ => ())
+  }
+
+  def findOnDevice(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Future[Seq[TargetName]] = db.run {
+    Schema
+      .autoUpdates
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .filter(_.ecuSerial === ecuSerial)
+      .map(_.targetName)
+      .result
+  }
+}

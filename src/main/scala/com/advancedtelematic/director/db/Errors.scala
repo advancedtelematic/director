@@ -64,4 +64,6 @@ object Errors {
 
   val MissingDevice = RawError(ErrorCodes.MissingDevice, StatusCodes.NotFound, "The device is not found")
   val MissingEcu = MissingEntity[Ecu]
+
+  val ConflictingAutoUpdate = EntityAlreadyExists[AutoUpdate]
 }

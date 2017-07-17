@@ -52,14 +52,14 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
       }
     case res@Failed(namespace, device, currentVersion, operations) => async {
       val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, currentVersion))
-      val updates:Seq[Option[UpdateId]] = await(adminRepository.getUpdatesFromTo(namespace, device, currentVersion, lastVersion))
+      val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, currentVersion, lastVersion))
 
-      updates.zip(currentVersion to lastVersion) match {
+      updatesToCancel match {
         case Nil => Unit
-        case (up, version) +: rest =>
+        case (version, up) +: rest =>
           val operationResults: Map[EcuSerial, OperationResult] = Map()
           await(clear(namespace, device, up, version, operations.getOrElse(operationResults)))
-          await(rest.toList.traverse{case (up, version) => clear(namespace, device, up, version, operationResults)})
+          await(rest.toList.traverse{case (version, up) => clear(namespace, device, up, version, operationResults)})
       }
     }
   }

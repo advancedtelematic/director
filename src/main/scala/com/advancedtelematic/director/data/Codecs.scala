@@ -1,23 +1,18 @@
 package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidEcuSerial}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
-import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
-import io.circe.{Decoder, Encoder, JsonObject, KeyDecoder, KeyEncoder}
-import com.advancedtelematic.libats.codecs.AkkaCirce._
+import io.circe.{Decoder, Encoder, JsonObject}
 
 object Codecs {
   import AdminRequest._
   import DeviceRequest._
   import io.circe.generic.semiauto._
-
-  implicit val keyDecoderHardwareIdentifier: KeyDecoder[HardwareIdentifier] = KeyDecoder.instance { value =>
-    value.refineTry[ValidHardwareIdentifier].toOption
-  }
-  implicit val keyEncoderHardwareIdentifier: KeyEncoder[HardwareIdentifier] = KeyEncoder[String].contramap(_.value)
 
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder

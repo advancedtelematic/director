@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.{HttpRequest, StatusCodes}
 import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeRoleStore, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeKeyserverClient, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
@@ -44,7 +44,7 @@ class RegisterNamespaceSpec extends DirectorSpec
     }
 
   test("creates root repository and root file for namespace") {
-    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(FakeRoleStore))
+    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(FakeKeyserverClient))
     val namespace = Namespace("defaultNS")
 
     createRepoWorker.action(UserCreated(namespace.get))
@@ -53,7 +53,7 @@ class RegisterNamespaceSpec extends DirectorSpec
       val repoId = repoNameRepository.getRepo(namespace).futureValue
       repoId shouldBe a[RepoId]
 
-      val rootFile = FakeRoleStore.fetchRootRole(repoId).futureValue
+      val rootFile = FakeKeyserverClient.fetchRootRole(repoId).futureValue
       rootFile.signed.hcursor.downField("_type").as[String] shouldBe Right("Root")
     }
   }

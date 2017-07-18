@@ -11,6 +11,7 @@ import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import eu.timepit.refined.api.Refined
 import io.circe.syntax._

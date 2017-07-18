@@ -9,14 +9,14 @@ import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.data.TufDataType.TufKey
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
 
 
-class DirectorRoutes(verifier: ClientKey => Verifier,
+class DirectorRoutes(verifier: TufKey => Verifier,
                      coreClient: CoreClient,
                      keyserverClient: KeyserverClient)
                     (implicit val db: Database,

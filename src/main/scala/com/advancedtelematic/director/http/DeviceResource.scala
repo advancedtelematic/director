@@ -11,9 +11,8 @@ import com.advancedtelematic.director.roles.{RolesCache, RolesGeneration}
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.slf4j.LoggerFactory
@@ -22,7 +21,7 @@ import scala.concurrent.ExecutionContext
 import slick.jdbc.MySQLProfile.api._
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
-                     verifier: ClientKey => Verifier,
+                     verifier: TufKey => Verifier,
                      coreClient: CoreClient,
                      keyserverClient: KeyserverClient)
                     (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)

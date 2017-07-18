@@ -8,8 +8,7 @@ import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate,
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, OperationResult}
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
 import org.slf4j.LoggerFactory
 
 import scala.async.Async._
@@ -17,7 +16,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
 class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
-                           verifier: ClientKey => Verifier
+                           verifier: TufKey => Verifier
                           )(implicit val db: Database, val ec: ExecutionContext)
     extends DeviceRepositorySupport
     with UpdateTypesRepositorySupport {

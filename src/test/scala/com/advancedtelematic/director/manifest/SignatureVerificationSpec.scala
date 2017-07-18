@@ -2,40 +2,38 @@ package com.advancedtelematic.director.manifest
 
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libtuf.data.TufDataType.KeyType.RSA
-import com.advancedtelematic.libtuf.data.TufDataType.ValidSignature
-import com.advancedtelematic.libtuf.crypt.RsaKeyPair.{generate, sign}
+import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, ValidSignature}
+import com.advancedtelematic.libtuf.crypt.TufCrypto
 import org.bouncycastle.util.encoders.Base64
-
 import scala.util.Success
 
-class SignatureVerificationSpec extends DirectorSpec {
+abstract class SignatureVerificationSpec extends DirectorSpec {
   import SignatureVerification.verify
 
+  val keytype: KeyType
+  val keySize: Int
+
   test("can verify correct signature") {
-    val keys = generate(size = 1024)
+    val (pub, sec) = TufCrypto.generateKeyPair(keytype, keySize = keySize)
     val data = "0123456789abcdef".getBytes
 
-    val sig = sign(keys.getPrivate, data)
-    val clientKey = ClientKey(RSA, keys.getPublic)
+    val sig = TufCrypto.sign(keytype, sec.keyval, data)
 
-    verify(clientKey)(sig, data) shouldBe Success(true)
+    verify(pub)(sig, data) shouldBe Success(true)
   }
 
   test("reject signature from different message") {
-    val keys = generate(size = 1024)
+    val (pub, sec) = TufCrypto.generateKeyPair(keytype, keySize = keySize)
     val data1 = "0123456789abcdef".getBytes
     val data2 = "0123456789abcdfe".getBytes
 
-    val sig = sign(keys.getPrivate, data1)
-    val clientKey = ClientKey(RSA, keys.getPublic)
+    val sig = TufCrypto.sign(keytype, sec.keyval, data1)
 
-    verify(clientKey)(sig, data2) shouldBe Success(false)
+    verify(pub)(sig, data2) shouldBe Success(false)
   }
 
   test("reject changed signature from valid") {
-    val keys = generate(size = 1024)
+    val (pub, sec) = TufCrypto.generateKeyPair(keytype, keySize = keySize)
     val data = "0123456789abcdef".getBytes
 
     def updateBit(base64: String): String = {
@@ -45,13 +43,21 @@ class SignatureVerificationSpec extends DirectorSpec {
     }
 
     val sig = {
-      val orig = sign(keys.getPrivate, data)
+      val orig = TufCrypto.sign(keytype, sec.keyval, data)
       val newSig = updateBit(orig.sig.value).refineTry[ValidSignature].get
       orig.copy(sig = newSig)
     }
-    val clientKey = ClientKey(RSA, keys.getPublic)
 
-    verify(clientKey)(sig, data) shouldBe Success(false)
+    verify(pub)(sig, data) shouldBe Success(false)
   }
+}
 
+class EdSignatureVerificationSpec extends SignatureVerificationSpec {
+  val keytype = EdKeyType
+  val keySize = 128 // keySize doesn't matter for EdKeyType
+}
+
+class RsaSignatureVerificationSpec extends SignatureVerificationSpec {
+  val keytype = RsaKeyType
+  val keySize = 2048
 }

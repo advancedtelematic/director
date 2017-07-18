@@ -2,7 +2,7 @@ package com.advancedtelematic.director.repo
 
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RepoId, SignedPayload}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
@@ -11,7 +11,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class FakeKeyserverClient(implicit ec: ExecutionContext) extends KeyserverClient {
   var count: Int = 0
 
-  override def createRoot(repoId: RepoId): Future[Json] = Future {
+  override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = Future {
     count += 1
     Json.obj()
   }

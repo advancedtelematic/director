@@ -2,15 +2,15 @@ package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image, ValidHardwareIdentifier}
+import com.advancedtelematic.director.data.DataType.{FileInfo, Image}
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
+import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, KeyType, SignatureMethod, SignedPayload, ValidKeyId, ValidSignature}
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, SignatureMethod, SignedPayload, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
 import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._
@@ -84,7 +84,7 @@ class CodecsSpec extends DirectorSpec {
   }
 
   {
-    import com.advancedtelematic.libtuf.crypt.RsaKeyPair
+    import com.advancedtelematic.libtuf.data.TufDataType.RsaKeyType
     val ecu_serial = "ecu1111"
     val pubKey =
       """-----BEGIN PUBLIC KEY-----
@@ -104,15 +104,14 @@ class CodecsSpec extends DirectorSpec {
     val sample = s"""{"primary_ecu_serial": "$ecu_serial", "ecus": [$ecus]}"""
 
     val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
-    val p_pubKey = RsaKeyPair.parsePublic(pubKey).get
-    val p_clientKey = ClientKey(KeyType.RSA, p_pubKey)
-    val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, hardwareId.refineTry[ValidHardwareIdentifier].get, p_clientKey)))
+    val p_tufKey = TufCrypto.parsePublic(RsaKeyType, pubKey).get
+    val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, hardwareId.refineTry[ValidHardwareIdentifier].get, p_tufKey)))
 
     example(sample, parsed)
   }
 
   {
-    import com.advancedtelematic.libtuf.crypt.RsaKeyPair
+    import com.advancedtelematic.libtuf.data.TufDataType.RsaKeyType
     val ecu_serial = "ecu1111"
     val pubKey =
       """-----BEGIN PUBLIC KEY-----
@@ -129,9 +128,8 @@ class CodecsSpec extends DirectorSpec {
     val sample = s"""{"ecu_serial": "$ecu_serial", "clientKey": $clientKey}"""
 
     val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
-    val p_pubKey = RsaKeyPair.parsePublic(pubKey).get
-    val p_clientKey = ClientKey(KeyType.RSA, p_pubKey)
-    val parsed = RegisterEcu(p_ecu_serial, None, p_clientKey)
+    val p_tufKey = TufCrypto.parsePublic(RsaKeyType, pubKey).get
+    val parsed = RegisterEcu(p_ecu_serial, None, p_tufKey)
 
     example(sample, parsed, "without hardware_identifier")
   }

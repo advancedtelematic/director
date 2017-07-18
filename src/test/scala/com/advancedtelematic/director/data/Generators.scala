@@ -7,10 +7,10 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
-import com.advancedtelematic.libtuf.crypt.RsaKeyPair
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, ClientKey}
+import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
@@ -19,7 +19,6 @@ import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
 
 trait Generators {
-  import KeyType._
   import SignatureMethod._
 
   lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
@@ -28,15 +27,15 @@ trait Generators {
     = Gen.choose(10,64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
 
   lazy val GenKeyType: Gen[KeyType]
-    = Gen.const(RSA)
+    = Gen.const(RsaKeyType)
 
   lazy val GenSignatureMethod: Gen[SignatureMethod]
     = Gen.const(SignatureMethod.RSASSA_PSS)
 
-  lazy val GenClientKey: Gen[ClientKey] = for {
+  lazy val GenTufKey: Gen[TufKey] = for {
     keyType <- GenKeyType
-    pubKey = RsaKeyPair.generate(size = 128).getPublic
-  } yield ClientKey(keyType, pubKey)
+    (pub, sec) = TufCrypto.generateKeyPair(keyType, keySize = 2048)
+  } yield pub
 
   lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
     Gen.choose(10,200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
@@ -44,7 +43,7 @@ trait Generators {
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
     hwId <- GenHardwareIdentifier
-    crypto <- GenClientKey
+    crypto <- GenTufKey
   } yield RegisterEcu(ecu, hwId, crypto)
 
   lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)

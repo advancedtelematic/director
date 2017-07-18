@@ -7,9 +7,8 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.crypt.Sha256Digest
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload, TufKey}
 import io.circe.{Encoder, Json}
 import io.circe.syntax._
 import org.slf4j.LoggerFactory
@@ -52,14 +51,14 @@ object Verify {
     }
   }
 
-  private def checkEcuManifest(verifier: ClientKey => Verifier, ecu: Ecu, ecuSerial: EcuSerial, jsonBlob: Json): Try[EcuManifest] = for {
+  private def checkEcuManifest(verifier: TufKey => Verifier, ecu: Ecu, ecuSerial: EcuSerial, jsonBlob: Json): Try[EcuManifest] = for {
     sEcumanifest <- jsonBlob.as[SignedPayload[EcuManifest]].toTry
     () <- Either.cond(sEcumanifest.signed.ecu_serial == ecuSerial, (), Errors.WrongEcuSerialInEcuManifest).toTry
-    ecuManifest <- checkSigned(sEcumanifest, verifier(ecu.clientKey))
+    ecuManifest <- checkSigned(sEcumanifest, verifier(ecu.tufKey))
   } yield ecuManifest
 
   private def checkDeviceManifest[T : Encoder](getPrimary: T => EcuSerial, ecuVersionManifests : T => Map[EcuSerial, Json],
-                                               ecusForDevice: Seq[Ecu], verifier: ClientKey => Verifier, signedDevMan: SignedPayload[T]): Try[Seq[EcuManifest]] = {
+                                               ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[T]): Try[Seq[EcuManifest]] = {
     val ecuMap = ecusForDevice.map(x => x.ecuSerial -> x).toMap
 
     def findEcu(ecuSerial: EcuSerial)(handler: PartialFunction[Ecu, Throwable] = PartialFunction.empty): Try[Ecu] =
@@ -72,17 +71,17 @@ object Verify {
       primaryEcu <- findEcu(getPrimary(signedDevMan.signed)){
         case ecu if !ecu.primary => Errors.EcuNotPrimary
       }
-      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.clientKey))
+      devMan <- checkSigned(signedDevMan, verifier(primaryEcu.tufKey))
       verifiedEcus = ecuVersionManifests(devMan).map { case (ecuSerial, jsonBlob) =>
         findEcu(ecuSerial)().flatMap(checkEcuManifest(verifier, _, ecuSerial, jsonBlob))
       }.toSeq
     } yield verifiedEcus.collect { case Success(x) => x }
   }
 
-  def legacyDeviceManifest(ecusForDevice: Seq[Ecu], verifier: ClientKey => Verifier, signedDevMan: SignedPayload[LegacyDeviceManifest]): Try[Seq[EcuManifest]] =
+  def legacyDeviceManifest(ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[LegacyDeviceManifest]): Try[Seq[EcuManifest]] =
     checkDeviceManifest[LegacyDeviceManifest](_.primary_ecu_serial, _.ecu_version_manifest.map(x => x.signed.ecu_serial -> x.asJson).toMap,
                                               ecusForDevice, verifier, signedDevMan)
 
-  def deviceManifest(ecusForDevice: Seq[Ecu], verifier: ClientKey => Verifier, signedDevMan: SignedPayload[DeviceManifest]): Try[Seq[EcuManifest]] =
+  def deviceManifest(ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[DeviceManifest]): Try[Seq[EcuManifest]] =
     checkDeviceManifest[DeviceManifest](_.primary_ecu_serial, _.ecu_version_manifests, ecusForDevice, verifier, signedDevMan)
 }

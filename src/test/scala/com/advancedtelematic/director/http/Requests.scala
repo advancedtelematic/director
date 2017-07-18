@@ -5,14 +5,15 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{RegisterDevice, SetTarget, QueueResponse}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{HardwareIdentifier, Image, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, LegacyDeviceManifest}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
 trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {

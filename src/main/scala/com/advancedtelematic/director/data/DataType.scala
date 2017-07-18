@@ -4,9 +4,8 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, DeviceId, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientKey, ClientHashes => Hashes}
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId, RoleType}
-import eu.timepit.refined.api.{Refined, Validate}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, RepoId, RoleType, TufKey}
 import io.circe.Json
 import java.time.Instant
 
@@ -33,10 +32,6 @@ object UpdateType extends CirceEnum with SlickEnum {
 object DataType {
   import RoleType.RoleType
 
-  final case class ValidHardwareIdentifier()
-  type HardwareIdentifier = Refined[String, ValidHardwareIdentifier]
-  implicit val validHardwareIdentifier: Validate.Plain[String, ValidHardwareIdentifier] = ValidationUtils.validInBetween(min = 0, max = 200, ValidHardwareIdentifier())
-
   final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
 
@@ -49,7 +44,10 @@ object DataType {
   }
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
-                       hardwareId: HardwareIdentifier, clientKey: ClientKey)
+                       hardwareId: HardwareIdentifier, tufKey: TufKey) {
+    def keyType = tufKey.keytype
+    def publicKey = tufKey.keyval
+  }
 
   final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 

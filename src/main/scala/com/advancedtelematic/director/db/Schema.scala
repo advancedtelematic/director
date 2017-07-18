@@ -8,9 +8,8 @@ import com.advancedtelematic.director.data.{FileCacheRequestStatus, LaunchedMult
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientKey
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, RepoId}
-import com.advancedtelematic.libtuf.data.TufDataType.KeyType.KeyType
+import com.advancedtelematic.libtuf.crypt.TufCrypto
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, KeyType, RepoId, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import eu.timepit.refined.api.Refined
 import io.circe.Json
@@ -26,25 +25,22 @@ object Schema {
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
   import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
-  type EcuRow = (EcuSerial, DeviceId, Namespace, Boolean, HardwareIdentifier, KeyType, PublicKey)
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial")
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def cryptoMethod = column[KeyType]("cryptographic_method")
+    def keyType = column[KeyType]("cryptographic_method")
     def publicKey = column[PublicKey]("public_key")
 
     def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
 
-    override def * = (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) <>
-      ((_ : EcuRow) match {
-         case (ecuSerial, device, namespace, primary, hardwareId, cryptoMethod, publicKey) =>
-           Ecu(ecuSerial, device, namespace, primary, hardwareId, ClientKey(cryptoMethod, publicKey))
-       },
-       (x: Ecu) => Some((x.ecuSerial, x.device, x.namespace, x.primary, x.hardwareId, x.clientKey.keytype, x.clientKey.keyval))
-       )
+    def tufKey = (keyType, publicKey) <>
+      ({case (typ, key) => (TufCrypto.convert(typ, key): TufKey)}, (tufKey:TufKey) => Some((tufKey.keytype, tufKey.keyval)))
+
+    override def * = (ecuSerial, device, namespace, primary, hardwareId, tufKey) <>
+      ((Ecu.apply _).tupled, Ecu.unapply)
   }
   protected [db] val ecu = TableQuery[EcusTable]
 

@@ -72,7 +72,8 @@ object DeviceUpdate extends AdminRepositorySupport
     val dbAct = for {
       latestVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
       nextTimestampVersion = latestVersion + 1
-      fcr = FileCacheRequest(namespace, version, device, None, FileCacheRequestStatus.PENDING, nextTimestampVersion)
+      _ <- adminRepository.copyTargetsAction(namespace, device, version, nextTimestampVersion)
+      fcr = FileCacheRequest(namespace, nextTimestampVersion, device, None, FileCacheRequestStatus.PENDING, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
       _ <- fileCacheRequestRepository.persistAction(fcr)
     } yield (latestVersion)

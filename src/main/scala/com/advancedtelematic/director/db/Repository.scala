@@ -172,6 +172,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfMany
       .map(_.flatten)
 
+  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .join(Schema.ecuTargets.filter(_.version === sourceVersion)).on(_.ecuSerial === _.id)
+      .map(_._2)
+      .result
+      .flatMap { ecuTargets =>
+        Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
+      }.map(_ => ())
+
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     Schema.ecu
       .filter(_.namespace === namespace)

@@ -26,8 +26,8 @@ import org.scalatest.time.{Milliseconds, Seconds, Span}
 import scala.concurrent.Future
 
 class FileCacheSpec extends DirectorSpec
-    with BeforeAndAfterAll
     with DatabaseSpec
+    with BeforeAndAfterAll
     with Eventually
     with FileCacheDB
     with Requests
@@ -48,11 +48,15 @@ class FileCacheSpec extends DirectorSpec
                                           me + " was after " + other)
   }
 
-  test("Files are generated") {
+  val directorRepo = new DirectorRepo(FakeKeyserverClient)
+  override def beforeAll() {
+    super.beforeAll()
     val testActorRef = TestActorRef(FileCacheDaemon.props(FakeKeyserverClient))
-    val directorRepo = new DirectorRepo(FakeKeyserverClient)
     directorRepo.findOrCreate(defaultNs).futureValue
+  }
 
+
+  test("Files are generated") {
     val device = DeviceId.generate
 
     val primEcuReg = GenRegisterEcu.generate
@@ -78,6 +82,47 @@ class FileCacheSpec extends DirectorSpec
       isAvailable[TargetsRole](device, "targets.json")
       isAvailable[RootRole](device, "root.json")
     }
+  }
+
+  test("Versions increases on error") {
+    val device = DeviceId.generate
+
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+
+    val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
+    registerDeviceOk(regDev)
+
+    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
+    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
+
+    updateManifestOk(device, devManifest)
+
+    val targetImage = GenCustomImage.generate
+    val target = SetTarget(Map(primEcu -> targetImage))
+
+    SetTargets.setTargets(defaultNs, Seq(device -> target)).futureValue
+
+    val ecuManifest2 = Seq(GenSignedEcuManifest(primEcu).generate)
+    val devManifest2 = GenSignedDeviceManifest(primEcu, ecuManifest2).generate
+
+    // this will fail and reset the target to be empty
+    updateManifestOk(device, devManifest2)
+
+    eventually(timeout, interval) {
+      val ts = isAvailable[TimestampRole](device, "timestamp.json")
+      ts.signed.version shouldBe 2
+
+      val snap = isAvailable[SnapshotRole](device, "snapshot.json")
+      snap.signed.version shouldBe 2
+
+      val targ = isAvailable[TargetsRole](device, "targets.json")
+      targ.signed.version shouldBe 2
+      targ.signed.targets shouldBe Map.empty
+
+      isAvailable[RootRole](device, "root.json")
+    }
+
   }
 
   test("Can schedule several updates for the same device at the same time") {

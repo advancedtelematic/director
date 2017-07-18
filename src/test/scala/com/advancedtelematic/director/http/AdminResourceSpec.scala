@@ -12,6 +12,7 @@ import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceRefined._
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
+import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TufKey}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -92,6 +93,14 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
       (pag.values.length <= pag.limit) shouldBe true
       pag.values.length shouldBe scala.math.max(0, scala.math.min(pag.total - pag.offset, pag.limit))
       pag
+    }
+  }
+
+  def getCountInstalledImages(filepaths: Seq[TargetFilename])
+      (implicit ns: NamespaceTag): Map[TargetFilename, Int] = {
+    Get(Uri(apiUri(s"admin/images/installed_count")), filepaths.asJson).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Map[TargetFilename, Int]]
     }
   }
 
@@ -213,6 +222,19 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
     }
   }
 
+  test("images/installed_count returns the count of ECUs a given image is installed on") {
+    withNamespace("ns count images") {implicit ns =>
+      val device1 = registerNSDeviceOk(afn, bfn)
+      val device2 = registerNSDeviceOk(afn)
+      val device3 = registerNSDeviceOk(cfn, cfn)
+
+      getCountInstalledImages(Seq(afn)) shouldBe Map(afn -> 2)
+      getCountInstalledImages(Seq(afn, bfn)) shouldBe Map(afn -> 2, bfn -> 1)
+      getCountInstalledImages(Seq(cfn)) shouldBe Map(cfn -> 2)
+      getCountInstalledImages(Seq(dfn)) shouldBe Map()
+      getCountInstalledImages(Seq(afn, dfn)) shouldBe Map(afn -> 2)
+    }
+  }
   test("devices/hardware_identifiers returns all hardware_ids") {
     withRandomNamespace { implicit ns =>
       val device1 = registerHWDeviceOk(ahw, bhw)

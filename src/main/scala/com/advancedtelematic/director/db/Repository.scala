@@ -252,6 +252,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .distinct
       .paginateAndSortResult(identity, offset = offset, limit = limit)
   }
+
+  def countInstalledImages(namespace: Namespace, filepaths: Seq[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
+    Schema.currentImage
+      .filter(_.namespace === namespace)
+      .filter(_.filepath inSet(filepaths))
+      .groupBy(_.filepath)
+      .map { case (filepath, results) => (filepath, results.length) }
+      .drop(0) //workaround for slick issue: https://github.com/slick/slick/issues/1355
+      .result
+      .map(_.toMap)
+  }
 }
 
 trait DeviceRepositorySupport {

@@ -9,7 +9,7 @@ import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, KeyType, RepoId, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import eu.timepit.refined.api.Refined
 import io.circe.Json
@@ -215,4 +215,15 @@ object Schema {
   }
 
   protected [db] val updateTypes = TableQuery[UpdateTypes]
+
+  class AutoUpdates(tag: Tag) extends Table[AutoUpdate](tag, "auto_updates") {
+    def namespace = column[Namespace]("namespace")
+    def device = column[DeviceId]("device")
+    def ecuSerial = column[EcuSerial]("ecu_serial")
+    def targetName = column[TargetName]("target_name")
+
+    override def * = (namespace, device, ecuSerial, targetName) <>
+      ((AutoUpdate.apply _).tupled, AutoUpdate.unapply)
+  }
+  protected [db] val autoUpdates = TableQuery[AutoUpdates]
 }

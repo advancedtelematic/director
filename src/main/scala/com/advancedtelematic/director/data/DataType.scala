@@ -5,7 +5,7 @@ import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, DeviceId, TargetFilename, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, RepoId, RoleType, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, RepoId, RoleType, TargetName, TufKey}
 import io.circe.Json
 import java.time.Instant
 
@@ -96,4 +96,5 @@ object DataType {
   final case class LaunchedMultiTargetUpdate(device: DeviceId, update: UpdateId, timestampVersion: Int,
                                              status: LaunchedMultiTargetUpdateStatus.Status)
 
+  final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
 }

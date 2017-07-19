@@ -83,6 +83,9 @@ object Codecs {
 
   implicit val queueResponseEncoder: Encoder[QueueResponse] = deriveEncoder
   implicit val queueResponseDecoder: Decoder[QueueResponse] = deriveDecoder
+
+  implicit val autoUpdateEncoder: Encoder[AutoUpdate] = deriveEncoder
+  implicit val autoUpdateDecoder: Decoder[AutoUpdate] = deriveDecoder
 }
 
 object AkkaHttpUnmarshallingSupport {

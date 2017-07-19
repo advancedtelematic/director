@@ -111,6 +111,10 @@ trait Generators {
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
 
+  val GenTargetName: Gen[TargetName] = for {
+    target <- genIdentifier(100)
+  } yield TargetName(target)
+
   val GenTargetUpdate: Gen[TargetUpdate] = for {
     target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])
     size <- Gen.chooseNum(0, Long.MaxValue)

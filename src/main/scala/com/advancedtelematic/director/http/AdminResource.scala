@@ -17,8 +17,9 @@ import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -92,6 +93,11 @@ class AdminResource(extractNamespace: Directive1[Namespace],
     }
     complete(f)
   }
+
+  def countInstalledImages(namespace: Namespace): Route =
+    entity(as[Seq[TargetFilename]]) { filepaths =>
+      complete(adminRepository.countInstalledImages(namespace, filepaths))
+    }
 
   def findAffectedDevices(namespace: Namespace): Route =
     (parameters('limit.as[Long].?) & parameters('offset.as[Long].?) & entity(as[FindAffectedRequest])) { (mLimit, mOffset, image) =>
@@ -207,6 +213,9 @@ class AdminResource(extractNamespace: Directive1[Namespace],
       pathPrefix("images") {
         (get & path("affected")) {
           findAffectedDevices(ns)
+        } ~
+        (get & path("installed_count")) {
+          countInstalledImages(ns)
         }
       } ~
       multiTargetUpdatesRoute(ns) ~

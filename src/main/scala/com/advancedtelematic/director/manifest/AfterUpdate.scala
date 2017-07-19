@@ -86,9 +86,11 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
   private def clearMultiTargetUpdate(namespace: Namespace, device: DeviceId, updateId: UpdateId,
                                  version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = {
     val status = LaunchedMultiTargetUpdateStatus.Failed
+    val GENERAL_ERROR_RESULT_CODE = 19
     for {
       _ <- launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, status)
-      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations))
+      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version,
+                                                          operations, GENERAL_ERROR_RESULT_CODE))
       _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Failed))
     } yield ()
   }
@@ -104,10 +106,12 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
 
   private def multiTargetUpdate(result: SuccessWithUpdateId): Future[Unit] = {
     val status = LaunchedMultiTargetUpdateStatus.Finished
+    val OK_RESULT_CODE = 0
     for {
       _ <- launchedMultiTargetUpdateRepository.setStatus(result.device, result.updateId, result.timestampVersion, status)
       _ <- messageBusPublisher.publish(DeviceUpdateReport(result.namespace, result.device, result.updateId,
-                                                          result.timestampVersion, result.operations.getOrElse(Map())))
+                                                          result.timestampVersion, result.operations.getOrElse(Map()),
+                                                          OK_RESULT_CODE))
       _ <- messageBusPublisher.publish(UpdateSpec(result.namespace, result.device, UpdateStatus.Finished))
     } yield ()
   }

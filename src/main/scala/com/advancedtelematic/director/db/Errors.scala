@@ -23,6 +23,7 @@ object ErrorCodes {
   val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
   val MissingUpdateType = ErrorCode("missing_update_type")
   val MissingDevice = ErrorCode("missing_device")
+  val CouldNotScheduleDevice = ErrorCode("could_not_schedule_device")
 }
 
 object Errors {
@@ -66,4 +67,6 @@ object Errors {
   val MissingEcu = MissingEntity[Ecu]
 
   val ConflictingAutoUpdate = EntityAlreadyExists[AutoUpdate]
+
+  val CouldNotScheduleDevice = RawError(ErrorCodes.CouldNotScheduleDevice, StatusCodes.PreconditionFailed, "Could not schedule update on device")
 }

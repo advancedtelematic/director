@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.{CustomImage, LaunchedMultiTargetUpdate, MultiTargetUpdate}
 import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
@@ -71,7 +72,10 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
 
   def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId)
                            (implicit db: Database, ec: ExecutionContext): Future[Unit] =
-    setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId).map(_ => Unit)
+    setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId).flatMap {
+      case Seq(d) => FastFuture.successful(())
+      case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
+    }
 
   def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId)
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = {

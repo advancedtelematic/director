@@ -562,11 +562,12 @@ trait AutoUpdateRepositorySupport {
 }
 
 protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.DataType.AutoUpdate
+  import com.advancedtelematic.director.data.DataType.{AutoUpdate, TargetUpdate}
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.db.SlickExtensions._
   import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+  import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   def persist(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[AutoUpdate] = db.run {
     val autoUpdate = AutoUpdate(namespace, device, ecuSerial, targetName)
@@ -604,5 +605,23 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
       .filter(_.ecuSerial === ecuSerial)
       .map(_.targetName)
       .result
+  }
+
+  def findByTargetNameAction(namespace: Namespace, targetName: TargetName): DBIO[Seq[(DeviceId, HardwareIdentifier, TargetUpdate)]] = {
+    Schema.autoUpdates
+      .filter(_.namespace === namespace)
+      .filter(_.targetName === targetName)
+      .join(Schema.ecu.filter(_.namespace === namespace)).on(_.ecuSerial === _.ecuSerial)
+      .join(Schema.currentImage.filter(_.namespace === namespace)).on(_._1.ecuSerial === _.id)
+      .map{case ((auto, ecu), current) =>
+        (auto.device, ecu.hardwareId, current.filepath, current.checksum, current.length)}
+      .result
+      .map(_.map{case (device, hw, filepath, checksum, length) => (device, hw, TargetUpdate(filepath, checksum, length))})
+  }
+
+  def findByTargetName(namespace: Namespace, targetName: TargetName): Future[Map[DeviceId, Seq[(HardwareIdentifier, TargetUpdate)]]] = db.run {
+    findByTargetNameAction(namespace, targetName)
+      .map(_.groupBy{case (device, _, _) => device}
+             .map{case (k, v) => k -> v.map{case (_, hw, tu) => (hw, tu)}})
   }
 }

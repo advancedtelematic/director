@@ -3,15 +3,17 @@ package com.advancedtelematic.director.daemon
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import com.advancedtelematic.director.{Settings, VersionInfo}
+import com.advancedtelematic.director.db.SetMultiTargets
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
-import com.advancedtelematic.libats.messaging.MessageListener
+import com.advancedtelematic.libats.messaging.{MessageBus, MessageListener}
 import com.advancedtelematic.libats.messaging.daemon.MessageBusListenerActor.Subscribe
 import com.advancedtelematic.libats.messaging_datatype.Messages.{CampaignLaunched, UserCreated}
 import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
+import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
 
 object DaemonBoot extends BootApp
     with Settings
@@ -24,6 +26,7 @@ object DaemonBoot extends BootApp
   import com.advancedtelematic.libats.http.VersionDirectives._
 
   implicit val _db = db
+  implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
 
   log.info("Starting director daemon")
 
@@ -40,6 +43,13 @@ object DaemonBoot extends BootApp
     system.actorOf(MessageListener.props[CampaignLaunched](config, CampaignWorker.action),
                    "campaign-created-msg-listener")
   campaignCreatedListener ! Subscribe
+
+  val setMultiTargets = new SetMultiTargets
+  val tufTargetWorker = new TufTargetWorker(setMultiTargets)
+  val tufTargetAddedListener =
+    system.actorOf(MessageListener.props[TufTargetAdded](config, tufTargetWorker.action),
+                   "tuf-target-added-listener")
+  tufTargetAddedListener ! Subscribe
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route

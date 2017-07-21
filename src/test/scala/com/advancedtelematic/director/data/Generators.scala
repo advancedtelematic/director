@@ -10,6 +10,7 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, Hash
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import io.circe.Encoder
 import io.circe.syntax._
@@ -39,6 +40,9 @@ trait Generators {
 
   lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
     Gen.choose(10,200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
+
+  lazy val GenTargetFormat: Gen[TargetFormat] =
+    Gen.oneOf(BINARY, OSTREE)
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
     ecu <- GenEcuSerial
@@ -114,6 +118,10 @@ trait Generators {
   val GenTargetName: Gen[TargetName] = for {
     target <- genIdentifier(100)
   } yield TargetName(target)
+
+  val GenTargetVersion: Gen[TargetVersion] = for {
+    target <- genIdentifier(100)
+  } yield TargetVersion(target)
 
   val GenTargetUpdate: Gen[TargetUpdate] = for {
     target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])

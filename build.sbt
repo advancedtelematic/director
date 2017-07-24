@@ -15,7 +15,7 @@ libraryDependencies ++= {
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.57"
   val tufV = "0.1.0-46-g7b9e71d"
-  val libatsV = "0.0.1-79-g90205c0"
+  val libatsV = "0.0.1-85-g99defa7"
   val circeConfigV = "0.0.2"
 
   Seq(
@@ -43,8 +43,7 @@ libraryDependencies ++= {
 
     "org.scala-lang.modules" %% "scala-async" % "0.9.6",
 
-    "org.mariadb.jdbc" % "mariadb-java-client" % "1.4.4",
-    "org.flywaydb" % "flyway-core" % "4.0.3"
+    "org.mariadb.jdbc" % "mariadb-java-client" % "1.4.4"
   )
 }
 
@@ -71,12 +70,6 @@ buildInfoOptions += BuildInfoOption.ToMap
 
 buildInfoOptions += BuildInfoOption.BuildTime
 
-
-flywayUrl := sys.env.getOrElse("DB_URL", "jdbc:mysql://localhost:3306/director")
-
-flywayUser := sys.env.getOrElse("DB_USER", "director")
-
-flywayPassword := sys.env.getOrElse("DB_PASSWORD", "director")
 
 mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 

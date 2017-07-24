@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.db
 
 import akka.Done
-import com.advancedtelematic.director.data.DataType.{DeviceUpdateTarget}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
@@ -25,7 +24,6 @@ trait FileCacheDB {
       fcrs <- Schema.fileCacheRequest
         .filter(_.status === FileCacheRequestStatus.PENDING)
         .result
-      _ <- Schema.deviceTargets ++= fcrs.map{fcr => DeviceUpdateTarget(fcr.device, fcr.updateId, fcr.timestampVersion)}
       _ <- Schema.fileCacheRequest
         .filter(_.device.inSet(fcrs.map(_.device).toSet))
         .filter(_.timestampVersion.inSet(fcrs.map(_.timestampVersion).toSet))

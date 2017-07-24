@@ -7,8 +7,9 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.http.Requests
-import com.advancedtelematic.director.util.{DirectorSpec, FakeKeyserverClient}
+import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.director.repo.DirectorRepo
+import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -48,13 +49,12 @@ class FileCacheSpec extends DirectorSpec
                                           me + " was after " + other)
   }
 
-  val directorRepo = new DirectorRepo(FakeKeyserverClient)
+  val directorRepo = new DirectorRepo(keyserverClient)
   override def beforeAll() {
     super.beforeAll()
-    val testActorRef = TestActorRef(FileCacheDaemon.props(FakeKeyserverClient))
+    val testActorRef = TestActorRef(FileCacheDaemon.props(rolesGeneration))
     directorRepo.findOrCreate(defaultNs).futureValue
   }
-
 
   test("Files are generated") {
     val device = DeviceId.generate
@@ -70,7 +70,8 @@ class FileCacheSpec extends DirectorSpec
 
     updateManifestOk(device, devManifest)
 
-    val targetImage = GenCustomImage.generate
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
+
     val target = SetTarget(Map(primEcu -> targetImage))
 
     SetTargets.setTargets(defaultNs, Seq(device -> target)).futureValue
@@ -133,11 +134,6 @@ class FileCacheSpec extends DirectorSpec
 
     val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
     registerDeviceOk(regDev)
-
-    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
-    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
-
-    updateManifestOk(device, devManifest)
 
     val targets = for (_ <- 0 until 10) yield {
       val targetImage = GenCustomImage.generate

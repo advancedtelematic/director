@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, Device
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
-import com.advancedtelematic.director.roles.{RolesCache, RolesGeneration}
+import com.advancedtelematic.director.roles.Roles
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -23,7 +23,8 @@ import slick.jdbc.MySQLProfile.api._
 class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: TufKey => Verifier,
                      coreClient: CoreClient,
-                     keyserverClient: KeyserverClient)
+                     keyserverClient: KeyserverClient,
+                     roles: Roles)
                     (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
@@ -35,8 +36,6 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
 
   private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
-  private val rolesGeneration = new RolesGeneration(keyserverClient)
-  private val rolesCache = new RolesCache(rolesGeneration)
 
   def fetchRoot(namespace: Namespace): Route = {
     val f = repoNameRepository.getRepo(namespace).flatMap { repo =>
@@ -75,13 +74,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         path(RoleType.JsonRoleTypeMetaPath) {
           case RoleType.ROOT => fetchRoot(ns)
           case RoleType.TARGETS =>
-            val f = rolesCache.fetchTargets(ns, device)
+            val f = roles.fetchTargets(ns, device)
             complete(f)
           case RoleType.SNAPSHOT =>
-            val f = rolesCache.fetchSnapshot(ns, device)
+            val f = roles.fetchSnapshot(ns, device)
             complete(f)
           case RoleType.TIMESTAMP =>
-            val f = rolesCache.fetchTimestamp(ns, device)
+            val f = roles.fetchTimestamp(ns, device)
             complete(f)
         }
       }

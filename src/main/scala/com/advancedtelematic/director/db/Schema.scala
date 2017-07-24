@@ -3,18 +3,29 @@ package com.advancedtelematic.director.db
 import java.security.PublicKey
 
 import akka.http.scaladsl.model.Uri
+import cats.implicits._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.{FileCacheRequestStatus, LaunchedMultiTargetUpdateStatus, UpdateType}
+import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
+import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum, HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
 import slick.jdbc.MySQLProfile.api._
+
+object Mappers {
+  import com.advancedtelematic.libats.slick.db.SlickCirceMapper
+
+  implicit val checkSumMapper = SlickCirceMapper.circeMapper[Checksum]
+  implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
+}
 
 object Schema {
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -24,6 +35,8 @@ object Schema {
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
   import com.advancedtelematic.libtuf.data.TufSlickMappings._
+
+  import Mappers._
 
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial")
@@ -57,14 +70,13 @@ object Schema {
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
-    override def * = (namespace, id, filepath, length, checksum, attacksDetected) <> (
-      (_: CurrentImageRow) match {
-        case (namespace, id, filepath, length, checksum, attacksDetected) =>
-          CurrentImage(namespace, id, Image(filepath, FileInfo(Map(checksum.method -> checksum.hash), length)), attacksDetected)
-      },
-      (x: CurrentImage) => Some((x.namespace, x.ecuSerial, x.image.filepath, x.image.fileinfo.length,
-                                 Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.attacksDetected))
-    )
+    def fileInfo = (checksum, length) <>
+      ( { case (checksum, length) => FileInfo(Map(checksum.method -> checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes(HashMethod.SHA256)), x.length))
+      )
+    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
+
+    override def * = (namespace, id, image, attacksDetected) <> ((CurrentImage.apply _).tupled, CurrentImage.unapply)
   }
 
   protected [db] val currentImage = TableQuery[CurrentImagesTable]
@@ -73,12 +85,10 @@ object Schema {
     def ns = column[Namespace]("namespace", O.PrimaryKey)
     def repo = column[RepoId]("repo_id")
 
-    override def * = (ns, repo) <>
-      ((RepoName.apply _).tupled, RepoName.unapply)
+    override def * = (ns, repo) <> ((RepoName.apply _).tupled, RepoName.unapply)
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
-  type EcuTargetRow = (Namespace, Int, EcuSerial, TargetFilename, Long, Checksum, Uri)
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
@@ -87,18 +97,22 @@ object Schema {
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
     def uri = column[Uri]("uri")
+    def diffFormat = column[Option[TargetFormat]]("diff_format")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
 
-    override def * = (namespace, version, id, filepath, length, checksum, uri) <> (
-      (_: EcuTargetRow) match {
-        case (namespace, version, id, filepath, length, checksum, uri) =>
-          EcuTarget(namespace, version, id, CustomImage(filepath, FileInfo(Map(checksum.method -> checksum.hash), length), uri))
-      },
-      (x: EcuTarget) => Some((x.namespace, x.version, x.ecuIdentifier, x.image.filepath, x.image.fileinfo.length,
-                              Checksum(HashMethod.SHA256, x.image.fileinfo.hashes(HashMethod.SHA256)), x.image.uri)))
+    def fileInfo = (checksum, length) <>
+      ( { case (checksum, length) => FileInfo(Map(checksum.method -> checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes(HashMethod.SHA256)), x.length))
+      )
+
+    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
+
+    def customImage = (image, uri, diffFormat) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
+
+    override def * = (namespace, version, id, customImage) <> ((EcuTarget.apply _).tupled, EcuTarget.unapply)
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
@@ -109,8 +123,7 @@ object Schema {
 
     def primKey = primaryKey("device_targets_pk", (device, version))
 
-    override def * = (device, update, version) <>
-      ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
+    override def * = (device, update, version) <> ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
   }
   protected [db] val deviceTargets = TableQuery[DeviceUpdateTargetsTable]
 
@@ -118,8 +131,7 @@ object Schema {
     def device = column[DeviceId]("device", O.PrimaryKey)
     def deviceCurrentTarget = column[Int]("device_current_target")
 
-    override def * = (device, deviceCurrentTarget) <>
-      ((DeviceCurrentTarget.apply _).tupled, DeviceCurrentTarget.unapply)
+    override def * = (device, deviceCurrentTarget) <> ((DeviceCurrentTarget.apply _).tupled, DeviceCurrentTarget.unapply)
   }
   protected [db] val deviceCurrentTarget = TableQuery[DeviceCurrentTargetTable]
 
@@ -132,8 +144,7 @@ object Schema {
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 
-    override def * = (role, version, device, expires, fileEntity) <>
-      ((FileCache.apply _).tupled, FileCache.unapply)
+    override def * = (role, version, device, expires, fileEntity) <> ((FileCache.apply _).tupled, FileCache.unapply)
   }
   protected [db] val fileCache = TableQuery[FileCacheTable]
 
@@ -142,7 +153,7 @@ object Schema {
     def targetVersion = column[Int]("target_version")
     def device = column[DeviceId]("device")
     def update = column[Option[UpdateId]]("update_uuid")
-    def status = column[FileCacheRequestStatus.Status]("status")
+    def status = column[FileCacheRequestStatus]("status")
     def timestampVersion = column[Int]("timestamp_version")
 
     def primKey = primaryKey("file_cache_request_pk", (timestampVersion, device))
@@ -152,41 +163,39 @@ object Schema {
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]
 
-  implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
-  type MTURow = (UpdateId, HardwareIdentifier, TargetFilename, HashMethod, Refined[String, ValidChecksum], Long,
-                 Option[TargetFilename], Option[HashMethod], Option[Refined[String, ValidChecksum]], Option[Long], Namespace)
-  class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdate](tag, "multi_target_updates") {
+  class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdateRow](tag, "multi_target_updates") {
     def id = column[UpdateId]("id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def target = column[TargetFilename]("target")
-    def hashMethod = column[HashMethod]("hash_method")
-    def targetHash = column[Refined[String, ValidChecksum]]("target_hash")
-    def targetSize = column[Long]("target_size")
+    def toTarget = column[TargetFilename]("target")
+    def toHashMethod = column[HashMethod]("hash_method")
+    def toTargetHash = column[Refined[String, ValidChecksum]]("target_hash")
+    def toTargetSize = column[Long]("target_size")
     def fromTarget = column[Option[TargetFilename]]("from_target")
     def fromHashMethod = column[Option[HashMethod]]("from_hash_method")
     def fromTargetHash = column[Option[Refined[String, ValidChecksum]]]("from_target_hash")
     def fromTargetSize = column[Option[Long]]("from_target_size")
+    def targetFormat = column[TargetFormat]("target_format")
+    def generateDiff = column[Boolean]("generate_diff")
     def namespace = column[Namespace]("namespace")
 
-    private def fromTargetOption(mtarget: Option[TargetFilename], mhashMethod: Option[HashMethod],
-                                 mhash: Option[Refined[String, ValidChecksum]], msize: Option[Long]): Option[TargetUpdate] = for {
-      target <- mtarget
-      hashMethod <- mhashMethod
-      hash <- mhash
-      size <- msize
-    } yield TargetUpdate(target, Checksum(hashMethod, hash), size)
+    def fromTargetChecksum: Rep[Option[Checksum]] = (fromHashMethod, fromTargetHash) <> (
+      { case (hashMethod, hash) => (hashMethod |@| hash).map(Checksum)},
+      (x: Option[Checksum]) => Some((x.map(_.method), x.map(_.hash)))
+      )
 
-    def * = (id, hardwareId, target, hashMethod, targetHash, targetSize, fromTarget, fromHashMethod, fromTargetHash, fromTargetSize, namespace) <> (
-      (_: MTURow) match {
-        case (id, hardwareId, target, hashMethod, targetHash, targetSize, fromTarget, fromHashMethod, fromTargetHash, fromTargetSize, namespace) =>
-          val from = fromTargetOption(fromTarget, fromHashMethod, fromTargetHash, fromTargetSize)
-          MultiTargetUpdate(id, hardwareId, from, target, Checksum(hashMethod, targetHash), targetSize, namespace)
-      }, (x: MultiTargetUpdate) => {
-        def from[T](fn: TargetUpdate => T): Option[T] = x.fromTarget.map(fn)
-        Some((x.id, x.hardwareId, x.target, x.checksum.method, x.checksum.hash, x.targetLength,
-              from(_.target), from(_.checksum.method), from(_.checksum.hash), from(_.targetLength), x.namespace))
-      }
+    def fromTargetUpdate = (fromTarget, fromTargetChecksum, fromTargetSize) <> (
+      { case (target, checksum, size) => (target |@| checksum |@| size).map(TargetUpdate)},
+      (x : Option[TargetUpdate]) => Some((x.map(_.target), x.map(_.checksum), x.map(_.targetLength)))
     )
+
+    def toTargetChecksum: Rep[Checksum] = (toHashMethod, toTargetHash) <>
+      ((Checksum.apply _).tupled, Checksum.unapply)
+
+    def toTargetUpdate = (toTarget, toTargetChecksum, toTargetSize) <>
+      ((TargetUpdate.apply _).tupled, TargetUpdate.unapply)
+
+    def * = (id, hardwareId, fromTargetUpdate, toTargetUpdate, targetFormat, generateDiff, namespace) <>
+      ((MultiTargetUpdateRow.apply _).tupled, MultiTargetUpdateRow.unapply)
 
     def pk = primaryKey("mtu_pk", (id, hardwareId))
   }

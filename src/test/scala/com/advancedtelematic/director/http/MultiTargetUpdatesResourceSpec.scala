@@ -19,6 +19,6 @@ class MultiTargetUpdatesResourceSpec extends DirectorSpec with DefaultPatience w
     val mtu = GenMultiTargetUpdateRequest.generate
     val id = createMultiTargetUpdateOK(mtu)
 
-    fetchMultiTargetUpdate(id) shouldBe mtu.targets.mapValues(_.to.image)
+    fetchMultiTargetUpdate(id) shouldBe mtu.targets
   }
 }

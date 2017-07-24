@@ -10,7 +10,8 @@ import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, SignatureMethod, SignedPayload, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
+import com.advancedtelematic.libtuf.data.TufDataType.{
+  ClientSignature, SignatureMethod, SignedPayload, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
 import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._

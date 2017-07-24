@@ -13,6 +13,7 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.TufKey
@@ -28,6 +29,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
   def deviceVersion(deviceId: DeviceId): Option[Int] = {
     deviceRepository.getCurrentVersion(deviceId).map(Some.apply).recover{case _ => None}.futureValue
+  }
+
+  def deviceScheduledVersion(deviceId: DeviceId)(implicit ns: NamespaceTag): Int = {
+    fetchTargetsFor(deviceId).signed.version
   }
 
   testWithNamespace("Can register device") { implicit ns =>
@@ -397,5 +402,41 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
 
     deviceVersion(device) shouldBe Some(1)
+  }
+
+  testWithNamespace("Updating don't when failed don't increase current target") { implicit ns =>
+    createRepo
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    val targetImage = GenCustomImage.generate
+    val targets = SetTarget(Map(primEcu -> targetImage))
+    val updateId = UpdateId.generate
+
+    schedule(device, targets, updateId)
+    updateManifestOk(device, deviceManifest)
+
+    val deviceManifest2 = GenSignedDeviceManifest(primEcu, Seq()).generate
+
+    updateManifestOk(device, deviceManifest2)
+    deviceVersion(device) shouldBe Some(2)
+    deviceScheduledVersion(device) shouldBe 2
+
+    // currently device-current-target and device-update-target are both at 2
+    // sending empty device manifest should not update device-current-target to 3
+    updateManifestOk(device, deviceManifest2)
+    deviceVersion(device) shouldBe Some(3)
+    deviceScheduledVersion(device) shouldBe 3
   }
 }

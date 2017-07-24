@@ -4,7 +4,7 @@ import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport,
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors,
   FileCacheRepositorySupport, FileCacheRequestRepositorySupport, MultiTargetUpdatesRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.data.Namespace
@@ -25,12 +25,16 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Done] =
     fileCacheRepository.haveExpired(device,version).flatMap {
-      case true => fileCacheRequestRepository.findTargetVersion(ns, device, version).flatMap {targetVersion =>
-        val fcr = FileCacheRequest(ns, targetVersion, device, None, FileCacheRequestStatus.PENDING, version)
+      case true =>
+        val fcr = FileCacheRequest(ns, version, device, None, FileCacheRequestStatus.PENDING, version)
         rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
-      }
-      case false => FastFuture.successful(Done)
-  }
+      case false =>
+        FastFuture.successful(Done)
+    }.recoverWith {
+      case DBErrors.NoCacheEntry =>
+        val fcr = FileCacheRequest(ns, version, device, None, FileCacheRequestStatus.PENDING, version)
+        rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
+    }
 
   private def nextVersionToFetch(ns: Namespace, device: DeviceId, currentVersion: Int): Future[Int] = {
     val timestampVersion = currentVersion + 1

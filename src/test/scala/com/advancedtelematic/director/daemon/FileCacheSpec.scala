@@ -39,8 +39,9 @@ class FileCacheSpec extends DirectorSpec
 
   def isAvailable[T : Decoder : Encoder](device: DeviceId, file: String): SignedPayload[T] =
     Get(apiUri(s"device/${device.show}/$file")) ~> routes ~> check {
+      val resp = responseAs[SignedPayload[T]]
       status shouldBe StatusCodes.OK
-      responseAs[SignedPayload[T]]
+      resp
     }
 
   def beAfter(other: Instant): Matcher[Instant] = new Matcher[Instant] {

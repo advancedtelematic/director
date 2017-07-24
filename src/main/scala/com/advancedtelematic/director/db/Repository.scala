@@ -192,7 +192,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.device === device)
       .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
       .map(_._2)
-      .map(x => x.id -> x.customImage)
+      .map{ecuTarget => ecuTarget.id -> ecuTarget.customImage}
       .result
       .map(_.toMap)
 
@@ -280,13 +280,15 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .map(_.toMap)
   }
 
-  def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] = db.run {
+  protected [db] def updateExistsAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Boolean] =
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
       .exists
       .result
-  }
+
+  def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] =
+    db.run(updateExistsAction(namespace, device, version))
 }
 
 trait DeviceRepositorySupport {
@@ -406,7 +408,7 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .filter(_.role === RoleType.TIMESTAMP)
       .map(_.expires)
       .result
-      .failIfNotSingle(MissingTimestamp)
+      .failIfNotSingle(NoCacheEntry)
   }.map (_.isBefore(Instant.now()))
 
   def versionIsCached(device: DeviceId, version: Int): Future[Boolean] = db.run {

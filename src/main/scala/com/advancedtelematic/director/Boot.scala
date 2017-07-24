@@ -1,25 +1,28 @@
 package com.advancedtelematic.director
 
+
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
+import com.advancedtelematic.diff_service.client.{DiffServiceDirectorClient}
+import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
-import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
-import com.typesafe.config.{Config, ConfigFactory}
-import java.security.Security
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import com.advancedtelematic.director.client.CoreHttpClient
-import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libats.monitoring.MetricsSupport
+import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
+import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter, InfluxDbMetricsReporterSettings, OsMetricSet}
 import com.codahale.metrics.jvm.ThreadStatesGaugeSet
+import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Decoder
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.slf4j.LoggerFactory
 
 trait Settings {
@@ -36,9 +39,9 @@ trait Settings {
   val host = config.getString("server.host")
   val port = config.getInt("server.port")
 
-  val tufUri = mkUri(config, "tuf.uri")
+  val tufUri = mkUri(config, "keyserver.uri")
   val coreUri = mkUri(config, "core.uri")
-
+  val tufBinaryUri = mkUri(config, "tuf.binary.uri")
 
   val metricsReporterSettings: Option[InfluxDbMetricsReporterSettings] = {
     import com.advancedtelematic.circe.config.finiteDurationDecoder
@@ -75,6 +78,10 @@ object Boot extends BootApp
   val coreClient = new CoreHttpClient(coreUri)
   val tuf = new KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
+  val diffService = new DiffServiceDirectorClient(tufBinaryUri)
+
+  val rolesGeneration = new RolesGeneration(tuf, diffService)
+  val roles = new Roles(rolesGeneration)
 
   Security.addProvider(new BouncyCastleProvider())
   metricsReporterSettings.foreach{ x =>
@@ -86,7 +93,7 @@ object Boot extends BootApp
   val routes: Route =
     new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route ~
     (versionHeaders(version) & logResponseMetrics(projectName)) {
-      new DirectorRoutes(SignatureVerification.verify, coreClient, tuf).routes
+      new DirectorRoutes(SignatureVerification.verify, coreClient, tuf, roles, diffService).routes
     }
 
   Http().bindAndHandle(routes, host, port)

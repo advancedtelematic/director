@@ -12,14 +12,14 @@ import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, Operat
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, FakeCoreClient, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.TufKey
 import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with ResourceSpec with Requests {
+    with FileCacheDB with ResourceSpec with NamespacedRequests {
 
   def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
     SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
@@ -30,7 +30,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     deviceRepository.getCurrentVersion(deviceId).map(Some.apply).recover{case _ => None}.futureValue
   }
 
-  test("Can register device") {
+  testWithNamespace("Can register device") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -41,7 +41,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     registerDeviceOk(regDev)
   }
 
-  test("Can't register device with primary ECU not in `ecus`") {
+  testWithNamespace("Can't register device with primary ECU not in `ecus`") { implicit ns =>
     val device = DeviceId.generate()
     val primEcu = GenEcuSerial.generate
     val ecus = GenRegisterEcu.atMost(5).generate.filter(_.ecu_serial != primEcu)
@@ -51,7 +51,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     registerDeviceExpected(regDev, StatusCodes.BadRequest)
   }
 
-  test("Device can update a registered device") {
+  testWithNamespace("Device can update a registered device") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -68,7 +68,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
   }
 
-  test("Device can update a registered device (legacy device manifest)") {
+  testWithNamespace("Device can update a registered device (legacy device manifest)") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -85,7 +85,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateLegacyManifestOk(device, deviceManifest)
   }
 
-  test("Device must have the ecu given as primary") {
+  testWithNamespace("Device must have the ecu given as primary") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -104,7 +104,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestExpect(device, deviceManifest, StatusCodes.NotFound)
   }
 
-  test("Device need to have the correct primary") {
+  testWithNamespace("Device need to have the correct primary") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -124,7 +124,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
   }
 
-  test("Device update will only update correct ecus") {
+  testWithNamespace("Device update will only update correct ecus") { implicit ns =>
     val taintedKeys = new ConcurrentHashMap[PublicKey, Unit]() // this is like a set
     def testVerifier(c: TufKey): Verifier.Verifier =
       if (taintedKeys.contains(c.keyval)) {
@@ -177,7 +177,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     }
   }
 
-  test("Can set target for device") {
+  testWithNamespace("Can set target for device") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -192,7 +192,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     setTargetsOk(device, targets)
   }
 
-  test("Device can update to set target") {
+  testWithNamespace("Device can update to set target") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -220,7 +220,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifestTarget)
   }
 
-  test("Device can report current current") {
+  testWithNamespace("Device can report current current") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -243,7 +243,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
   }
 
-  test("Successful campaign update is reported to core") {
+  testWithNamespace("Successful campaign update is reported to core") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -274,10 +274,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     updateManifestOk(device, deviceManifestTarget)
 
-    FakeCoreClient.getReport(updateId) shouldBe Seq(operation)
+    coreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
-  test("Failed campaign update is reported to core and cancels remaing") {
+  testWithNamespace("Failed campaign update is reported to core and cancels remaing") { implicit ns =>
 
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -310,10 +310,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     updateManifestOk(device, deviceManifestTarget)
 
-    FakeCoreClient.getReport(updateId) shouldBe Seq(operation)
+    coreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
-  test("Device update to target counts as failed campaign") {
+  testWithNamespace("Device update to target counts as failed campaign") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -345,10 +345,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     updateManifestOk(device, deviceManifestTarget)
 
-    FakeCoreClient.getReport(updateId).map(_.result_code) shouldBe Seq(4)
+    coreClient.getReport(updateId).map(_.result_code) shouldBe Seq(4)
   }
 
-  test("Update where the device is already") {
+  testWithNamespace("Update where the device is already") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -364,7 +364,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
 
     val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri())))
+    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
     val updateId = UpdateId.generate
 
     schedule(device, targets, updateId)
@@ -373,7 +373,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     deviceVersion(device) shouldBe Some(1)
   }
 
-  test("First Device can also update") {
+  testWithNamespace("First Device can also update") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial

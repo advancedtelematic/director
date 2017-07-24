@@ -3,7 +3,7 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo, Image}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Errors => DBErrors}
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.Namespace
@@ -50,5 +50,5 @@ object CampaignWorker extends AdminRepositorySupport {
   private def getImage(cl: CampaignLaunched): Try[CustomImage] = for {
     hash <- cl.pkgChecksum.refineTry[ValidChecksum]
     filepath <- cl.pkg.mkString.refineTry[ValidTargetFilename]
-  } yield CustomImage(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt), cl.pkgUri)
+  } yield CustomImage(Image(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt)), cl.pkgUri, None)
 }

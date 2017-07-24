@@ -5,6 +5,7 @@ import com.advancedtelematic.director.db.SetMultiTargets
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.OSTREE
 import eu.timepit.refined.api.Refined
 
 class TufTargetWorkerSpec extends DirectorSpec with ResourceSpec {
@@ -22,7 +23,7 @@ class TufTargetWorkerSpec extends DirectorSpec with ResourceSpec {
     val hwAndCurrent = Seq(hw0 -> tu0, hw1 -> tu1, hw0 -> tu0,
                            hw2 -> tu0, hw2 -> tu1)
 
-    val mtu = tufTargetWorker.fromHwAndCurrentToRequest(hwAndCurrent, tu1)
+    val mtu = tufTargetWorker.fromHwAndCurrentToRequest(hwAndCurrent, OSTREE, tu1)
 
     mtu.targets.foreach { case (hw, req) =>
       req.to shouldBe tu1
@@ -40,7 +41,7 @@ class TufTargetWorkerSpec extends DirectorSpec with ResourceSpec {
 
     val mtus = tufTargetWorker.createRequests(Map(device1 -> hwAndCurrent,
                                                   device2 -> hwAndCurrent),
-                                              tu1)
+                                              OSTREE, tu1)
     mtus.size shouldBe 1
 
     mtus.foreach { case (mtu, devices) =>

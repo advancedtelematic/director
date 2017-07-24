@@ -8,6 +8,7 @@ import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
 import io.circe.{Decoder, Encoder, JsonObject}
+import com.advancedtelematic.libats.codecs.AkkaCirce._
 
 object Codecs {
   import AdminRequest._
@@ -17,8 +18,14 @@ object Codecs {
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder
 
+  implicit val decoderDiffInfo: Decoder[DiffInfo] = deriveDecoder
+  implicit val encoderDiffInfo: Encoder[DiffInfo] = deriveEncoder
+
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
+
+  implicit val decoderTargetCustom: Decoder[TargetCustom] = deriveDecoder
+  implicit val encoderTargetCustom: Encoder[TargetCustom] = deriveEncoder
 
   implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder
   implicit val encoderCustomImage: Encoder[CustomImage] = deriveEncoder

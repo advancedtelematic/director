@@ -2,7 +2,6 @@ package com.advancedtelematic.diff_service.client
 
 import akka.Done
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.Uri.Path.Empty
 import com.advancedtelematic.diff_service.data.DataType.CreateDiffInfoRequest
 import com.advancedtelematic.diff_service.db.{BsDiffRepositorySupport, StaticDeltaRepositorySupport}
 import com.advancedtelematic.diff_service.db.Errors._
@@ -33,7 +32,7 @@ object DiffServiceDirectorClient
   def convertToCommit(targetUpdate: TargetUpdate): Commit = convertChecksumToCommit(targetUpdate.checksum)
 
   def convertToBinaryUri(binaryUri: Uri, targetUpdate: TargetUpdate): Uri =
-    binaryUri.withPath(Empty / targetUpdate.target.value)
+    binaryUri.withPath(binaryUri.path / targetUpdate.target.value)
 }
 
 class DiffServiceDirectorClient(binaryUri: Uri)

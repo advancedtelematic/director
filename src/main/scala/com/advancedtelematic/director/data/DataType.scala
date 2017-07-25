@@ -42,7 +42,7 @@ object DataType {
 
   final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
 
-  final case class TargetCustom(ecu_serial: EcuSerial, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
+  final case class TargetCustom(ecuIdentifier: EcuSerial, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, tufKey: TufKey) {

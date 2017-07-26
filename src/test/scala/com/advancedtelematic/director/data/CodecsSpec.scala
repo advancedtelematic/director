@@ -2,12 +2,12 @@ package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image}
+import com.advancedtelematic.director.data.DataType.{FileInfo, Image, TargetUpdate}
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, HashMethod, UpdateId, ValidChecksum, ValidEcuSerial}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{
@@ -233,5 +233,15 @@ class CodecsSpec extends DirectorSpec {
     example(legacy_device_manifest_sample, legacy_device_manifest_parsed, "legacy")
 
     example(device_manifest_sample, device_manifest_parsed, "normal")
+  }
+
+  {
+    val sample = """{"filepath": "/file2.txt", "fileinfo": {"hashes": {"sha256": "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a"}, "length": 21}}"""
+
+    val targetUpdate = TargetUpdate(Refined.unsafeApply("/file2.txt"),
+                                    Checksum(HashMethod.SHA256, "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+                                    21)
+
+    exampleDecode(sample, targetUpdate, "TargetUpdate can be decoded as an Image")
   }
 }

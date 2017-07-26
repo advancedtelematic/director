@@ -54,11 +54,19 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
   private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],
                                      clientReport: Option[Map[EcuSerial, OperationResult]]): Future[DeviceManifestUpdateResult] =
     DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).map {
-      case DeviceUpdateResult.NoChange() => NoChange()
+      case DeviceUpdateResult.NoChange => NoChange()
       case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, None) => SuccessWithoutUpdateId()
       case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, Some(updateId)) =>
         SuccessWithUpdateId(namespace, device, updateId, nextVersion, clientReport)
-      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, targets, manifest) =>
+      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, None, manifest) =>
+        _log.error(s"Device ${device.show} updated when no update was available")
+        _log.info {
+          s"""currentVersion: $currentVersion
+             |manifest      : $manifest
+           """.stripMargin
+        }
+        Failed(namespace, device, currentVersion, None)
+      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, Some(targets), manifest) =>
         _log.error(s"Device ${device.show} updated to the wrong target")
         _log.info {
           s"""version : ${currentVersion + 1}

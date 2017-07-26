@@ -35,7 +35,13 @@ object DataType {
   import RoleType.RoleType
 
   final case class FileInfo(hashes: Hashes, length: Long)
-  final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
+  final case class Image(filepath: TargetFilename, fileinfo: FileInfo) {
+    def toTargetUpdate: TargetUpdate = {
+      val (method, hash) = fileinfo.hashes.head
+      val checksum = Checksum(method, hash)
+      TargetUpdate(filepath, checksum, fileinfo.length)
+    }
+  }
 
   final case class CustomImage(image: Image, uri: Uri, diffFormat: Option[TargetFormat])
   final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])

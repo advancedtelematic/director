@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.server.Directive1
+import akka.http.scaladsl.server.{Directive0, Directive1}
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, LegacyDeviceManifest}
@@ -11,6 +11,7 @@ import com.advancedtelematic.director.roles.Roles
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
@@ -37,6 +38,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
 
+  def logDevice(namespace: Namespace, device: DeviceId): Directive0 = {
+    val f = messageBusPublisher.publishSafe(DeviceSeen(namespace, device))
+    onComplete(f).flatMap(_ => pass)
+  }
+
   def fetchRoot(namespace: Namespace): Route = {
     val f = repoNameRepository.getRepo(namespace).flatMap { repo =>
       keyserverClient.fetchRootRole(repo)
@@ -61,7 +67,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       put {
-        path("manifest") {
+        (path("manifest") & logDevice(ns, device)) {
           entity(as[SignedPayload[DeviceManifest]]) { devMan =>
             complete(deviceManifestUpdate.setDeviceManifest(ns, device, devMan))
           } ~
@@ -71,7 +77,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       get {
-        path(RoleType.JsonRoleTypeMetaPath) {
+        (path(RoleType.JsonRoleTypeMetaPath) & logDevice(ns, device)) {
           case RoleType.ROOT => fetchRoot(ns)
           case RoleType.TARGETS =>
             val f = roles.fetchTargets(ns, device)

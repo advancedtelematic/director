@@ -130,7 +130,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     affected shouldBe Seq(device2)
   }
 
-  test("mutli_target_upates update success") {
+  test("mutli_target_updates update success") {
     withRandomNamespace { implicit ns =>
       val (device, prim, ecu) = registerDevice(ahw)
       sendManifest(device, prim)(prim -> ato)
@@ -154,7 +154,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     }
   }
 
-  test("mutli_target_upates update device reports wrong") {
+  test("mutli_target_updates update device reports wrong") {
     withRandomNamespace { implicit ns =>
       val (device, prim, ecu) = registerDevice(ahw)
       sendManifest(device, prim)(prim -> ato)

@@ -37,6 +37,36 @@ class SetMultiTargetSpec extends DirectorSpec
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri(), None))
   }
 
+  test("can schedule a multi-target update for several devices") {
+    val device0 = DeviceId.generate
+    val device1 = DeviceId.generate
+    val primEcuReg0 = GenRegisterEcu.generate
+    val primEcuReg1 = GenRegisterEcu.generate.copy(hardware_identifier = Some(primEcuReg0.hardwareId))
+    val primEcu0 = primEcuReg0.ecu_serial
+    val primEcu1 = primEcuReg1.ecu_serial
+
+    val regDev0 = RegisterDevice(device0, primEcu0, Seq(primEcuReg0))
+    val regDev1 = RegisterDevice(device1, primEcu1, Seq(primEcuReg1))
+
+    registerDeviceOk(regDev0)
+    registerDeviceOk(regDev1)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val mtu = MultiTargetUpdateRequest(Map(primEcuReg0.hardwareId -> targetUpdate))
+
+    val mtuId = createMultiTargetUpdateOK(mtu)
+
+    val affected = setMultiTargets.setMultiUpdateTargetsForDevices(defaultNs, Seq(device0, device1), mtuId).futureValue
+
+    affected.toSet shouldBe Set(device0, device1)
+
+    val update0 = adminRepository.fetchTargetVersion(defaultNs, device0, 1).futureValue
+    update0 shouldBe Map(primEcu0 -> CustomImage(targetUpdate.to.image, Uri(), None))
+
+    val update1 = adminRepository.fetchTargetVersion(defaultNs, device1, 1).futureValue
+    update1 shouldBe Map(primEcu1 -> CustomImage(targetUpdate.to.image, Uri(), None))
+  }
+
   test("only ecus that match the hardwareId will be scheduled") {
     val device = DeviceId.generate
     val primEcuReg = GenRegisterEcu.generate

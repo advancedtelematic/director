@@ -557,10 +557,18 @@ trait UpdateTypesRepositorySupport {
 }
 
 protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionContext) {
-  protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] =
-    (Schema.updateTypes += ((updateId, ofType)))
-      .handleIntegrityErrors(ConflictingUpdateType)
-      .map(_ => ())
+  protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] = {
+    Schema.updateTypes
+      .filter(_.update === updateId)
+      .filter(_.updateType === ofType)
+      .exists
+      .result.flatMap {
+      case true => DBIO.successful(())
+      case false => (Schema.updateTypes += ((updateId, ofType)))
+          .handleIntegrityErrors(ConflictingUpdateType)
+          .map(_ => ())
+    }
+  }
 
   protected [db] def getTypeAction(updateId: UpdateId): DBIO[UpdateType] =
     Schema.updateTypes

@@ -67,7 +67,6 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       targets <- resolve(namespace, device, hwRows)
       new_version <- SetTargets.setDeviceTargetAction(namespace, device, Some(updateId), targets)
       _ <- launchedMultiTargetUpdateRepository.persistAction(LaunchedMultiTargetUpdate(device, updateId, new_version, LaunchedMultiTargetUpdateStatus.Pending))
-      _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield device
 
     dbAct.transactionally
@@ -86,6 +85,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
       _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
+      _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield toUpdate
 
     db.run(dbAct.transactionally).flatMap { scheduled =>

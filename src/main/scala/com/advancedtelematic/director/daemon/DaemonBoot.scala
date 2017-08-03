@@ -1,7 +1,5 @@
 package com.advancedtelematic.director.daemon
 
-import akka.Done
-import akka.actor.ActorRef
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
@@ -13,15 +11,11 @@ import com.advancedtelematic.director.roles.RolesGeneration
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.{BootApp, HealthResource}
-import com.advancedtelematic.libats.messaging.{MessageBus, MessageListener}
-import com.advancedtelematic.libats.messaging.daemon.MessageBusListenerActor.Subscribe
-import com.advancedtelematic.libats.messaging.Messages.MessageLike
-import com.advancedtelematic.libats.messaging_datatype.Messages.{
-  CampaignLaunched, BsDiffGenerationFailed, DeltaGenerationFailed, GeneratedDelta, GeneratedBsDiff, UserCreated}
-import com.advancedtelematic.libats.monitoring.MetricsSupport
+import com.advancedtelematic.libats.messaging.{BusListenerMetricSet, MessageBus, MessageListenerSupport}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, CampaignLaunched, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
+import com.advancedtelematic.libats.monitoring.{MetricsSupport, PrefixedMetricSet}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
-import scala.concurrent.Future
 
 object DaemonBoot extends BootApp
     with Settings
@@ -29,7 +23,9 @@ object DaemonBoot extends BootApp
     with BootMigrations
     with DatabaseConfig
     with MetricsSupport
-    with DatabaseMetrics {
+    with DatabaseMetrics
+    with MessageListenerSupport {
+
   import com.advancedtelematic.libats.http.LogDirectives._
   import com.advancedtelematic.libats.http.VersionDirectives._
 
@@ -45,29 +41,23 @@ object DaemonBoot extends BootApp
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(rolesGeneration), "filecache-daemon")
 
-  def startMessageListener[T](action: T => Future[Done])(implicit ml: MessageLike[T]): ActorRef = {
-    val actor = system.actorOf(MessageListener.props[T](config, action), ml.streamName + "-listener")
-    actor ! Subscribe
-    actor
-  }
-
   val createRepoWorker = new CreateRepoWorker(new DirectorRepo(tuf))
-  val userCreatedBusListener = startMessageListener[UserCreated](createRepoWorker.action)
+  val userCreatedBusListener = startListener[UserCreated](createRepoWorker.action)
 
-  val campaignCreatedListener = startMessageListener[CampaignLaunched](CampaignWorker.action)
+  val campaignCreatedListener = startListener[CampaignLaunched](CampaignWorker.action)
 
   val diffListener = new DiffListener
-  val generatedDeltaListener = startMessageListener[GeneratedDelta](diffListener.generatedDeltaAction)
-  val generatedBsDiffListener = startMessageListener[GeneratedBsDiff](diffListener.generatedBsDiffAction)
-  val deltaGenerationFailedListener = startMessageListener[DeltaGenerationFailed](diffListener.deltaGenerationFailedAction)
-  val bsDiffGenerationFailedListener = startMessageListener[BsDiffGenerationFailed](diffListener.bsDiffGenerationFailedAction)
+  val generatedDeltaListener = startListener[GeneratedDelta](diffListener.generatedDeltaAction)
+  val generatedBsDiffListener = startListener[GeneratedBsDiff](diffListener.generatedBsDiffAction)
+  val deltaGenerationFailedListener = startListener[DeltaGenerationFailed](diffListener.deltaGenerationFailedAction)
+  val bsDiffGenerationFailedListener = startListener[BsDiffGenerationFailed](diffListener.bsDiffGenerationFailedAction)
 
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
-  val tufTargetAddedListener = startMessageListener[TufTargetAdded](tufTargetWorker.action)
+  val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
-    new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route
+    new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap, PrefixedMetricSet.withDefault(Seq(BusListenerMetricSet))).route
   }
 
   Http().bindAndHandle(routes, host, port)

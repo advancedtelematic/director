@@ -218,8 +218,8 @@ class AdminResource(extractNamespace: Directive1[Namespace],
         (get & path("affected")) {
           findAffectedDevices(ns)
         } ~
-        (get & path("installed_count")) {
-          countInstalledImages(ns)
+        (post & path("installed_count")) { // this is post because front-end can't send
+          countInstalledImages(ns)         // request body with get
         }
       } ~
       multiTargetUpdatesRoute(ns) ~

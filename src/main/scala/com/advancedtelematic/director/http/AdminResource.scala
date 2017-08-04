@@ -7,7 +7,7 @@ import akka.http.scaladsl.server.PathMatcher1
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
-import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
@@ -17,7 +17,7 @@ import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -95,8 +95,8 @@ class AdminResource(extractNamespace: Directive1[Namespace],
   }
 
   def countInstalledImages(namespace: Namespace): Route =
-    entity(as[Seq[TargetFilename]]) { filepaths =>
-      complete(adminRepository.countInstalledImages(namespace, filepaths))
+    entity(as[FindImageCount]) { findReq =>
+      complete(adminRepository.countInstalledImages(namespace, findReq.filepaths))
     }
 
   def findAffectedDevices(namespace: Namespace): Route =

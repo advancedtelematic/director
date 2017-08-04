@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.{HttpRequest, StatusCode, StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, QueueResponse, RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, FindImageCount, QueueResponse, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, LegacyDeviceManifest}
@@ -191,7 +191,7 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
 
   def getCountInstalledImages(filepaths: Seq[TargetFilename])
                              (implicit ns: NamespaceTag): Map[TargetFilename, Int] = {
-    Get(Uri(apiUri(s"admin/images/installed_count")), filepaths.asJson).namespaced ~> routes ~> check {
+    Get(Uri(apiUri(s"admin/images/installed_count")), FindImageCount(filepaths)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Map[TargetFilename, Int]]
     }

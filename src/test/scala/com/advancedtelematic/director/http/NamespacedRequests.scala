@@ -191,7 +191,7 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
 
   def getCountInstalledImages(filepaths: Seq[TargetFilename])
                              (implicit ns: NamespaceTag): Map[TargetFilename, Int] = {
-    Get(Uri(apiUri(s"admin/images/installed_count")), FindImageCount(filepaths)).namespaced ~> routes ~> check {
+    Post(Uri(apiUri(s"admin/images/installed_count")), FindImageCount(filepaths)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Map[TargetFilename, Int]]
     }

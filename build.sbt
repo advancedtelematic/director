@@ -105,3 +105,4 @@ Release.settings
 
 enablePlugins(Versioning.Plugin)
 
+fork := true

@@ -10,12 +10,13 @@ import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.roles.RolesGeneration
 import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
-import com.advancedtelematic.libats.http.{BootApp, HealthResource}
-import com.advancedtelematic.libats.messaging.{BusListenerMetricSet, MessageBus, MessageListenerSupport}
+import com.advancedtelematic.libats.http.BootApp
+import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, CampaignLaunched, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
-import com.advancedtelematic.libats.monitoring.{MetricsSupport, PrefixedMetricSet}
+import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
+import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter}
 
 object DaemonBoot extends BootApp
     with Settings
@@ -56,8 +57,12 @@ object DaemonBoot extends BootApp
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
   val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
 
+  metricsReporterSettings.foreach{ reporterSettings =>
+    InfluxDbMetricsReporter.start(reporterSettings, metricRegistry, AkkaHttpMetricsSink.apply(reporterSettings))
+  }
+
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
-    new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap, PrefixedMetricSet.withDefault(Seq(BusListenerMetricSet))).route
+    DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
   }
 
   Http().bindAndHandle(routes, host, port)

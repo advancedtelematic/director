@@ -4,12 +4,12 @@ package com.advancedtelematic.director
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
-import com.advancedtelematic.diff_service.client.{DiffServiceDirectorClient}
+import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
 import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
-import com.advancedtelematic.libats.http.{BootApp, HealthResource}
+import com.advancedtelematic.libats.http.{BootApp}
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.messaging.MessageBus
@@ -22,6 +22,7 @@ import com.codahale.metrics.jvm.ThreadStatesGaugeSet
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Decoder
 import java.security.Security
+
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.slf4j.LoggerFactory
 
@@ -34,14 +35,14 @@ trait Settings {
     uri
   }
 
-  lazy val config = ConfigFactory.load()
+  private lazy val _config = ConfigFactory.load()
 
-  val host = config.getString("server.host")
-  val port = config.getInt("server.port")
+  val host = _config.getString("server.host")
+  val port = _config.getInt("server.port")
 
-  val tufUri = mkUri(config, "keyserver.uri")
-  val coreUri = mkUri(config, "core.uri")
-  val tufBinaryUri = mkUri(config, "tuf.binary.uri")
+  val tufUri = mkUri(_config, "keyserver.uri")
+  val coreUri = mkUri(_config, "core.uri")
+  val tufBinaryUri = mkUri(_config, "tuf.binary.uri")
 
   val metricsReporterSettings: Option[InfluxDbMetricsReporterSettings] = {
     import com.advancedtelematic.circe.config.finiteDurationDecoder
@@ -53,7 +54,7 @@ trait Settings {
         else Decoder.const(None)
       }
     import com.advancedtelematic.circe.config.decodeConfigAccumulating
-    decodeConfigAccumulating(config)(metricsReporterDecoder.prepare(_.downField("ats").downField("metricsReporter"))).fold ({ x =>
+    decodeConfigAccumulating(_config)(metricsReporterDecoder.prepare(_.downField("ats").downField("metricsReporter"))).fold ({ x =>
       val errorMessage = s"Invalid service configuration: ${x.show}"
       LoggerFactory.getLogger(this.getClass).error(errorMessage)
       throw new Throwable(errorMessage)
@@ -84,6 +85,7 @@ object Boot extends BootApp
   val roles = new Roles(rolesGeneration)
 
   Security.addProvider(new BouncyCastleProvider())
+
   metricsReporterSettings.foreach{ x =>
     metricRegistry.register("jvm.thread", new ThreadStatesGaugeSet())
     metricRegistry.register("jvm.os", OsMetricSet)
@@ -91,7 +93,7 @@ object Boot extends BootApp
   }
 
   val routes: Route =
-    new HealthResource(Seq(DbHealthResource.HealthCheck(db)), versionMap).route ~
+    DbHealthResource(versionMap).route ~
     (versionHeaders(version) & logResponseMetrics(projectName)) {
       new DirectorRoutes(SignatureVerification.verify, coreClient, tuf, roles, diffService).routes
     }

@@ -470,6 +470,8 @@ trait RepoNameRepositorySupport {
 }
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
+  import akka.NotUsed
+  import akka.stream.scaladsl.Source
   import DataType.RepoName
 
   def getRepo(ns: Namespace): Future[RepoId] = db.run {
@@ -488,6 +490,8 @@ protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext
   }
 
   def persist(ns: Namespace, repoId: RepoId): Future[RepoName] = db.run(persistAction(ns, repoId))
+
+  def streamNamespaces: Source[Namespace, NotUsed] = Source.fromPublisher(db.stream(Schema.repoNames.map(_.ns).result))
 }
 
 trait MultiTargetUpdatesRepositorySupport {

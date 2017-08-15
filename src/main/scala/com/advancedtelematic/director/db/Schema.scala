@@ -71,8 +71,8 @@ object Schema {
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def fileInfo = (checksum, length) <>
-      ( { case (checksum, length) => FileInfo(Map(checksum.method -> checksum.hash), length)},
-        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes(HashMethod.SHA256)), x.length))
+      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
       )
     def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
 
@@ -104,8 +104,8 @@ object Schema {
     def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
 
     def fileInfo = (checksum, length) <>
-      ( { case (checksum, length) => FileInfo(Map(checksum.method -> checksum.hash), length)},
-        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes(HashMethod.SHA256)), x.length))
+      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
       )
 
     def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)

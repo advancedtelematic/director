@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.data
 
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
-import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.Json
 
 import java.time.Instant
@@ -15,9 +14,6 @@ object DeviceRequest {
                                ecu_serial: EcuSerial,
                                attacks_detected: String,
                                custom: Option[Json] = None)
-
-  final case class LegacyDeviceManifest(primary_ecu_serial: EcuSerial,
-                                        ecu_version_manifest: Seq[SignedPayload[EcuManifest]])
 
   final case class DeviceManifest(primary_ecu_serial: EcuSerial,
                                   ecu_version_manifests: Map[EcuSerial, Json])

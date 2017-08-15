@@ -6,7 +6,8 @@ import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, FindImageCount, QueueResponse, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, LegacyDeviceManifest}
+import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
+import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
@@ -46,18 +47,18 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
       status shouldBe StatusCodes.OK
     }
 
-  def updateManifest(device: DeviceId, manifest: SignedPayload[DeviceManifest])(implicit ns: NamespaceTag): HttpRequest =
+  def updateManifest(device: DeviceId, manifest: SignedPayload[Json])(implicit ns: NamespaceTag): HttpRequest =
     Put(apiUri(s"device/${device.show}/manifest"), manifest).namespaced
 
-  def updateManifestOk(device: DeviceId, manifest: SignedPayload[DeviceManifest])(implicit ns: NamespaceTag): Unit =
+  def updateManifestOk(device: DeviceId, manifest: SignedPayload[Json])(implicit ns: NamespaceTag): Unit =
     updateManifestOkWith(device, manifest, routes)
 
-  def updateManifestOkWith(device: DeviceId, manifest: SignedPayload[DeviceManifest], withRoutes: Route)(implicit ns: NamespaceTag): Unit =
+  def updateManifestOkWith(device: DeviceId, manifest: SignedPayload[Json], withRoutes: Route)(implicit ns: NamespaceTag): Unit =
     updateManifest(device, manifest) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
     }
 
-  def updateManifestExpect(device: DeviceId, manifest: SignedPayload[DeviceManifest], expected: StatusCode)(implicit ns: NamespaceTag): Unit =
+  def updateManifestExpect(device: DeviceId, manifest: SignedPayload[Json], expected: StatusCode)(implicit ns: NamespaceTag): Unit =
     updateManifest(device, manifest) ~> routes ~> check {
       status shouldBe expected
     }

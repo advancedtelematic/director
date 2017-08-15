@@ -3,7 +3,6 @@ package com.advancedtelematic.director.data
 import java.security.PublicKey
 
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, TufKey}
 
 object AdminRequest {

@@ -1,5 +1,9 @@
 package com.advancedtelematic.director.data
 
+import cats.instances.list._
+import cats.instances.either._
+import cats.syntax.either._
+import cats.syntax.traverse._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.libats.codecs.AkkaCirce._
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -8,8 +12,8 @@ import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
-import io.circe.{Decoder, Encoder, Json, JsonObject}
 import io.circe.syntax._
+import io.circe.{Decoder, Encoder, Json, JsonObject}
 
 object Codecs {
   import AdminRequest._
@@ -21,6 +25,9 @@ object Codecs {
 
   implicit val decoderDiffInfo: Decoder[DiffInfo] = deriveDecoder
   implicit val encoderDiffInfo: Encoder[DiffInfo] = deriveEncoder
+
+  implicit val decoderHashes: Decoder[Hashes] = deriveDecoder
+  implicit val encoderHashes: Encoder[Hashes] = deriveEncoder
 
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
@@ -41,11 +48,18 @@ object Codecs {
                        })
   }
 
-  implicit val decoderLegacyDeviceManifest: Decoder[LegacyDeviceManifest] = deriveDecoder
-  implicit val encoderLegacyDeviceManifest: Encoder[LegacyDeviceManifest] = deriveEncoder
-
-  implicit val decoderDeviceManifest: Decoder[DeviceManifest] = deriveDecoder
-  implicit val encoderDeviceManifest: Encoder[DeviceManifest] = deriveEncoder
+  implicit val decoderDeviceManifest: Decoder[DeviceManifest] = Decoder.instance { cursor =>
+    cursor.downField("primary_ecu_serial").as[EcuSerial].flatMap { primEcu =>
+      cursor.downField("ecu_version_manifests").as[Option[Map[EcuSerial, Json]]].flatMap {
+        case Some(map) => Right(DeviceManifest(primEcu, map))
+        // the legacy format
+        case None => cursor.downField("ecu_version_manifest").as[Seq[Json]].flatMap { signedEcus =>
+          signedEcus.toList.traverseU(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
+            .map(ecus => DeviceManifest(primEcu, ecus.toMap))
+        }
+      }
+    }
+  }
 
   implicit val decoderDeviceRegistration: Decoder[DeviceRegistration] = deriveDecoder
   implicit val encoderDeviceRegistration: Encoder[DeviceRegistration] = deriveEncoder

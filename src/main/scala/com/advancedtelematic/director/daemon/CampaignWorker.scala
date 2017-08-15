@@ -3,12 +3,12 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo, Image}
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileInfo, Hashes, Image}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Errors => DBErrors}
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, HashMethod, UpdateId, ValidChecksum, ValidTargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId, ValidChecksum, ValidTargetFilename}
 import com.advancedtelematic.libats.messaging_datatype.Messages.CampaignLaunched
 import org.slf4j.LoggerFactory
 
@@ -50,5 +50,5 @@ object CampaignWorker extends AdminRepositorySupport {
   private def getImage(cl: CampaignLaunched): Try[CustomImage] = for {
     hash <- cl.pkgChecksum.refineTry[ValidChecksum]
     filepath <- cl.pkg.mkString.refineTry[ValidTargetFilename]
-  } yield CustomImage(Image(filepath, FileInfo(Map(HashMethod.SHA256 -> hash), cl.pkgSize.toInt)), cl.pkgUri, None)
+  } yield CustomImage(Image(filepath, FileInfo(Hashes(hash), cl.pkgSize.toInt)), cl.pkgUri, None)
 }

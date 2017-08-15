@@ -2,8 +2,9 @@ package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
+import com.advancedtelematic.director.data.DataType.{FileInfo, Hashes, Image, TargetUpdate, TargetUpdateRequest}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, OperationResult}
+import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -12,7 +13,7 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{
   ClientSignature, SignatureMethod, SignedPayload, TargetFormat, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, Json}
 import io.circe.parser._
 import io.circe.syntax._
 import java.time.Instant
@@ -57,7 +58,7 @@ class CodecsSpec extends DirectorSpec {
     val length = 21
     val sha256 = "303e3a1e1ad2c60dd0d6f4ee377a0a3f4113981191676197e5e8e642faebe4fa"
     val sample = s"""{"filepath":"$filepath", "fileinfo": {"hashes": {"sha256": "$sha256"}, "length": $length} }"""
-    val parsed = Image(Refined.unsafeApply(filepath), FileInfo(Map(HashMethod.SHA256 -> sha256.refineTry[ValidChecksum].get), length))
+    val parsed = Image(Refined.unsafeApply(filepath), FileInfo(Hashes(sha256.refineTry[ValidChecksum].get), length))
 
     example(sample, parsed)
   }
@@ -75,7 +76,7 @@ class CodecsSpec extends DirectorSpec {
                              installed_image = Image(
                                filepath = Refined.unsafeApply("/file2.txt"),
                                fileinfo = FileInfo(
-                                 hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+                                 hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
                                  length = 21)),
                              previous_timeserver_time = Instant.ofEpochSecond(1476461163),
                              ecu_serial = "ecu11111".refineTry[ValidEcuSerial].get,
@@ -153,7 +154,7 @@ class CodecsSpec extends DirectorSpec {
       installed_image = Image(
         filepath = Refined.unsafeApply("/file2.txt"),
         fileinfo = FileInfo(
-          hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+          hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
           length = 21)),
       previous_timeserver_time = Instant.ofEpochSecond(1476461163),
       ecu_serial = "ecu11111".refineTry[ValidEcuSerial].get,
@@ -212,7 +213,7 @@ class CodecsSpec extends DirectorSpec {
                                installed_image = Image(
                                  filepath = Refined.unsafeApply("/file2.txt"),
                                  fileinfo = FileInfo(
-                                   hashes = Map(HashMethod.SHA256 -> "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+                                   hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
                                    length = 21)),
                                previous_timeserver_time = Instant.ofEpochSecond(1476461163),
                                ecu_serial = ecuSerial,
@@ -220,19 +221,21 @@ class CodecsSpec extends DirectorSpec {
 
     // notice that legacy spelled it `ecu_version_manifest` rather than `ecu_version_manifests`, and did not use a Map
     // but only had a sequence of signed ecu_manifests
-    val legacy_device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifest": [$ecu_manifest_sample]}""")
-    val device_manifest_sample: String = wrapSample(s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}}""")
-
-    val legacy_device_manifest_parsed: SignedPayload[LegacyDeviceManifest] =
-      wrapSigned(LegacyDeviceManifest(ecuSerial, Seq(ecu_manifest_sample_parsed)))
-
-    val device_manifest_parsed: SignedPayload[DeviceManifest] =
-      wrapSigned(DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson)))
+    val legacy_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifest": [$ecu_manifest_sample]}"""
+    val device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}}"""
+    val wrapped_device_manifest_sample: String = wrapSample(device_manifest_sample)
+    val both_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}, "ecu_version_manifest": [$ecu_manifest_sample]}"""
 
 
-    example(legacy_device_manifest_sample, legacy_device_manifest_parsed, "legacy")
+    val device_manifest_parsed: DeviceManifest = DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson))
 
-    example(device_manifest_sample, device_manifest_parsed, "normal")
+    val wrapped_device_manifest_parsed: SignedPayload[Json] = wrapSigned(device_manifest_parsed.asJson)
+
+
+    exampleDecode(device_manifest_sample, device_manifest_parsed, "normal")
+    exampleDecode(legacy_device_manifest_sample, device_manifest_parsed, "legacy")
+    exampleDecode(both_device_manifest_sample, device_manifest_parsed, "both legacy and new")
+    exampleDecode(wrapped_device_manifest_sample, wrapped_device_manifest_parsed, "DeviceManifest normal (signed)")
   }
 
   {

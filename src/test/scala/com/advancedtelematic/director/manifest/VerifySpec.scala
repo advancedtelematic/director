@@ -6,8 +6,10 @@ import java.time.temporal.ChronoUnit
 
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Ecu
-import com.advancedtelematic.director.data.DeviceRequest.{EcuManifest, DeviceManifest, LegacyDeviceManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{EcuManifest, DeviceManifest}
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
+import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec}
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
@@ -16,7 +18,7 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, SignedPayload}
-import io.circe.{Decoder, Encoder}
+import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 
 abstract class VerifySpec
@@ -64,7 +66,7 @@ abstract class VerifySpec
     val sEcu = sign(keys, ecuMan)
 
     val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
-    val sdevMan = sign(keys, devMan)
+    val sdevMan = sign(keys, devMan.asJson)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
@@ -76,9 +78,9 @@ abstract class VerifySpec
     val sEcu = sign(keys, ecuMan)
 
     val devMan = LegacyDeviceManifest(primEcu, Seq(sEcu))
-    val sdevMan = sign(keys, devMan)
+    val sdevMan = sign(keys, devMan.asJson)
 
-    val vEcus = Verify.legacyDeviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
+    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
     vEcus shouldBe Seq(ecuMan)
   }
@@ -89,7 +91,7 @@ abstract class VerifySpec
     val otherEcu = GenEcuSerial.generate
 
     val devMan = DeviceManifest(primEcu, Map( otherEcu -> sEcu.asJson))
-    val sdevMan = sign(keys, devMan)
+    val sdevMan = sign(keys, devMan.asJson)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
@@ -102,7 +104,7 @@ abstract class VerifySpec
     val sEcu = sign(wrongKeys, ecuMan)
 
     val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
-    val sdevMan = sign(keys, devMan)
+    val sdevMan = sign(keys, devMan.asJson)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
@@ -115,11 +117,38 @@ abstract class VerifySpec
     val sEcu = sign(wrongKeys, ecuMan)
 
     val devMan = LegacyDeviceManifest(primEcu, Seq(sEcu))
-    val sdevMan = sign(keys, devMan)
+    val sdevMan = sign(keys, devMan.asJson)
 
-    val vEcus = Verify.legacyDeviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
+    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
     vEcus shouldBe Seq()
+  }
+
+  test("can still verify device-manifest with extra fields") {
+    val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
+    val sEcu = sign(keys, ecuMan)
+
+    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
+    val jsonToSend = devMan.asJson.mapObject(_.add("extra-field", Json.fromString("extra content here")))
+    val sdevMan = sign(keys, jsonToSend)
+
+    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
+
+    vEcus shouldBe Seq(ecuMan)
+  }
+
+  test("can still verify with ecu-manifest with extra fields") {
+    val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
+    val jsonEcuMan = ecuMan.asJson.hcursor.downField("installed_image").downField("fileinfo").downField("hashes")
+      .withFocus(_.mapObject(_.add("sha512", Json.fromString("sha512 comes here")))).top
+    val sEcu = sign(keys, jsonEcuMan)
+
+    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
+    val sdevMan = sign(keys, devMan.asJson)
+
+    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
+
+    vEcus shouldBe Seq(ecuMan)
   }
 }
 

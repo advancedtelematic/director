@@ -2,7 +2,7 @@ package com.advancedtelematic.director.data
 
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Image, TargetUpdate}
+import com.advancedtelematic.director.data.DataType.{FileInfo, Image, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, LegacyDeviceManifest, OperationResult}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.Namespace
@@ -11,7 +11,7 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, Devic
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{
-  ClientSignature, SignatureMethod, SignedPayload, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
+  ClientSignature, SignatureMethod, SignedPayload, TargetFormat, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
 import io.circe.{Decoder, Encoder}
 import io.circe.parser._
 import io.circe.syntax._
@@ -243,5 +243,23 @@ class CodecsSpec extends DirectorSpec {
                                     21)
 
     exampleDecode(sample, targetUpdate, "TargetUpdate can be decoded as an Image")
+  }
+
+  {
+    val targetUpdateSample = """{"filepath": "/file2.txt", "fileinfo": {"hashes": {"sha256": "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a"}, "length": 21}}"""
+
+    val sample = s"""{"to": $targetUpdateSample, "targetFormat": "BINARY", "generateDiff": false}"""
+    val sampleWithout = s"""{"to": $targetUpdateSample, "generateDiff": false}"""
+    val sampleNull = s"""{"to": $targetUpdateSample, "targetFormat": null, "generateDiff": false}"""
+
+    val targetUpdate = TargetUpdate(Refined.unsafeApply("/file2.txt"),
+                                    Checksum(HashMethod.SHA256, "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
+                                    21)
+
+    val targetUpdateRequest = TargetUpdateRequest(None, targetUpdate, TargetFormat.BINARY, false)
+
+    exampleDecode(sample, targetUpdateRequest)
+    exampleDecode(sampleWithout, targetUpdateRequest, "without targetFormat")
+    exampleDecode(sampleNull, targetUpdateRequest, "with targetFormat being null")
   }
 }

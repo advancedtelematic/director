@@ -7,8 +7,9 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, Vali
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
-import io.circe.{Decoder, Encoder, JsonObject}
-import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
+import io.circe.{Decoder, Encoder, Json, JsonObject}
+import io.circe.syntax._
 
 object Codecs {
   import AdminRequest._
@@ -73,7 +74,16 @@ object Codecs {
   implicit val decoderTargetUpdate: Decoder[TargetUpdate] = deriveDecoder[TargetUpdate] or decoderImage.map(_.toTargetUpdate)
   implicit val encoderTargetUpdate: Encoder[TargetUpdate] = deriveEncoder
 
-  implicit val decoderTargetUpdateRequest: Decoder[TargetUpdateRequest] = deriveDecoder
+  implicit val decoderTargetUpdateRequest: Decoder[TargetUpdateRequest] = deriveDecoder[TargetUpdateRequest].prepare {
+    _.withFocus {
+      _.mapObject { jsonObject =>
+        val value = jsonObject("targetFormat")
+        if (value.isEmpty || value.contains(Json.Null)) {
+          ("targetFormat" -> TargetFormat.BINARY.asJson) +: jsonObject
+        } else jsonObject
+      }
+    }
+  }
   implicit val encoderTargetUpdateRequest: Encoder[TargetUpdateRequest] = deriveEncoder
 
   implicit val multiTargetUpdateCreatedEncoder: Encoder[MultiTargetUpdateRequest] = deriveEncoder

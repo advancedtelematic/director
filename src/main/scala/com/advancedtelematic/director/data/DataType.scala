@@ -84,6 +84,7 @@ object DataType {
     }
   }
 
+  // this type have a custom encoder
   final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate, targetFormat: TargetFormat,
                                        generateDiff: Boolean)
 

@@ -4,10 +4,11 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, EcuSerial, DeviceId, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes => Hashes}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, EcuSerial, DeviceId, HashMethod, TargetFilename, UpdateId, ValidChecksum}
+import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
+import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
 
@@ -34,11 +35,19 @@ object UpdateType extends CirceEnum with SlickEnum {
 object DataType {
   import RoleType.RoleType
 
+  // we need to figure out a better way to generalise this, but
+  // Map[HashMethod, Refined[String, ValidChecksum]] dosen't work
+  // for two reasons:
+  //   1. The standard decoder don't ignore unknown HashMethods
+  //   2. The ValidChecksum contains a length
+  final case class Hashes(sha256: Refined[String, ValidChecksum]) {
+    def toClientHashes: ClientHashes = Map(HashMethod.SHA256 -> sha256)
+  }
+
   final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: TargetFilename, fileinfo: FileInfo) {
     def toTargetUpdate: TargetUpdate = {
-      val (method, hash) = fileinfo.hashes.head
-      val checksum = Checksum(method, hash)
+      val checksum = Checksum(HashMethod.SHA256, fileinfo.hashes.sha256)
       TargetUpdate(filepath, checksum, fileinfo.length)
     }
   }
@@ -79,8 +88,8 @@ object DataType {
 
   final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long) {
     lazy val image: Image = {
-      val clientHash = Map(checksum.method -> checksum.hash)
-      Image(target, FileInfo(clientHash, targetLength))
+      val hashes = Hashes(checksum.hash)
+      Image(target, FileInfo(hashes, targetLength))
     }
   }
 

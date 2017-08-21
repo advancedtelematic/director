@@ -45,7 +45,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     val clientsTarget = targets.map { case (ecu_serial, TargetCustomImage(image, hardware, uri, diff)) =>
       val targetCustom = TargetCustom(ecu_serial, hardware, uri, diff)
 
-      image.filepath -> ClientTargetItem(image.fileinfo.hashes, image.fileinfo.length,
+      image.filepath -> ClientTargetItem(image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
                                          Some(targetCustom.asJson))
     }
 
@@ -77,7 +77,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   } yield Done
 
   private def fromImage(image: Image): TargetUpdate = {
-    val checksum = Checksum(HashMethod.SHA256, image.fileinfo.hashes(HashMethod.SHA256))
+    val checksum = Checksum(HashMethod.SHA256, image.fileinfo.hashes.sha256)
     TargetUpdate(image.filepath, checksum, image.fileinfo.length)
   }
 

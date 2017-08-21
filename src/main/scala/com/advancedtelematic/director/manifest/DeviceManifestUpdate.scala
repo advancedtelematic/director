@@ -3,12 +3,13 @@ package com.advancedtelematic.director.manifest
 import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest, LegacyDeviceManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, OperationResult}
 import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
+import io.circe.Json
 import org.slf4j.LoggerFactory
 
 import scala.async.Async._
@@ -22,13 +23,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     with UpdateTypesRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  def setLegacyDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[LegacyDeviceManifest]): Future[Unit] = for {
-    ecus <- deviceRepository.findEcus(namespace, device)
-    ecuImages <- Future.fromTry(Verify.legacyDeviceManifest(ecus, verifier, signedDevMan))
-    _ <- ecuManifests(namespace, device, ecuImages)
-  } yield ()
-
-  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[DeviceManifest]): Future[Unit] = for {
+  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
     ecus <- deviceRepository.findEcus(namespace, device)
     ecuImages <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
     _ <- ecuManifests(namespace, device, ecuImages)
@@ -82,7 +77,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map{ custom =>
         val op = custom.operation_result
         val image = ecuManifest.installed_image
-        ecuManifest.ecu_serial -> OperationResult(image.filepath, image.fileinfo.hashes, image.fileinfo.length,
+        ecuManifest.ecu_serial -> OperationResult(image.filepath, image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
                                                   op.result_code, op.result_text)
       }
     }.toMap.seq

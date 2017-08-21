@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.server.{Directive0, Directive1}
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceRegistration, LegacyDeviceManifest}
+import com.advancedtelematic.director.data.DeviceRequest.DeviceRegistration
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
@@ -16,6 +16,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.Json
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
@@ -68,11 +69,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       } ~
       put {
         (path("manifest") & logDevice(ns, device)) {
-          entity(as[SignedPayload[DeviceManifest]]) { devMan =>
-            complete(deviceManifestUpdate.setDeviceManifest(ns, device, devMan))
-          } ~
-          entity(as[SignedPayload[LegacyDeviceManifest]]) { devMan =>
-            complete(deviceManifestUpdate.setLegacyDeviceManifest(ns, device, devMan))
+          entity(as[SignedPayload[Json]]) { jsonDevMan =>
+            complete(deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan))
           }
         }
       } ~

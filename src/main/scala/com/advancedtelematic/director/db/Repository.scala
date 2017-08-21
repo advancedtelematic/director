@@ -32,7 +32,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     with FileCacheRequestRepositorySupport
     with UpdateTypesRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu, QueueResponse}
-  import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Image}
+  import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Hashes, Image}
   import com.advancedtelematic.libtuf.data.TufSlickMappings._
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
@@ -105,7 +105,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       devices <- query.result.failIfEmpty(MissingDevice)
     } yield for {
       (id, hardwareId, primary, filepath, size, checksum) <- devices
-    } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Map(checksum.method -> checksum.hash)))
+    } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
   }
 
   def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[TufKey] = db.run {

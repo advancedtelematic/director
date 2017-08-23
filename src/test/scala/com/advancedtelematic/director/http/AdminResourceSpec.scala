@@ -225,4 +225,15 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
     val q = deviceQueueOk(device)
     q.map(_.targets) shouldBe Seq(targets, targets2)
   }
+
+  testWithNamespace("devices gives all devices in the namespace") { implicit ns =>
+    val device1 = registerNSDeviceOk(afn, bfn)
+    val device2 = registerNSDeviceOk(afn, cfn)
+    val device3 = registerNSDeviceOk(afn)
+
+    val pag = findDevices()
+
+    // we use Seq here instead of Set, since they are ordered by creation time
+    pag.values shouldBe Seq(device1, device2, device3)
+  }
 }

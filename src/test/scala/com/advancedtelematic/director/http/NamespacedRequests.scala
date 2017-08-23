@@ -24,6 +24,14 @@ import io.circe.syntax._
 
 trait NamespacedRequests extends DirectorSpec with DefaultPatience with ResourceSpec {
 
+  private def checkPagination[U](limit: Option[Long], offset: Option[Long], pag: PaginationResult[U]): PaginationResult[U] = {
+    pag.limit shouldBe limit.getOrElse(50L).min(1000)
+    pag.offset shouldBe offset.getOrElse(0L)
+    (pag.values.length <= pag.limit) shouldBe true
+    pag.values.length shouldBe scala.math.max(0, scala.math.min(pag.total - pag.offset, pag.limit))
+    pag
+  }
+
   def registerDevice(regDev: RegisterDevice)(implicit ns: NamespaceTag): HttpRequest =
     Post(apiUri("admin/devices"), regDev).namespaced
 
@@ -126,14 +134,20 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
 
     Get(Uri(apiUri(s"admin/images/affected")).withQuery(query), entity).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      val pag = responseAs[PaginationResult[DeviceId]]
-      pag.limit shouldBe limit.getOrElse(50L)
-      pag.offset shouldBe offset.getOrElse(0L)
-      (pag.values.length <= pag.limit) shouldBe true
-      pag.values.length shouldBe scala.math.max(0, scala.math.min(pag.total - pag.offset, pag.limit))
-      pag
+      checkPagination(limit, offset, responseAs[PaginationResult[DeviceId]])
     }
   }
+
+  def findDevices(limit: Option[Long]= None, offset: Option[Long] = None)
+                 (implicit ns: NamespaceTag): PaginationResult[DeviceId] = {
+    val query = Uri.Query(limit.map("limit" -> _.toString).toMap ++ offset.map("offset" -> _.toString).toMap)
+
+    Get(Uri(apiUri(s"admin/devices")).withQuery(query)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      checkPagination(limit, offset, responseAs[PaginationResult[DeviceId]])
+    }
+  }
+
 
   def getHw(limit: Option[Long]= None, offset: Option[Long] = None)
            (implicit ns: NamespaceTag): PaginationResult[HardwareIdentifier] = {
@@ -141,12 +155,7 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
 
     Get(Uri(apiUri(s"admin/devices/hardware_identifiers")).withQuery(query)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
-      val pag = responseAs[PaginationResult[HardwareIdentifier]]
-      pag.limit shouldBe limit.getOrElse(50L)
-      pag.offset shouldBe offset.getOrElse(0L)
-      (pag.values.length <= pag.limit) shouldBe true
-      pag.values.length shouldBe scala.math.max(0, scala.math.min(pag.total - pag.offset, pag.limit))
-      pag
+      checkPagination(limit, offset, responseAs[PaginationResult[HardwareIdentifier]])
     }
   }
 

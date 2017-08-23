@@ -47,6 +47,8 @@ object Schema {
     def keyType = column[KeyType]("cryptographic_method")
     def publicKey = column[PublicKey]("public_key")
 
+    def createdAt = column[Instant]("created_at")
+
     def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
 
     def tufKey = (keyType, publicKey) <>

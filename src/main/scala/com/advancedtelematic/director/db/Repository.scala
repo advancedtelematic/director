@@ -108,6 +108,15 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
   }
 
+  def findDevices(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .map(x => (x.device, x.createdAt))
+      .distinctOn(_._1)
+      .paginateAndSortResult(_._2, offset = offset, limit = limit)
+      .map(_.map(_._1))
+  }
+
   def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[TufKey] = db.run {
     Schema.ecu
       .filter(_.namespace === namespace)

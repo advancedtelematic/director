@@ -41,6 +41,12 @@ class AdminResource(extractNamespace: Directive1[Namespace],
   val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
   val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
+  val paginationParameters = (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)).tmap { case (mLimit, mOffset) =>
+    val limit  = mLimit.getOrElse(50L).min(1000)
+    val offset = mOffset.getOrElse(0L)
+    (limit, offset)
+  }
+
   def createRepo(namespace: Namespace): Route = complete {
     directorRepo.findOrCreate(namespace).map(StatusCodes.Created -> _)
   }
@@ -99,21 +105,20 @@ class AdminResource(extractNamespace: Directive1[Namespace],
       complete(adminRepository.countInstalledImages(namespace, findReq.filepaths))
     }
 
-  def findAffectedDevices(namespace: Namespace): Route =
-    (parameters('limit.as[Long].?) & parameters('offset.as[Long].?) & entity(as[FindAffectedRequest])) { (mLimit, mOffset, image) =>
-      val offset = mOffset.getOrElse(0L)
-      val limit  = mLimit.getOrElse(50L)
-      val f = adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit)
-      complete(f)
-    }
+  def findAffectedDevices(namespace: Namespace): Route = (paginationParameters & entity(as[FindAffectedRequest])) { (limit, offset, image) =>
+    val f = adminRepository.findAffected(namespace, image.filepath, offset = offset, limit = limit)
+    complete(f)
+  }
 
-  def findHardwareIdentifiers(namespace: Namespace): Route =
-    (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)) { (mLimit, mOffset) =>
-      val offset = mOffset.getOrElse(0L)
-      val limit  = mLimit.getOrElse(50L).min(1000)
-      val f = adminRepository.findAllHardwareIdentifiers(namespace, offset = offset, limit = limit)
-      complete(f)
-    }
+  def findDevices(namespace: Namespace): Route = paginationParameters { (limit, offset) =>
+    val f = adminRepository.findDevices(namespace, offset = offset, limit = limit)
+    complete(f)
+  }
+
+  def findHardwareIdentifiers(namespace: Namespace): Route = paginationParameters { (limit, offset) =>
+    val f = adminRepository.findAllHardwareIdentifiers(namespace, offset = offset, limit = limit)
+    complete(f)
+  }
 
   def findMultiTargetUpdateAffectedDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
     val f = setMultiTargets.findAffected(namespace, devices, updateId)
@@ -224,8 +229,13 @@ class AdminResource(extractNamespace: Directive1[Namespace],
       } ~
       multiTargetUpdatesRoute(ns) ~
       pathPrefix("devices") {
-        (pathEnd & post & entity(as[RegisterDevice]))  { regDev =>
-          registerDevice(ns, regDev)
+        pathEnd {
+          (post & entity(as[RegisterDevice]))  { regDev =>
+            registerDevice(ns, regDev)
+          } ~
+          get {
+            findDevices(ns)
+          }
         } ~
         (get & path("hardware_identifiers")) {
           findHardwareIdentifiers(ns)

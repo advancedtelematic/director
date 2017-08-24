@@ -1,6 +1,6 @@
 name := "director"
 organization := "com.advancedtelematic"
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.3"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
@@ -28,7 +28,7 @@ libraryDependencies ++= {
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
 
-    "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
+    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
     "com.advancedtelematic" %% "libats" % libatsV,
     "com.advancedtelematic" %% "libats-messaging" % libatsV,

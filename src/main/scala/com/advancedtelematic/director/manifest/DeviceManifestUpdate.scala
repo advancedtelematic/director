@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.manifest
 
-import cats.syntax.either._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuManifest}

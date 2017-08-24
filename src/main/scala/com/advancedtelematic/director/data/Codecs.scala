@@ -2,7 +2,6 @@ package com.advancedtelematic.director.data
 
 import cats.instances.list._
 import cats.instances.either._
-import cats.syntax.either._
 import cats.syntax.traverse._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.libats.codecs.AkkaCirce._

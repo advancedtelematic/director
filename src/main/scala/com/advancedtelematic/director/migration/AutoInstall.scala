@@ -15,7 +15,6 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import cats.syntax.show._
-import cats.syntax.either._
 import com.advancedtelematic.director.Settings
 import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, Errors => DBErrors, RepoNameRepositorySupport}
 import com.advancedtelematic.libats.data.{Namespace, PaginationResult}

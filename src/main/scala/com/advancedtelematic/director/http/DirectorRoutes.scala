@@ -1,8 +1,6 @@
 package com.advancedtelematic.director.http
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.server.{Directives, _}
-import akka.stream.Materializer
 import com.advancedtelematic.diff_service.client.DiffServiceClient
 import com.advancedtelematic.diff_service.http.DiffResource
 import com.advancedtelematic.director.VersionInfo
@@ -26,8 +24,6 @@ class DirectorRoutes(verifier: TufKey => Verifier,
                      diffService: DiffServiceClient)
                     (implicit val db: Database,
                      ec: ExecutionContext,
-                     sys: ActorSystem,
-                     mat: Materializer,
                      messageBusPublisher: MessageBusPublisher) extends VersionInfo {
   import Directives._
 

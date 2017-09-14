@@ -28,7 +28,7 @@ import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace],
                     keyserverClient: KeyserverClient)
-                   (implicit db: Database, ec: ExecutionContext, mat: Materializer, messageBusPublisher: MessageBusPublisher)
+                   (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
     with AutoUpdateRepositorySupport
     with DeviceRepositorySupport

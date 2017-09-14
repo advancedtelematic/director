@@ -9,7 +9,9 @@ import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
+import org.scalacheck.Gen
 
 class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec with NamespacedRequests with SetVersion {
   def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
@@ -65,9 +67,11 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
     device
   }
 
-  def setRandomTargets(device: DeviceId, ecuSerials: Seq[EcuSerial])(implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
+  def setRandomTargets(device: DeviceId, ecuSerials: Seq[EcuSerial],
+                       diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
+                      (implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
     val targets = ecuSerials.map{ ecu =>
-      ecu -> GenCustomImage.generate
+      ecu -> GenCustomImage.generate.copy(diffFormat = None)
     }.toMap
 
     setTargetsOk(device, SetTarget(targets))
@@ -224,6 +228,20 @@ class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec 
 
     val q = deviceQueueOk(device)
     q.map(_.targets) shouldBe Seq(targets, targets2)
+  }
+
+  testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
+    createRepo
+    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+    val targets = setRandomTargets(device, ecuSerials, diffFormat = None)
+
+    val q = deviceQueueOk(device)
+    q.map(_.inFlight) shouldBe Seq(false)
+
+    val t = fetchTargetsFor(device)
+
+    val q2 = deviceQueueOk(device)
+    q2.map(_.inFlight) shouldBe Seq(true)
   }
 
   testWithNamespace("devices gives all devices in the namespace") { implicit ns =>

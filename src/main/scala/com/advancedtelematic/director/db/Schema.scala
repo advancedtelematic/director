@@ -122,10 +122,11 @@ object Schema {
     def device = column[DeviceId]("device")
     def update = column[Option[UpdateId]]("update_uuid")
     def version = column[Int]("version")
+    def served = column[Boolean]("served")
 
     def primKey = primaryKey("device_targets_pk", (device, version))
 
-    override def * = (device, update, version) <> ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
+    override def * = (device, update, version, served) <> ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
   }
   protected [db] val deviceTargets = TableQuery[DeviceUpdateTargetsTable]
 
@@ -142,7 +143,7 @@ object Schema {
     def version = column[Int]("version")
     def device  = column[DeviceId]("device")
     def fileEntity = column[Json]("file_entity")
-    def expires  = column[Instant]("expires")
+    def expires = column[Instant]("expires")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 

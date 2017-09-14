@@ -30,7 +30,7 @@ object AdminRequest {
   final case class EcuInfoImage(filepath: TargetFilename, size: Long, hash: Hashes)
   final case class EcuInfoResponse(id: EcuSerial, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
 
-  final case class QueueResponse(updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage])
+  final case class QueueResponse(updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage], inFlight: Boolean)
 
   final case class FindImageCount(filepaths: Seq[TargetFilename])
 }

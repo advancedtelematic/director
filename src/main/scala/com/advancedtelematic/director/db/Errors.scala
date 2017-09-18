@@ -25,6 +25,8 @@ object ErrorCodes {
   val MissingDevice = ErrorCode("missing_device")
   val CouldNotScheduleDevice = ErrorCode("could_not_schedule_device")
   val NoCacheEntry = ErrorCode("no_cache_entry")
+  val CouldNotCancelUpdate = ErrorCode("could_not_cancel_update")
+  val FetchingCancelledUpdate = ErrorCode("fetching_cancelled_update")
 }
 
 object Errors {
@@ -72,4 +74,8 @@ object Errors {
   val CouldNotScheduleDevice = RawError(ErrorCodes.CouldNotScheduleDevice, StatusCodes.PreconditionFailed, "Could not schedule update on device")
 
   val NoCacheEntry = RawError(ErrorCodes.NoCacheEntry, StatusCodes.InternalServerError, "The requested version is not in the cache")
+
+  val CouldNotCancelUpdate = RawError(ErrorCodes.CouldNotCancelUpdate, StatusCodes.PreconditionFailed, "Could not cancel update on device")
+
+  val FetchingCancelledUpdate = RawError(ErrorCodes.FetchingCancelledUpdate, StatusCodes.InternalServerError, "Device tried to fetch cancelled update")
 }

@@ -229,4 +229,23 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with Resource
       status shouldBe StatusCodes.OK
     }
   }
+
+  def cancelDevice(device: DeviceId)(implicit ns:NamespaceTag): HttpRequest =
+    Put(apiUri(s"admin/devices/${device.show}/queue/cancel")).namespaced
+
+  def cancelDeviceOk(device: DeviceId)(implicit ns:NamespaceTag): Unit =
+    cancelDevice(device) ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+  def cancelDeviceFail(device: DeviceId)(implicit ns:NamespaceTag): Unit =
+    cancelDevice(device) ~> routes ~> check {
+      status shouldBe StatusCodes.PreconditionFailed
+    }
+
+  def cancelDevices(devices: DeviceId*)(implicit ns: NamespaceTag): Seq[DeviceId] =
+    Put(apiUri(s"admin/devices/queue/cancel"), devices).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[DeviceId]]
+    }
 }

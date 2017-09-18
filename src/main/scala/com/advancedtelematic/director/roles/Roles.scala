@@ -10,7 +10,6 @@ import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import io.circe.Json
-import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -20,8 +19,6 @@ class Roles(rolesGeneration: RolesGeneration)
     with FileCacheRepositorySupport
     with FileCacheRequestRepositorySupport
     with MultiTargetUpdatesRepositorySupport {
-
-  private val log = LoggerFactory.getLogger(this.getClass)
 
   private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Done] =
     fileCacheRepository.haveExpired(device,version).flatMap {
@@ -63,12 +60,16 @@ class Roles(rolesGeneration: RolesGeneration)
       fileCacheRepository.fetchTimestamp(device, version)
     }
 
-  def fetchTargets(ns: Namespace, device: DeviceId): Future[Json] =
-    findVersion(ns, device).flatMap{ version =>
-      deviceRepository.setAsInFlight(ns, device, version).flatMap { _ =>
-        fileCacheRepository.fetchTarget(device, version)
-      }
+  def fetchTargets(ns: Namespace, device: DeviceId): Future[Json] = {
+    def act(): Future[Json] = findVersion(ns, device).flatMap{ version =>
+        deviceRepository.setAsInFlight(ns, device, version).flatMap { _ =>
+          fileCacheRepository.fetchTarget(device, version)
+        }
     }
+    act().recoverWith {
+      case DBErrors.FetchingCancelledUpdate => act()
+    }
+  }
 
   def fetchSnapshot(ns: Namespace, device: DeviceId): Future[Json] =
     findVersion(ns, device).flatMap{ version =>

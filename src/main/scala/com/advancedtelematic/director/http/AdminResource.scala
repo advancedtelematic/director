@@ -10,7 +10,8 @@ import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
+import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport,
+  CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
   SetMultiTargets, SetTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.AkkaCirce._
@@ -37,6 +38,7 @@ class AdminResource(extractNamespace: Directive1[Namespace],
 
   val directorRepo = new DirectorRepo(keyserverClient)
   val setMultiTargets = new SetMultiTargets()
+  val cancelUpdate = new CancelUpdate
 
   val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
   val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
@@ -187,8 +189,14 @@ class AdminResource(extractNamespace: Directive1[Namespace],
       (path("images") & get) {
         listInstalledImages(ns, device)
       } ~
-      (path("queue") & get) {
-        queueForDevice(ns, device)
+      pathPrefix("queue") {
+        get {
+          queueForDevice(ns, device)
+        } ~
+        (path("cancel") & put) {
+          val f = cancelUpdate.one(ns, device)
+          complete(f)
+        }
       } ~
       path("targets") {
         (put & entity(as[SetTarget])) { targets =>
@@ -236,6 +244,10 @@ class AdminResource(extractNamespace: Directive1[Namespace],
           get {
             findDevices(ns)
           }
+        } ~
+        (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
+          val f = cancelUpdate.several(ns, devices)
+          complete(f)
         } ~
         (get & path("hardware_identifiers")) {
           findHardwareIdentifiers(ns)

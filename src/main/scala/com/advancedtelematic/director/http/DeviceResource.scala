@@ -70,7 +70,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       put {
         (path("manifest") & logDevice(ns, device)) {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
-            complete(deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan))
+            val f = deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)
+            complete(f)
           }
         }
       } ~

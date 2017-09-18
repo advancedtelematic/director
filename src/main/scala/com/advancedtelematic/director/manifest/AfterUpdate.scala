@@ -42,7 +42,7 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
 
   val report: DeviceManifestUpdateResult => Future[Unit] = {
     case NoChange() => FastFuture.successful(Unit)
-    case SuccessWithoutUpdateId() => FastFuture.successful(Unit)
+    case SuccessWithoutUpdateId() => FastFuture.successful(())
     case res:SuccessWithUpdateId =>
       updateTypesRepository.getType(res.updateId).flatMap {
         case UpdateType.OLD_STYLE_CAMPAIGN  =>

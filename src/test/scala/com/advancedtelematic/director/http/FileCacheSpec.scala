@@ -1,4 +1,4 @@
-package com.advancedtelematic.director.daemon
+package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.testkit.{TestActorRef, TestKitBase}
@@ -31,8 +31,7 @@ class FileCacheSpec extends DirectorSpec
     with BeforeAndAfterAll
     with Eventually
     with FileCacheDB
-    with Requests
-    with TestKitBase {
+    with Requests {
 
   private val timeout = Timeout(Span(5, Seconds))
   private val interval = Interval(Span(200, Milliseconds))
@@ -53,7 +52,6 @@ class FileCacheSpec extends DirectorSpec
   val directorRepo = new DirectorRepo(keyserverClient)
   override def beforeAll() {
     super.beforeAll()
-    val testActorRef = TestActorRef(FileCacheDaemon.props(rolesGeneration))
     directorRepo.findOrCreate(defaultNs).futureValue
   }
 
@@ -100,7 +98,7 @@ class FileCacheSpec extends DirectorSpec
 
     updateManifestOk(device, devManifest)
 
-    val targetImage = GenCustomImage.generate
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
     val target = SetTarget(Map(primEcu -> targetImage))
 
     SetTargets.setTargets(defaultNs, Seq(device -> target)).futureValue
@@ -124,7 +122,6 @@ class FileCacheSpec extends DirectorSpec
 
       isAvailable[RootRole](device, "root.json")
     }
-
   }
 
   test("Can schedule several updates for the same device at the same time") {
@@ -146,7 +143,7 @@ class FileCacheSpec extends DirectorSpec
     }.futureValue
   }
 
-  ignore("expired requests are re-generating") {
+  test("expired requests are re-generating") {
     val device = DeviceId.generate
 
     val primEcuReg = GenRegisterEcu.generate
@@ -160,18 +157,15 @@ class FileCacheSpec extends DirectorSpec
 
     updateManifestOk(device, devManifest)
 
-    val targetImage = GenCustomImage.generate
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
     val target = SetTarget(Map(primEcu -> targetImage))
 
     SetTargets.setTargets(defaultNs, Seq(device -> target)).futureValue
 
-    var oldTime:Instant = null
-    eventually(timeout, interval) {
-      oldTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
-      isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe oldTime
-      isAvailable[TargetsRole](device, "targets.json").signed.expires shouldBe oldTime
-      isAvailable[RootRole](device, "root.json")
-    }
+    val oldTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
+    isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe oldTime
+    isAvailable[TargetsRole](device, "targets.json").signed.expires shouldBe oldTime
+    isAvailable[RootRole](device, "root.json")
 
     makeFilesExpire(device).futureValue
 

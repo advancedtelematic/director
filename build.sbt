@@ -75,7 +75,7 @@ mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 
 import com.typesafe.sbt.packager.docker._
 
-dockerRepository in Docker := Some("advancedtelematic")
+dockerRepository := Some("advancedtelematic")
 
 packageName in Docker := packageName.value
 

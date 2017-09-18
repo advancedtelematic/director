@@ -81,7 +81,7 @@ packageName in Docker := packageName.value
 
 dockerUpdateLatest := true
 
-defaultLinuxInstallLocation := s"/opt/${moduleName.value}"
+defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
 
 dockerCommands := Seq(
   Cmd("FROM", "alpine:3.6"),

@@ -79,9 +79,9 @@ dockerRepository := Some("advancedtelematic")
 
 packageName in Docker := packageName.value
 
-dockerUpdateLatest in Docker := true
+dockerUpdateLatest := true
 
-defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
+defaultLinuxInstallLocation := s"/opt/${moduleName.value}"
 
 dockerCommands := Seq(
   Cmd("FROM", "alpine:3.6"),

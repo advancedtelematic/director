@@ -69,7 +69,7 @@ object DataType {
 
   final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, customImage: CustomImage)
 
-  final case class DeviceUpdateTarget(device: DeviceId, updateId: Option[UpdateId], targetVersion: Int)
+  final case class DeviceUpdateTarget(device: DeviceId, updateId: Option[UpdateId], targetVersion: Int, inFlight: Boolean)
 
   final case class DeviceCurrentTarget(device: DeviceId, targetVersion: Int)
 

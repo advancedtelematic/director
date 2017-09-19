@@ -65,7 +65,9 @@ class Roles(rolesGeneration: RolesGeneration)
 
   def fetchTargets(ns: Namespace, device: DeviceId): Future[Json] =
     findVersion(ns, device).flatMap{ version =>
-      fileCacheRepository.fetchTarget(device, version)
+      deviceRepository.setAsInFlight(ns, device, version).flatMap { _ =>
+        fileCacheRepository.fetchTarget(device, version)
+      }
     }
 
   def fetchSnapshot(ns: Namespace, device: DeviceId): Future[Json] =

@@ -129,8 +129,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
-    def queueResult(version: Int, update: Option[UpdateId]): DBIO[QueueResponse] =
-      fetchTargetVersionAction(namespace, device, version).map(QueueResponse(update,_))
+    def queueResult(updateTarget: DeviceUpdateTarget): DBIO[QueueResponse] = for {
+      targets <- fetchTargetVersionAction(namespace, device, updateTarget.targetVersion)
+    } yield QueueResponse(updateTarget.updateId, targets, updateTarget.inFlight)
 
     val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
       .filter(_.device === device)
@@ -139,17 +140,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfMany
       .map(_.getOrElse(0))
 
-    def allUpdatesScheduledAfter(fromVersion: Int): DBIO[Seq[(Int, Option[UpdateId])]] = Schema.deviceTargets
-      .filter(_.device === device)
-      .filter(_.version > fromVersion)
-      .sortBy(_.version)
-      .map(x => (x.version, x.update))
-      .result
+    def allUpdatesScheduledAfter(fromVersion: Int): DBIO[Seq[DeviceUpdateTarget]] =
+      Schema.deviceTargets
+        .filter(_.device === device)
+        .filter(_.version > fromVersion)
+        .sortBy(_.version)
+        .result
 
     for {
       currentVersion <- versionOfDevice
       updates <- allUpdatesScheduledAfter(currentVersion)
-      queue <- DBIO.sequence(updates.map((queueResult _).tupled))
+      queue <- DBIO.sequence(updates.map(queueResult _))
     } yield queue
   }
 
@@ -227,7 +228,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   protected [db] def updateDeviceTargetsAction(device: DeviceId, updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
-    val target = DeviceUpdateTarget(device, updateId, version)
+    val target = DeviceUpdateTarget(device, updateId, version, inFlight = false)
 
     (Schema.deviceTargets += target)
       .map(_ => target)
@@ -326,7 +327,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
     val fcr = FileCacheRequest(namespace, 0, device, None, FileCacheRequestStatus.PENDING, 0)
-    (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0))
+    (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0, inFlight = false))
       .andThen(fileCacheRequestRepository.persistAction(fcr))
   }
 
@@ -366,6 +367,13 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .map(_ => ())
   }
 
+  def setAsInFlight(namespace: Namespace, device: DeviceId, version: Int): Future[Int] = db.run {
+    Schema.deviceTargets
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .map(_.served)
+      .update(true)
+  }
 }
 
 trait FileCacheRepositorySupport {

@@ -9,7 +9,7 @@ import slick.jdbc.MySQLProfile.api._
 trait SetVersion {
   def setCampaign(device: DeviceId, version: Int)
                  (implicit db: Database, ec: ExecutionContext): Future[Done] = db.run {
-    (Schema.deviceTargets += DeviceUpdateTarget(device, None, version))
+    (Schema.deviceTargets += DeviceUpdateTarget(device, None, version, false))
       .map(_ => Done)
   }
 

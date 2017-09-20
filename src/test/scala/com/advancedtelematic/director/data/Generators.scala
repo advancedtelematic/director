@@ -67,7 +67,8 @@ trait Generators {
   } yield ClientSignature(keyid, method, sig)
 
   def GenSignedValue[T : Encoder](value: T): Gen[SignedPayload[T]] = for {
-    signature <- Gen.nonEmptyContainerOf[List, ClientSignature](GenClientSignature)
+    nrSig <- Gen.choose(1,10)
+    signature <- Gen.containerOfN[List, ClientSignature](nrSig, GenClientSignature)
   } yield SignedPayload(signature, value)
 
   def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =

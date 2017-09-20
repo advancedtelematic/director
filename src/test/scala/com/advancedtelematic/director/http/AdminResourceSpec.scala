@@ -1,91 +1,12 @@
 package com.advancedtelematic.director.http
 
 import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
-import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
-import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
-import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
-import eu.timepit.refined.api.Refined
-import org.scalacheck.Gen
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 
-class AdminResourceSpec extends DirectorSpec with FileCacheDB with ResourceSpec with NamespacedRequests with SetVersion {
-  def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
-    val device = DeviceId.generate
-
-    val ecuSerials = GenEcuSerial.listBetween(ecus, ecus).generate
-    val primEcu = ecuSerials.head
-
-    val regEcus = ecuSerials.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
-    val regDev = RegisterDevice(device, primEcu, regEcus)
-
-    registerDeviceOk(regDev)
-
-    (device, primEcu, ecuSerials)
-  }
-
-  def updateTheManifest(device: DeviceId, primEcu: EcuSerial, ecus: Map[EcuSerial, TargetFilename])
-                       (implicit ns: NamespaceTag): Unit = {
-    val ecuManifests = ecus.keys.toSeq.map { ecu =>
-      val sig = GenSignedEcuManifest(ecu).generate
-      val newImage = sig.signed.installed_image.copy(filepath = ecus(ecu))
-      sig.copy(signed = sig.signed.copy(installed_image = newImage))
-    }
-
-    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, devManifest)
-  }
-
-  def createDeviceWithImages(images: TargetFilename*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
-    val (device, primEcu, ecuSerials) = registerDeviceOk(images.length)
-    val ecus = ecuSerials.zip(images).toMap
-
-    updateTheManifest(device, primEcu, ecus)
-
-    (device, primEcu, ecuSerials)
-  }
-
-  def registerNSDeviceOk(images: TargetFilename*)(implicit ns: NamespaceTag): DeviceId = createDeviceWithImages(images : _*)._1
-
-  def registerHWDeviceOk(hws: HardwareIdentifier*)(implicit ns: NamespaceTag): DeviceId = {
-    val device = DeviceId.generate
-
-    val regEcus = hws.map { hw =>
-      GenRegisterEcu.generate.copy(hardware_identifier = Some(hw))
-    }
-
-    val primEcu = regEcus.head.ecu_serial
-    val regDev = RegisterDevice(device, primEcu, regEcus)
-
-    registerDeviceOk(regDev)
-
-    device
-  }
-
-  def setRandomTargets(device: DeviceId, ecuSerials: Seq[EcuSerial],
-                       diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
-                      (implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
-    val targets = ecuSerials.map{ ecu =>
-      ecu -> GenCustomImage.generate.copy(diffFormat = None)
-    }.toMap
-
-    setTargetsOk(device, SetTarget(targets))
-
-    targets
-  }
-
-  val afn: TargetFilename = Refined.unsafeApply("a")
-  val bfn: TargetFilename = Refined.unsafeApply("b")
-  val cfn: TargetFilename = Refined.unsafeApply("c")
-  val dfn: TargetFilename = Refined.unsafeApply("d")
-  val ahw: HardwareIdentifier = Refined.unsafeApply("a")
-  val bhw: HardwareIdentifier = Refined.unsafeApply("b")
-
+class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with FileCacheDB with ResourceSpec with NamespacedRequests with SetVersion {
   testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn, cfn)

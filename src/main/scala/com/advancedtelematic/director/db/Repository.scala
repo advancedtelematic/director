@@ -12,7 +12,6 @@ import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TufKey}
 import io.circe.Json
@@ -368,11 +367,28 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   }
 
   def setAsInFlight(namespace: Namespace, device: DeviceId, version: Int): Future[Int] = db.run {
-    Schema.deviceTargets
+    val stillValid = Schema.deviceCurrentTarget
+      .filter(_.device === device)
+      .map(_.deviceCurrentTarget)
+      .forUpdate
+      .result
+      .failIfMany
+      .map(_.getOrElse(0))
+      .flatMap{ currentVersion =>
+      if (currentVersion <= version) {
+        DBIO.successful(())
+      } else {
+        DBIO.failed(FetchingCancelledUpdate)
+      }
+    }
+
+    val act = Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
       .map(_.served)
       .update(true)
+
+    stillValid.andThen(act).transactionally
   }
 }
 

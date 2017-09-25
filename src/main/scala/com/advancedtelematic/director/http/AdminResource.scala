@@ -6,10 +6,11 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.PathMatcher1
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
-import akka.stream.Materializer
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.Messages.UpdateSpec
+import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport,
   CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
   SetMultiTargets, SetTargets}
@@ -24,7 +25,7 @@ import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 class AdminResource(extractNamespace: Directive1[Namespace],
@@ -194,7 +195,9 @@ class AdminResource(extractNamespace: Directive1[Namespace],
           queueForDevice(ns, device)
         } ~
         (path("cancel") & put) {
-          val f = cancelUpdate.one(ns, device)
+          val f = cancelUpdate.one(ns, device).flatMap{ res =>
+            messageBusPublisher.publish(UpdateSpec(ns, device, UpdateStatus.Canceled)).map(_ => res)
+          }
           complete(f)
         }
       } ~
@@ -246,7 +249,9 @@ class AdminResource(extractNamespace: Directive1[Namespace],
           }
         } ~
         (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
-          val f = cancelUpdate.several(ns, devices)
+          val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
+            Future.traverse(canceledDevices) { dev => messageBusPublisher.publish(UpdateSpec(ns, dev, UpdateStatus.Canceled))}.map(_ => canceledDevices)
+          }
           complete(f)
         } ~
         (get & path("hardware_identifiers")) {

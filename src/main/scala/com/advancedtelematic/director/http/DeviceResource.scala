@@ -12,6 +12,7 @@ import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen
+import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf.keyserver.KeyserverClient

@@ -10,7 +10,6 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheReque
 import com.advancedtelematic.libats.data.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
-import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -21,10 +20,14 @@ import java.time.Instant
 import slick.jdbc.MySQLProfile.api._
 
 object Mappers {
+  import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.{checksumDecoder, checksumEncoder}
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper
+  import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
+  import com.advancedtelematic.libtuf_server.data.SlickEnumMapper
 
   implicit val checkSumMapper = SlickCirceMapper.circeMapper[Checksum]
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
+  implicit val targetFormatMapper = SlickEnumMapper.enumMapper(TargetFormat)
 }
 
 object Schema {
@@ -34,7 +37,7 @@ object Schema {
   import com.advancedtelematic.libats.slick.db.SlickExtensions.javaInstantMapping
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
-  import com.advancedtelematic.libtuf.data.TufSlickMappings._
+  import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 
   import Mappers._
 

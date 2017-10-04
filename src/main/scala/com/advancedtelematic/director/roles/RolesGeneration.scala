@@ -34,11 +34,11 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     with MultiTargetUpdatesRepositorySupport
     with RepoNameRepositorySupport {
 
-  private def metaItem[T : Encoder](content: T): MetaItem = {
+  private def metaItem[T : Encoder](version: Int, content: T): MetaItem = {
     val file = content.asJson.canonical.getBytes
     val checkSum = Sha256Digest.digest(file)
 
-    MetaItem(Map(checkSum.method -> checkSum.hash), file.length)
+    MetaItem(Map(checkSum.method -> checkSum.hash), file.length, version = version)
   }
 
   def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
@@ -55,12 +55,12 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   }
 
   def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =
-    SnapshotRole(meta = Map(RoleType.TARGETS.toMetaPath -> metaItem(targetsRole)),
+    SnapshotRole(meta = Map(RoleType.TARGETS.toMetaPath -> metaItem(version, targetsRole)),
                  expires = expires,
                  version = version)
 
   def timestampRole(snapshotRole: SignedPayload[SnapshotRole], version: Int, expires: Instant): TimestampRole =
-    TimestampRole(meta = Map(RoleType.SNAPSHOT.toMetaPath -> metaItem(snapshotRole)),
+    TimestampRole(meta = Map(RoleType.SNAPSHOT.toMetaPath -> metaItem(version, snapshotRole)),
                   expires = expires,
                   version = version)
 

@@ -14,7 +14,7 @@ libraryDependencies ++= {
   val scalaTestV = "3.0.0"
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.57"
-  val tufV = "0.1.0-46-g7b9e71d"
+  val tufV = "0.1.0-165-g47373e9"
   val libatsV = "0.0.1-90-g0bd3fca"
   val circeConfigV = "0.0.2"
 
@@ -36,6 +36,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-metrics-akka" % libatsV,
     "com.advancedtelematic" %% "libats-slick" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
+    "com.advancedtelematic" %% "libtuf_server" % tufV,
     "com.advancedtelematic" %% "circe-config" % circeConfigV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,

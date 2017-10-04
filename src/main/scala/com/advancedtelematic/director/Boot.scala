@@ -77,7 +77,7 @@ object Boot extends BootApp
   log.info(s"Starting $version on http://$host:$port")
 
   val coreClient = new CoreHttpClient(coreUri)
-  val tuf = new KeyserverHttpClient(tufUri)
+  val tuf = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
 

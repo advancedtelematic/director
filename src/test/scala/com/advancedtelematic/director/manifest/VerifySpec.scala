@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.manifest
 
-import java.security.KeyPair
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -17,7 +16,7 @@ import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, SignedPayload, TufKey, TufPrivateKey}
 import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 
@@ -28,16 +27,16 @@ abstract class VerifySpec
   val keytype: KeyType
   val keySize: Int
 
+  type KeyPair = (TufKey, TufPrivateKey)
 
   def generateKey: KeyPair = {
-    val (pub, sec) = TufCrypto.generateKeyPair(keytype, keySize)
-    new KeyPair(pub.keyval, sec.keyval)
+    TufCrypto.generateKeyPair(keytype, keySize)
   }
 
   def sign[T : Encoder : Decoder](key: KeyPair, payload: T): SignedPayload[T] = {
     val signature = TufCrypto
-      .sign(keytype, key.getPrivate, payload.asJson.canonical.getBytes)
-      .toClient(key.getPublic.id)
+      .signPayload(key._2, payload)
+      .toClient(key._1.id)
 
     SignedPayload(List(signature), payload)
   }
@@ -50,7 +49,7 @@ abstract class VerifySpec
 
     val primEcu = GenEcuSerial.generate
 
-    val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, TufCrypto.convert(keytype, keys.getPublic))
+    val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, keys._1)
     val ecus = Seq(ecu)
 
     val time = Instant.now().truncatedTo(ChronoUnit.SECONDS)

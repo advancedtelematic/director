@@ -32,7 +32,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     with UpdateTypesRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu, QueueResponse}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Hashes, Image}
-  import com.advancedtelematic.libtuf.data.TufSlickMappings._
+  import com.advancedtelematic.libtuf_server.data.TufSlickMappings.{keyTypeMapper, publicKeyMapper}
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
     def devTargets = Schema.deviceTargets
@@ -397,11 +397,12 @@ trait FileCacheRepositorySupport {
 }
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
+  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
-  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libtuf.data.TufCodecs._
   import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+  import com.advancedtelematic.libtuf_server.data.TufSlickMappings.roleTypeMapper
   import io.circe.syntax._
   import DataType.FileCache
 

@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.http
 
 import java.util.concurrent.ConcurrentHashMap
-import java.security.PublicKey
+import java.security.{KeyPairGenerator, PublicKey}
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
@@ -16,7 +16,7 @@ import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, Resou
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
 import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.TufKey
+import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
 import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
@@ -438,5 +438,29 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest2)
     deviceVersion(device) shouldBe Some(3)
     deviceScheduledVersion(device) shouldBe 3
+  }
+
+  testWithNamespace("Device can't register with too small public key") { implicit ns =>
+    val device = DeviceId.generate
+    val ecuSerials = GenEcuSerial.listBetween(5,5).generate
+    val primEcu = ecuSerials.head
+
+    val regEcusPrev = ecuSerials.zipWithIndex.map { case (ecu, i) =>
+      val reg = GenRegisterEcu.generate.copy(ecu_serial = ecu)
+      if (i == 3) {
+        // we can't use TufCrypto.generateKeyPair to generate the key since it will
+        // throw an exception if the key is too small
+        val keyGen = KeyPairGenerator.getInstance("RSA", "BC")
+        keyGen.initialize(1024)
+        val keyPair = keyGen.generateKeyPair()
+        reg.copy(clientKey = RSATufKey(keyPair.getPublic))
+      } else reg
+    }
+
+    val regEcus = regEcusPrev
+
+    val regDev = RegisterDevice(device, primEcu, regEcus)
+
+    registerDeviceExpected(regDev, StatusCodes.BadRequest)
   }
 }

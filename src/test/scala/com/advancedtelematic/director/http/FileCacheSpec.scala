@@ -1,12 +1,10 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.testkit.{TestActorRef, TestKitBase}
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
-import com.advancedtelematic.director.http.Requests
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.util.DirectorSpec
@@ -168,6 +166,8 @@ class FileCacheSpec extends DirectorSpec
     isAvailable[RootRole](device, "root.json")
 
     makeFilesExpire(device).futureValue
+
+    Future { Thread.sleep(1100) }.futureValue
 
     val newTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
     newTime should beAfter(oldTime)

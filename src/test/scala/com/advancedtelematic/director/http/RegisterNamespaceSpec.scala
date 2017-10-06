@@ -34,7 +34,7 @@ class RegisterNamespaceSpec extends DirectorSpec
       repoId shouldBe a[RepoId]
 
       val rootFile = keyserverClient.fetchRootRole(repoId).futureValue
-      rootFile.signed.hcursor.downField("_type").as[String] shouldBe Right("Root")
+      rootFile.signed._type shouldBe "Root"
     }
   }
 

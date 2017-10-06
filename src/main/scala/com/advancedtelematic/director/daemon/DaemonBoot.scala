@@ -36,7 +36,7 @@ object DaemonBoot extends BootApp
 
   implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
 
-  val tuf = new KeyserverHttpClient(tufUri)
+  val tuf = KeyserverHttpClient(tufUri)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
   val rolesGeneration = new RolesGeneration(tuf, diffService)
 

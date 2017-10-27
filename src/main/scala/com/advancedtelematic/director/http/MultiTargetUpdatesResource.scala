@@ -6,9 +6,10 @@ import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.MultiTargetUpdateRequest
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.codecs.CirceRefined._
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
-import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
 

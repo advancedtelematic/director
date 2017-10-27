@@ -4,12 +4,13 @@ import cats.instances.list._
 import cats.instances.either._
 import cats.syntax.traverse._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.http.HttpCodecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidEcuSerial}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
-import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
-import com.advancedtelematic.libtuf.data.TufCodecs.{uriDecoder, uriEncoder, _}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, Json, JsonObject}

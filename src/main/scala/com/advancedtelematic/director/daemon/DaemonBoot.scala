@@ -8,14 +8,14 @@ import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.director.db.SetMultiTargets
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.roles.RolesGeneration
-import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.BootApp
+import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, CampaignLaunched, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
-import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
+import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter}
 
 object DaemonBoot extends BootApp

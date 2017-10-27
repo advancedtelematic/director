@@ -4,8 +4,9 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.diff_service.data.DataType.{BsDiff, BsDiffInfo, BsDiffQueryResponse, DiffStatus, StaticDelta, StaticDeltaInfo, StaticDeltaQueryResponse}
 import com.advancedtelematic.diff_service.data.DataType.DiffStatus.DiffStatus
 import com.advancedtelematic.diff_service.db.Errors._
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Checksum, Commit, DeltaRequestId}
+import com.advancedtelematic.diff_service.db.SlickMappings._
+import com.advancedtelematic.libats.data.DataType.{Checksum, Namespace}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Commit, DeltaRequestId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._

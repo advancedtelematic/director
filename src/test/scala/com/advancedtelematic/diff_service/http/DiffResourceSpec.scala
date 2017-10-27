@@ -10,6 +10,7 @@ import com.advancedtelematic.director.util.NamespaceTag.Namespaced
 import com.advancedtelematic.libats.messaging_datatype.Messages.{GeneratedBsDiff, GeneratedDelta}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.{BINARY, OSTREE}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import java.net.URI
 
 class DiffResourceSpec extends DiffServiceSpec
     with DefaultPatience
@@ -38,7 +39,7 @@ class DiffResourceSpec extends DiffServiceSpec
     val size = 22
     val checksum = GenChecksum.sample.get
 
-    val generatedDelta = GeneratedDelta(id, ns.get, fromCommit, toCommit, resultUri, size, checksum)
+    val generatedDelta = GeneratedDelta(id, ns.get, fromCommit, toCommit, URI.create(resultUri.toString), size, checksum)
     diffListener.generatedDeltaAction(generatedDelta).futureValue
 
     Get(apiUri("diffs/static_delta"), query).namespaced ~> routes ~> check {
@@ -80,7 +81,7 @@ class DiffResourceSpec extends DiffServiceSpec
     val size = 22
     val checksum = GenChecksum.sample.get
 
-    val generatedBsDiff = GeneratedBsDiff(id, ns.get, fromUri, toUri, resultUri, size, checksum)
+    val generatedBsDiff = GeneratedBsDiff(id, ns.get, URI.create(fromUri.toString), URI.create(toUri.toString), URI.create(resultUri.toString), size, checksum)
     diffListener.generatedBsDiffAction(generatedBsDiff).futureValue
 
     Get(apiUri("diffs/bs_diff"), query).namespaced ~> routes ~> check {

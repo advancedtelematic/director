@@ -10,8 +10,8 @@ import akka.stream.Materializer
 import cats.syntax.show.toShowOps
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.http.ErrorCode
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.ErrorCode
 import com.advancedtelematic.libats.http.Errors.RawError
 
 import scala.concurrent.{ExecutionContext, Future}

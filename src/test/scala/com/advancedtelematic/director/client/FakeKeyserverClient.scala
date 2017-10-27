@@ -8,7 +8,7 @@ import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 import java.security.{KeyPair, PublicKey}

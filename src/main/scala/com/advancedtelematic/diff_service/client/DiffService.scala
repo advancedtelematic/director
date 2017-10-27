@@ -6,11 +6,11 @@ import com.advancedtelematic.diff_service.data.DataType.CreateDiffInfoRequest
 import com.advancedtelematic.diff_service.db.{BsDiffRepositorySupport, StaticDeltaRepositorySupport}
 import com.advancedtelematic.diff_service.db.Errors._
 import com.advancedtelematic.director.data.DataType.TargetUpdate
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.{Checksum, Namespace}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.Checksum
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffRequest, DeltaRequest}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
+import java.net.URI
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api.Database
 
@@ -60,7 +60,8 @@ class DiffServiceDirectorClient(binaryUri: Uri)
           val id = BsDiffRequestId.generate
           val from = convertToBinaryUri(binaryUri, diffRequest.from)
           val to = convertToBinaryUri(binaryUri, diffRequest.to)
-          messageBusPublisher.publish(BsDiffRequest(id, namespace, from, to)).flatMap { _ =>
+          def toURI(uri: Uri): URI = URI.create(uri.toString)
+          messageBusPublisher.publish(BsDiffRequest(id, namespace, toURI(from), toURI(to))).flatMap { _ =>
             bsdiffRepository.persist(namespace, id, from, to)
           }
       }

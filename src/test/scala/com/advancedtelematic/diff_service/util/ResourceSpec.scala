@@ -8,7 +8,7 @@ import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.diff_service.daemon.DiffListener
 import com.advancedtelematic.diff_service.http.DiffResource
 import com.advancedtelematic.director.Settings
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher

@@ -1,8 +1,8 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
+import com.advancedtelematic.libats.data.ErrorCode
 import com.advancedtelematic.libats.http.Errors.RawError
-import com.advancedtelematic.libats.http.ErrorCode
 
 object ErrorCodes {
   val TargetsNotSubSetOfDevice = ErrorCode("targets_not_subset_of_device")

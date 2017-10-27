@@ -9,14 +9,14 @@ import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
 import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
-import com.advancedtelematic.libats.http.{BootApp}
+import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
+import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.monitoring.MetricsSupport
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.libtuf.keyserver.KeyserverHttpClient
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter, InfluxDbMetricsReporterSettings, OsMetricSet}
 import com.codahale.metrics.jvm.ThreadStatesGaugeSet
 import com.typesafe.config.{Config, ConfigFactory}

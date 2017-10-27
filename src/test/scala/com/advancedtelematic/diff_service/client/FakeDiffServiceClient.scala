@@ -5,7 +5,7 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.diff_service.data.DataType.CreateDiffInfoRequest
 import com.advancedtelematic.director.data.DataType.{DiffInfo, TargetUpdate}
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, DeltaRequestId}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 

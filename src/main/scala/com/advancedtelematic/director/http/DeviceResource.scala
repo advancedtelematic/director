@@ -8,17 +8,18 @@ import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepo
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.director.roles.Roles
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
 import slick.jdbc.MySQLProfile.api._
@@ -34,8 +35,6 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     with RepoNameRepositorySupport {
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
-
-  private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
@@ -77,7 +76,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       get {
-        (path(RoleType.JsonRoleTypeMetaPath) & logDevice(ns, device)) {
+        (path(JsonRoleTypeMetaPath) & logDevice(ns, device)) {
           case RoleType.ROOT => fetchRoot(ns)
           case RoleType.TARGETS =>
             val f = roles.fetchTargets(ns, device)

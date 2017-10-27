@@ -2,7 +2,7 @@ package com.advancedtelematic.director.manifest
 
 import com.advancedtelematic.libtuf.data.TufDataType.{Signature, TufKey}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.crypt.Sha256Digest
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import java.security.SignatureException
 import org.slf4j.LoggerFactory
 

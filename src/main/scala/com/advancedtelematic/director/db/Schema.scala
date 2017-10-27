@@ -7,9 +7,9 @@ import cats.implicits._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, HashMethod, TargetFilename, UpdateId, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -20,12 +20,9 @@ import java.time.Instant
 import slick.jdbc.MySQLProfile.api._
 
 object Mappers {
-  import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.{checksumDecoder, checksumEncoder}
-  import com.advancedtelematic.libats.slick.db.SlickCirceMapper
+  import com.advancedtelematic.libats.slick.codecs.SlickEnumMapper
   import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
-  import com.advancedtelematic.libtuf_server.data.SlickEnumMapper
 
-  implicit val checkSumMapper = SlickCirceMapper.circeMapper[Checksum]
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
   implicit val targetFormatMapper = SlickEnumMapper.enumMapper(TargetFormat)
 }

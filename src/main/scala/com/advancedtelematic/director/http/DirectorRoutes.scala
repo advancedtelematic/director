@@ -11,7 +11,7 @@ import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libtuf.data.TufDataType.TufKey
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext

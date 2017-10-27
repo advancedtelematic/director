@@ -1,13 +1,18 @@
 package com.advancedtelematic.diff_service.data
 
 import com.advancedtelematic.diff_service.data.DataType._
+import com.advancedtelematic.diff_service.data.DataType.DiffStatus.DiffStatus
 import com.advancedtelematic.director.data.Codecs.{decoderTargetUpdate, encoderTargetUpdate}
-import com.advancedtelematic.libats.codecs.AkkaCirce._
-import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
+import com.advancedtelematic.libats.codecs.CirceCodecs._
+import com.advancedtelematic.libats.http.HttpCodecs._
+import com.advancedtelematic.libtuf.data.ClientCodecs._
 import io.circe.generic.semiauto._
 import io.circe.{Decoder, Encoder}
 
 object Codecs {
+  implicit val decoderDiffStatus: Decoder[DiffStatus] = Decoder.enumDecoder(DiffStatus)
+  implicit val encoderDiffStatus: Encoder[DiffStatus] = Encoder.enumEncoder(DiffStatus)
+
   implicit val decoderCreatDiffInfoRequest: Decoder[CreateDiffInfoRequest] = deriveDecoder
   implicit val encoderCreatDiffInfoRequest: Encoder[CreateDiffInfoRequest] = deriveEncoder
 

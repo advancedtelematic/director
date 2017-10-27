@@ -3,9 +3,9 @@ package com.advancedtelematic.director.db
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.UpdateType.UpdateType
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.ErrorCode
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
-import com.advancedtelematic.libats.http.ErrorCode
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
 object ErrorCodes {

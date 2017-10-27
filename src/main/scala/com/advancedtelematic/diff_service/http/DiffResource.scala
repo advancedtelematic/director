@@ -8,7 +8,7 @@ import com.advancedtelematic.diff_service.client.DiffServiceClient
 import com.advancedtelematic.diff_service.data.DataType.{BsDiffQuery, CreateDiffInfoRequest, StaticDeltaQuery}
 import com.advancedtelematic.diff_service.data.Codecs._
 import com.advancedtelematic.diff_service.db.{BsDiffRepositorySupport, StaticDeltaRepositorySupport}
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.ExecutionContext
 import slick.jdbc.MySQLProfile.api.Database

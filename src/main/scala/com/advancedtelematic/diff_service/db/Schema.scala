@@ -1,12 +1,11 @@
 package com.advancedtelematic.diff_service.db
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.diff_service.data.DataType.{BsDiff, StaticDelta, BsDiffInfo, StaticDeltaInfo}
+import com.advancedtelematic.diff_service.data.DataType.{BsDiff, BsDiffInfo, DiffStatus, StaticDelta, StaticDeltaInfo}
 import com.advancedtelematic.diff_service.data.DataType.DiffStatus.DiffStatus
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Checksum, Commit, DeltaRequestId,
-  HashMethod, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
+import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Commit, DeltaRequestId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
@@ -14,7 +13,13 @@ import com.advancedtelematic.libats.slick.db.SlickUriMapper._
 import eu.timepit.refined.api.Refined
 import slick.jdbc.MySQLProfile.api._
 
+object SlickMappings {
+  import com.advancedtelematic.libats.slick.codecs.SlickEnumMapper
+  implicit val diffStatusMapping = SlickEnumMapper.enumMapper(DiffStatus)
+}
+
 object Schema {
+  import SlickMappings._
   // `HashMethod` should extend `SlickEnum`, but until then we have this implicit
   implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
 

@@ -16,15 +16,15 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepo
   SetMultiTargets, SetTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.AkkaCirce._
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.RefinedStringEncoding._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._

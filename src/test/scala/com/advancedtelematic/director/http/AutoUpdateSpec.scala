@@ -7,15 +7,15 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetMultiTargets}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial}
+import com.advancedtelematic.libats.data.DataType.Checksum
+import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.TargetCustom
-import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum => TufChecksum, HardwareIdentifier, TargetName}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName, ValidTargetFilename}
+import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import eu.timepit.refined.api.Refined
 
 class AutoUpdateSpec extends DirectorSpec with FileCacheDB with NamespacedRequests with ResourceSpec {
-
-  private def convertToTufChecksum(checksum: Checksum): TufChecksum = TufChecksum(checksum.method, checksum.hash)
 
   def regDevice(primEcuHw: HardwareIdentifier, otherEcuHw: HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val device = DeviceId.generate
@@ -44,7 +44,8 @@ class AutoUpdateSpec extends DirectorSpec with FileCacheDB with NamespacedReques
     val targetFormat = Some(GenTargetFormat.generate)
 
     val custom = TargetCustom(name, version, hws, targetFormat)
-    (TufTargetAdded(ns.get, target.target, convertToTufChecksum(target.checksum), target.targetLength, Some(custom)), name)
+    val filename = target.target.get.refineTry[ValidTargetFilename].get
+    (TufTargetAdded(ns.get, filename, target.checksum, target.targetLength, Some(custom)), name)
   }
 
   val setMultiTargets = new SetMultiTargets

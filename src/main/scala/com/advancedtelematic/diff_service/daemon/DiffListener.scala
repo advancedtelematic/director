@@ -1,6 +1,7 @@
 package com.advancedtelematic.diff_service.daemon
 
 import akka.Done
+import akka.http.scaladsl.model.Uri
 import cats.syntax.show._
 import com.advancedtelematic.diff_service.data.DataType.DiffStatus
 import com.advancedtelematic.diff_service.db.{BsDiffRepositorySupport, StaticDeltaRepositorySupport}
@@ -17,7 +18,7 @@ class DiffListener (implicit db: Database, ec: ExecutionContext)
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def generatedDeltaAction(msg: GeneratedDelta): Future[Done] =
-    staticDeltaRepository.persistInfo(msg.namespace, msg.id, msg.uri, msg.size, msg.checksum).map(_ => Done).recover {
+    staticDeltaRepository.persistInfo(msg.namespace, msg.id, Uri(msg.uri.toString), msg.size, msg.checksum).map(_ => Done).recover {
       case ConflictingStaticDeltaInfo =>
         _log.error(s"The info for ${msg.id.show} already exists, ignoring message.")
         Done
@@ -27,7 +28,7 @@ class DiffListener (implicit db: Database, ec: ExecutionContext)
     }
 
   def generatedBsDiffAction(msg: GeneratedBsDiff): Future[Done] =
-    bsdiffRepository.persistInfo(msg.namespace, msg.id, msg.resultUri, msg.size, msg.checksum).map(_ => Done).recover {
+    bsdiffRepository.persistInfo(msg.namespace, msg.id, Uri(msg.resultUri.toString), msg.size, msg.checksum).map(_ => Done).recover {
       case ConflictingBsDiffInfo =>
         _log.error(s"The info for ${msg.id.show} already exists, ignoring message.")
         Done

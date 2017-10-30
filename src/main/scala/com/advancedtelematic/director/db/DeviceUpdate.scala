@@ -2,9 +2,8 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType.Image
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
@@ -23,8 +22,6 @@ object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
-
-  private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def subMap[K, V](xs: Map[K,V], ys: Map[K,V]): Boolean = xs.forall {
     case (k,v) => ys.get(k).contains(v)

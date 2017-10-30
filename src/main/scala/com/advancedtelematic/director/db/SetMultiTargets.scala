@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.UpdateType
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import scala.concurrent.{ExecutionContext, Future}

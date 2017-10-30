@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, Errors => DBErrors,
   FileCacheRepositorySupport, FileCacheRequestRepositorySupport, MultiTargetUpdatesRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import io.circe.Json
 import scala.concurrent.{ExecutionContext, Future}

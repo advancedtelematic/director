@@ -17,10 +17,10 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import cats.syntax.show._
 import com.advancedtelematic.director.Settings
 import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, Errors => DBErrors, RepoNameRepositorySupport}
-import com.advancedtelematic.libats.data.{Namespace, PaginationResult}
+import com.advancedtelematic.libats.data.{ErrorCode, PaginationResult}
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libats.http.BootApp
-import com.advancedtelematic.libats.http.ErrorCode
 import com.advancedtelematic.libats.http.Errors.RawError
 import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libtuf.data.ClientCodecs._

@@ -5,15 +5,16 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.director.db.Mappers._
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.{Checksum, Namespace}
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TufKey}
+import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 import java.time.Instant
 

@@ -2,7 +2,8 @@ package com.advancedtelematic.diff_service.data
 
 import com.advancedtelematic.diff_service.data.DataType._
 import com.advancedtelematic.director.data.DataType.TargetUpdate
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, HashMethod, ValidChecksum, ValidTargetFilename}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.ValidTargetFilename
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen

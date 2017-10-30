@@ -8,10 +8,11 @@ import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Legacy._
 import com.advancedtelematic.director.data.TestCodecs._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, EcuSerial, HashMethod, ValidChecksum, ValidTargetFilename}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidTargetFilename}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum => _, _}
+import com.advancedtelematic.libtuf.data.TufDataType._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.{BINARY, OSTREE, TargetFormat}
 import io.circe.Encoder
@@ -33,7 +34,7 @@ trait Generators {
     = Gen.const(RsaKeyType)
 
   lazy val GenSignatureMethod: Gen[SignatureMethod]
-    = Gen.const(SignatureMethod.RSASSA_PSS)
+    = Gen.const(SignatureMethod.RSASSA_PSS_SHA256)
 
   lazy val GenTufKey: Gen[TufKey] = for {
     keyType <- GenKeyType

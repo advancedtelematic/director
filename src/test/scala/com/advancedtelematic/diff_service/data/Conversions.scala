@@ -2,8 +2,9 @@ package com.advancedtelematic.diff_service.data
 
 import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.diff_service.util.DiffServiceSpec
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, HashMethod, ValidCommit, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.ValidCommit
 
 class ConversionsSpec extends DiffServiceSpec {
 

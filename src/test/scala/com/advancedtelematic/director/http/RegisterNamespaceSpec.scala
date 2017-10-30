@@ -4,7 +4,7 @@ import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId

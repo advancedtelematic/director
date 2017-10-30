@@ -8,15 +8,16 @@ import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheReque
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport,
   MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, EcuSerial, HashMethod}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
+import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
-import com.advancedtelematic.libtuf.crypt.Sha256Digest
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload}
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload, ValidTargetFilename}
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
@@ -45,8 +46,9 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     val clientsTarget = targets.map { case (ecu_serial, TargetCustomImage(image, hardware, uri, diff)) =>
       val targetCustom = TargetCustom(ecu_serial, hardware, uri, diff)
 
-      image.filepath -> ClientTargetItem(image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
-                                         Some(targetCustom.asJson))
+      image.filepath.get.refineTry[ValidTargetFilename].get ->
+        ClientTargetItem(image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
+                         Some(targetCustom.asJson))
     }
 
     TargetsRole(expires = expires,

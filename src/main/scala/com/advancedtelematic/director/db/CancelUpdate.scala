@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import scala.concurrent.{ExecutionContext, Future}

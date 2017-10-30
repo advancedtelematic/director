@@ -5,23 +5,22 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.db.{AutoUpdateRepositorySupport, MultiTargetUpdatesRepositorySupport,
   SetMultiTargets}
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Checksum, DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.Messages.TufTargetAdded
-import com.advancedtelematic.libtuf.data.TufDataType.{Checksum => TufChecksum, HardwareIdentifier, TargetName}
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
+import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api.Database
+import scala.util.{Failure, Success}
 
 class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, ec: ExecutionContext)
     extends AutoUpdateRepositorySupport
     with MultiTargetUpdatesRepositorySupport
 {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
-
-  //hopefully TufChecksum type will go away and be replaced by LibatsChecksum
-  private def convertToLibatsChecksum(checksum: TufChecksum): Checksum = Checksum(checksum.method, checksum.hash)
 
   def action(tufTargetAdded: TufTargetAdded): Future[Done] = {
     tufTargetAdded.custom match {
@@ -34,10 +33,15 @@ class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, e
             _log.info(s"TufTargetAdded dosen't have a targetFormat, ignore")
             FastFuture.successful(Done)
           case(Some(targetFormat)) =>
-            val toTarget = TargetUpdate(tufTargetAdded.filename, convertToLibatsChecksum(tufTargetAdded.checksum), tufTargetAdded.length)
-
-            findAndSchedule(tufTargetAdded.namespace, custom.name, targetFormat, toTarget)
-              .map(_ => Done)
+            tufTargetAdded.filename.get.refineTry[ValidTargetFilename] match {
+              case Failure(_) =>
+                _log.error(s"Could not parse filename from $tufTargetAdded")
+                FastFuture.successful(Done)
+              case Success(filename) =>
+                val toTarget = TargetUpdate(filename, tufTargetAdded.checksum, tufTargetAdded.length)
+                findAndSchedule(tufTargetAdded.namespace, custom.name, targetFormat, toTarget)
+                  .map(_ => Done)
+            }
         }
     }
   }

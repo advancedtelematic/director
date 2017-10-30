@@ -9,7 +9,7 @@ import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate,
   LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, OperationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateReport

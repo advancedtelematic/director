@@ -3,7 +3,7 @@ package com.advancedtelematic.director.db
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
 import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.UpdateType
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 
 import scala.concurrent.{ExecutionContext, Future}

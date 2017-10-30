@@ -8,8 +8,9 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheRequestRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, ValidTargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.OSTREE
 import eu.timepit.refined.api.Refined
 import scala.concurrent.Future
@@ -92,6 +93,6 @@ class DiffSpec extends DirectorSpec
     timestamp.signed.version shouldBe 1
 
     val targets = fetchTargetsFor(device)
-    targets.signed.targets(bto.target).custom.get.as[TargetCustom].right.get.diff.get shouldBe diffInfo
+    targets.signed.targets(bto.target.get.refineTry[ValidTargetFilename].get).custom.get.as[TargetCustom].right.get.diff.get shouldBe diffInfo
   }
 }

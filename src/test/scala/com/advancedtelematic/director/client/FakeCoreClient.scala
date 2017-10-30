@@ -2,7 +2,7 @@ package com.advancedtelematic.director.client
 
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import java.util.concurrent.ConcurrentHashMap
 import scala.concurrent.Future

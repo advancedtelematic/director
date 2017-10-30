@@ -1,11 +1,11 @@
 package com.advancedtelematic.director.repo
 
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, SignedPayload, TufKey, TufPrivateKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
 import scala.concurrent.{ExecutionContext, Future}
 

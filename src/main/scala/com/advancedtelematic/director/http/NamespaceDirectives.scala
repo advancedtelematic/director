@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.Directive1
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.util.Try

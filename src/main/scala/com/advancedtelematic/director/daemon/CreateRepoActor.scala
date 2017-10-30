@@ -3,7 +3,7 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import com.advancedtelematic.director.db.Errors.ConflictNamespaceRepo
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.libats.data.Namespace
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future}

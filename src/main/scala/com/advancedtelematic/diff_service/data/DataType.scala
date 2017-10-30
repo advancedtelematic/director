@@ -3,14 +3,12 @@ package com.advancedtelematic.diff_service.data
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.diff_service.data.DataType.DiffStatus.DiffStatus
 import com.advancedtelematic.director.data.DataType.TargetUpdate
-import com.advancedtelematic.libats.codecs.CirceEnum
-import com.advancedtelematic.libats.data.Namespace
-import com.advancedtelematic.libats.slick.codecs.SlickEnum
-import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Checksum, Commit, DeltaRequestId}
+import com.advancedtelematic.libats.data.DataType.{Checksum, Namespace}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{BsDiffRequestId, Commit, DeltaRequestId}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 
 object DataType {
-  object DiffStatus extends CirceEnum with SlickEnum {
+  object DiffStatus extends Enumeration {
     type DiffStatus = Value
 
     val REQUESTED, GENERATED, FAILED = Value

@@ -1,5 +1,14 @@
 # ATS Director 
 
+This is part of the ATS open-source over-the-air (OTA) server software
+available on [Github](https://github.com/advancedtelematic),
+implementing the [Uptane](https://uptane.github.io/) framework.
+
+This repository contains the ATS director service, the implementation
+of one of the key features of Uptane which orchestrates the
+installation of ECU-specific images on vehicles. It uses online keys
+to sign metadata concerning which updates to install on which ECUs.
+
 ## Running tests
 
 You'll need a mariadb instance running with the users configured in

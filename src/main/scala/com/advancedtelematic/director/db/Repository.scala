@@ -65,7 +65,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
 
   protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, (HardwareIdentifier, Option[Image])]] =
     byDevice(namespace, device)
-      .joinLeft(Schema.currentImage).on(_.ecuSerial === _.id)
+      .joinLeft(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
       .map{case (x,y) => (x.ecuSerial, x.hardwareId, y)}
       .result
       .failIfEmpty(DeviceMissing)
@@ -73,8 +73,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
 
   protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
     byDevice(namespace, device)
-      .map(_.ecuSerial)
-      .join(Schema.currentImage).on(_ === _.id)
+      .join(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
       .map(_._2)
       .result
       .map(_.map(cim => cim.ecuSerial -> cim.image))
@@ -86,6 +85,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   def findAffected(namespace: Namespace, filepath: TargetFilename, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
     Schema.currentImage
       .filter(_.filepath === filepath)
+      .filter(_.namespace === namespace)
       .map(_.id)
       .join(Schema.ecu.filter(_.namespace === namespace)).on(_ === _.ecuSerial)
       .map(_._2)
@@ -98,7 +98,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
     val query: Rep[Seq[(EcuSerial,HardwareIdentifier,Boolean,TargetFilename,Long,Checksum)]] = for {
       ecu <- Schema.ecu if ecu.namespace === namespace && ecu.device === device
-      curImage <- Schema.currentImage if ecu.ecuSerial === curImage.id
+      curImage <- Schema.currentImage if ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id
     } yield (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum)
 
     for {
@@ -156,7 +156,10 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
 
   def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
     val toClean = byDevice(namespace, device)
-    val clean = Schema.currentImage.filter(_.id in toClean.map(_.ecuSerial)).delete.andThen(toClean.delete)
+    val clean = Schema.currentImage
+      .filter(_.namespace === namespace)
+      .filter(_.id in toClean.map(_.ecuSerial))
+      .delete.andThen(toClean.delete)
 
     def register(reg: RegisterEcu) =
       (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))

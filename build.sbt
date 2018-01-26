@@ -15,7 +15,7 @@ libraryDependencies ++= {
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.57"
   val tufV = "0.2.0-1-g5579c30"
-  val libatsV = "0.1.1-3-g68485cf"
+  val libatsV = "0.1.0-5-g6b585f0"
   val circeConfigV = "0.0.2"
 
   Seq(

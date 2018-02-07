@@ -23,7 +23,7 @@ import io.circe.syntax._
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import scala.concurrent.{ExecutionContext, Future}
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 object RolesGeneration {
   case object MtuDiffDataMissing extends Throwable
@@ -51,9 +51,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                          Some(targetCustom.asJson))
     }
 
-    TargetsRole(expires = expires,
-                targets = clientsTarget,
-                version = targetVersion)
+    TargetsRole(expires, clientTargetItems, targetVersion)
   }
 
   def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =

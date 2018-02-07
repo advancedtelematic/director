@@ -4,13 +4,13 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
 class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with FileCacheDB with ResourceSpec with NamespacedRequests with SetVersion {
   testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn, cfn)
-    val device3 = registerNSDeviceOk(dfn)
+    registerNSDeviceOk(dfn)
 
     val pag = getAffectedByImage("a")()
     pag.total shouldBe 2
@@ -65,9 +65,9 @@ class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with F
   }
 
   testWithNamespace("images/installed_count returns the count of ECUs a given image is installed on") { implicit ns =>
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn)
-    val device3 = registerNSDeviceOk(cfn, cfn)
+    registerNSDeviceOk(afn, bfn)
+    registerNSDeviceOk(afn)
+    registerNSDeviceOk(cfn, cfn)
 
     getCountInstalledImages(Seq(afn)) shouldBe Map(afn -> 2)
     getCountInstalledImages(Seq(afn, bfn)) shouldBe Map(afn -> 2, bfn -> 1)
@@ -77,8 +77,8 @@ class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with F
   }
 
   testWithNamespace("devices/hardware_identifiers returns all hardware_ids") { implicit ns =>
-    val device1 = registerHWDeviceOk(ahw, bhw)
-    val device2 = registerHWDeviceOk(bhw)
+    registerHWDeviceOk(ahw, bhw)
+    registerHWDeviceOk(bhw)
 
     val pag = getHw()
     pag.total shouldBe 2
@@ -154,12 +154,12 @@ class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with F
   testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
     createRepo
     val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-    val targets = setRandomTargets(device, ecuSerials, diffFormat = None)
+    setRandomTargets(device, ecuSerials, diffFormat = None)
 
     val q = deviceQueueOk(device)
     q.map(_.inFlight) shouldBe Seq(false)
 
-    val t = fetchTargetsFor(device)
+    fetchTargetsFor(device)
 
     val q2 = deviceQueueOk(device)
     q2.map(_.inFlight) shouldBe Seq(true)

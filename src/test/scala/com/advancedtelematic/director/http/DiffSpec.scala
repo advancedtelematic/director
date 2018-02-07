@@ -93,6 +93,6 @@ class DiffSpec extends DirectorSpec
     timestamp.signed.version shouldBe 1
 
     val targets = fetchTargetsFor(device)
-    targets.signed.targets(bto.target.get.refineTry[ValidTargetFilename].get).custom.get.as[TargetCustom].right.get.diff.get shouldBe diffInfo
+    targets.signed.targets(bto.target.value.refineTry[ValidTargetFilename].get).custom.get.as[TargetCustom].right.get.diff.get shouldBe diffInfo
   }
 }

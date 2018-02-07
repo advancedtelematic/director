@@ -136,7 +136,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
       sendManifest(device, prim)(prim -> ato)
 
       val update = createMtu(ahw -> bto)
-      val launched = launchMtu(update, Seq(device))
+      launchMtu(update, Seq(device))
 
       sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay")))
     }
@@ -148,7 +148,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
       sendManifest(device, prim)(prim -> ato)
 
       val update = createMtu(ahw -> bto)
-      val launched = launchMtu(update, Seq(device))
+      launchMtu(update, Seq(device))
 
       sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 19, "error")))
     }
@@ -160,7 +160,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
       sendManifest(device, prim)(prim -> ato)
 
       val update = createMtu(ahw -> cto)
-      val launched = launchMtu(update, Seq(device))
+      launchMtu(update, Seq(device))
 
       sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay, but wrong report")))
     }

@@ -39,7 +39,7 @@ class RegisterNamespaceSpec extends DirectorSpec
   }
 
   testWithNamespace("create repo via end-point") { implicit ns =>
-    val repoId = createRepo
+    createRepo
     fetchRootOk
   }
 }

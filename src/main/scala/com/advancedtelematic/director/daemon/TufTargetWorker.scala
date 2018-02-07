@@ -33,7 +33,7 @@ class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, e
             _log.info(s"TufTargetAdded dosen't have a targetFormat, ignore")
             FastFuture.successful(Done)
           case(Some(targetFormat)) =>
-            tufTargetAdded.filename.get.refineTry[ValidTargetFilename] match {
+            tufTargetAdded.filename.value.refineTry[ValidTargetFilename] match {
               case Failure(_) =>
                 _log.error(s"Could not parse filename from $tufTargetAdded")
                 FastFuture.successful(Done)

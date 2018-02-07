@@ -15,7 +15,7 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepo
   CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
   SetMultiTargets, SetTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.libats.codecs.AkkaCirce._
+import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.http.UUIDKeyPath._

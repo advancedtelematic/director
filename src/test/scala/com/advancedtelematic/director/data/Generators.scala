@@ -84,19 +84,9 @@ trait Generators {
     len <- Gen.posNum[Int]
   } yield FileInfo(hs, len)
 
-  lazy val GenFileInfoInvalidHash: Gen[FileInfo] = for {
-    hs <- Gen.const(Hashes(Refined.unsafeApply("0")))
-    len <- Gen.posNum[Int]
-  } yield FileInfo(hs, len)
-
   lazy val GenImage: Gen[Image] = for {
     fp <- Gen.alphaStr.suchThat(x => x.nonEmpty && x.length < 254).map(Refined.unsafeApply[String, ValidTargetFilename])
     fi <- GenFileInfo
-  } yield Image(fp, fi)
-
-  lazy val GenImageInvalidHash: Gen[Image] = for {
-    fp <- Gen.alphaStr.suchThat(x => x.nonEmpty && x.length < 254).map(Refined.unsafeApply[String, ValidTargetFilename])
-    fi <- GenFileInfoInvalidHash
   } yield Image(fp, fi)
 
   lazy val GenCustomImage: Gen[CustomImage] = for {

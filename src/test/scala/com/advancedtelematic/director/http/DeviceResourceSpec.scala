@@ -73,6 +73,25 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     updateManifestOk(device, deviceManifest)
   }
 
+  testWithNamespace("Device update with broken image hash fails") { implicit ns =>
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val ecuManifests = ecus.map { regEcu =>
+      GenSigned(GenImageInvalidHash.flatMap(GenEcuManifestWithImage(regEcu.ecu_serial, _, None))).generate
+    }
+
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
+  }
+
   testWithNamespace("Device can update a registered device (legacy device manifest)") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -106,7 +125,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
 
-    updateManifestExpect(device, deviceManifest, StatusCodes.NotFound)
+    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
   }
 
   testWithNamespace("Device need to have the correct primary") { implicit ns =>
@@ -282,7 +301,7 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     coreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
-  testWithNamespace("Failed campaign update is reported to core and cancels remaing") { implicit ns =>
+  testWithNamespace("Failed campaign update is reported to core and cancels remaining") { implicit ns =>
 
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -368,7 +387,6 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     updateManifestOk(device, deviceManifest)
 
-    val targetImage = GenCustomImage.generate
     val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
     val updateId = UpdateId.generate
 
@@ -390,7 +408,6 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
 
     val cimage = GenCustomImage.generate
 
-    val targetImage = GenCustomImage.generate
     val targets = SetTarget(Map(primEcu -> cimage))
     val updateId = UpdateId.generate
 

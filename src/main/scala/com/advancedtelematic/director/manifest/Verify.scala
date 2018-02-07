@@ -1,5 +1,8 @@
 package com.advancedtelematic.director.manifest
 
+import cats.Traverse
+import cats.instances.try_._
+import cats.instances.list._
 import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
@@ -11,7 +14,6 @@ import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import io.circe.{Encoder, Json}
 import io.circe.syntax._
 import org.slf4j.LoggerFactory
-
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
@@ -19,7 +21,6 @@ object Verifier {
   type Verifier = (Signature, Array[Byte]) => Try[Boolean]
   val alwaysAccept: Verifier = (_,_) => Success(true)
   val alwaysReject: Verifier = (_,_) => Success(false)
-
 }
 
 object Verify {
@@ -72,10 +73,10 @@ object Verify {
         case ecu if !ecu.primary => Errors.EcuNotPrimary
       }
       _ <- checkSigned(signedDevMan, verifier(primaryEcu.tufKey))
-      verifiedEcus = devMan.ecu_version_manifests.map { case (ecuSerial, jsonBlob) =>
+      verifiedManifests = devMan.ecu_version_manifests.map { case (ecuSerial, jsonBlob) =>
         findEcu(ecuSerial)().flatMap(checkEcuManifest(verifier, _, ecuSerial, jsonBlob))
-      }.toSeq
-      _ = verifiedEcus.collect { case Failure(err) => log.error("error that occured", err)}
-    } yield verifiedEcus.collect { case Success(x) => x }
+      }.toSeq.toList
+      tryOfManifests <- Traverse[List].sequence(verifiedManifests)
+    } yield tryOfManifests
   }
 }

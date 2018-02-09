@@ -12,9 +12,7 @@ import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
-import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, SignedPayload, TufKey, TufPrivateKey}
 import io.circe.{Decoder, Encoder, Json}
@@ -50,7 +48,6 @@ abstract class VerifySpec
     val primEcu = GenEcuSerial.generate
 
     val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, keys._1)
-    val ecus = Seq(ecu)
 
     val time = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val pretime = Instant.now().truncatedTo(ChronoUnit.SECONDS)
@@ -82,45 +79,6 @@ abstract class VerifySpec
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
     vEcus shouldBe Seq(ecuMan)
-  }
-
-  test("ecu manifest that doesn't match ecu_serial is ignored") {
-    val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
-    val sEcu = sign(keys, ecuMan)
-    val otherEcu = GenEcuSerial.generate
-
-    val devMan = DeviceManifest(primEcu, Map( otherEcu -> sEcu.asJson))
-    val sdevMan = sign(keys, devMan.asJson)
-
-    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
-
-    vEcus shouldBe Seq()
-  }
-
-  test("erroneous signed ecu manifest is ignored") {
-    val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
-    val wrongKeys = generateKey
-    val sEcu = sign(wrongKeys, ecuMan)
-
-    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
-    val sdevMan = sign(keys, devMan.asJson)
-
-    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
-
-    vEcus shouldBe Seq()
-  }
-
-  test("erroneous signed ecu manifest is ignored (legacy device manifest)") {
-    val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
-    val wrongKeys = generateKey
-    val sEcu = sign(wrongKeys, ecuMan)
-
-    val devMan = LegacyDeviceManifest(primEcu, Seq(sEcu))
-    val sdevMan = sign(keys, devMan.asJson)
-
-    val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
-
-    vEcus shouldBe Seq()
   }
 
   test("can still verify device-manifest with extra fields") {

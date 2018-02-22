@@ -1,12 +1,14 @@
 package com.advancedtelematic.director.roles
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.diff_service.client.DiffServiceClient
 import com.advancedtelematic.director.data.Codecs.encoderTargetCustom
-import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest, Image, TargetCustom, TargetCustomImage, TargetUpdate}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport,
-  MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
+import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -15,13 +17,11 @@ import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload, TargetFilename, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.Encoder
 import io.circe.syntax._
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -43,12 +43,20 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   }
 
   def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
-    val clientsTarget = targets.map { case (ecu_serial, TargetCustomImage(image, hardware, uri, diff)) =>
-      val targetCustom = TargetCustom(ecu_serial, hardware, uri, diff)
+    // there can be multiple ECUs per filename
+    val byFilename: Map[TargetFilename, Map[EcuSerial, TargetCustomImage]] = targets.groupBy {
+      case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
+    }
 
-      image.filepath.get.refineTry[ValidTargetFilename].get ->
-        ClientTargetItem(image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
-                         Some(targetCustom.asJson))
+    val clientTargetItems = byFilename.mapValues { ecuImageMap =>
+      val targetCustomUris = ecuImageMap.mapValues {
+        case TargetCustomImage(_, hardwareId, uri, diff) => TargetCustomUri(hardwareId, uri, diff)
+      }
+
+      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1)) = ecuImageMap.head
+      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris)
+
+      ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
 
     TargetsRole(expires, clientTargetItems, targetVersion)

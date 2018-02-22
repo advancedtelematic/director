@@ -165,6 +165,20 @@ class AdminResourceSpec extends DirectorSpec with DeviceRegistrationUtils with F
     q2.map(_.inFlight) shouldBe Seq(true)
   }
 
+  testWithNamespace("there can be multiple ECUs per image/filename") { implicit ns =>
+    import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
+
+    createRepo
+    val (device, primEcuSerial, ecuSerials) = createDeviceWithImages(afn, bfn)
+    setRandomTargetsToSameImage(device, ecuSerials, diffFormat = None)
+
+    val targets = fetchTargetsFor(device)
+    val targetEcus = targets.signed.targets.head._2.customParsed.get.ecuIdentifiers
+    // sanity check to see we are testing the right thing:
+    targetEcus.size shouldBe >= (2)
+    targetEcus.keySet shouldBe ecuSerials.toSet
+  }
+
   testWithNamespace("devices gives all devices in the namespace") { implicit ns =>
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn, cfn)

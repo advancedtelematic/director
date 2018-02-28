@@ -7,7 +7,6 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{FileCacheDB, SetMultiTargets}
 import com.advancedtelematic.director.util.{DirectorSpec, ResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.data.DataType.Checksum
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.TargetCustom
@@ -44,7 +43,7 @@ class AutoUpdateSpec extends DirectorSpec with FileCacheDB with NamespacedReques
     val targetFormat = Some(GenTargetFormat.generate)
 
     val custom = TargetCustom(name, version, hws, targetFormat)
-    val filename = target.target.get.refineTry[ValidTargetFilename].get
+    val filename = target.target.value.refineTry[ValidTargetFilename].get
     (TufTargetAdded(ns.get, filename, target.checksum, target.targetLength, Some(custom)), name)
   }
 

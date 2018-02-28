@@ -32,6 +32,9 @@ object Codecs {
   implicit val decoderImage: Decoder[Image] = deriveDecoder
   implicit val encoderImage: Encoder[Image] = deriveEncoder
 
+  implicit val decoderTargetCustomUri: Decoder[TargetCustomUri] = deriveDecoder
+  implicit val encoderTargetCustomUri: Encoder[TargetCustomUri] = deriveEncoder
+
   implicit val decoderTargetCustom: Decoder[TargetCustom] = deriveDecoder
   implicit val encoderTargetCustom: Encoder[TargetCustom] = deriveEncoder
 

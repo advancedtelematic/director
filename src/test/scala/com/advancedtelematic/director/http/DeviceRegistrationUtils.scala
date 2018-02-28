@@ -81,6 +81,18 @@ trait DeviceRegistrationUtils extends DirectorSpec
     targets
   }
 
+  def setRandomTargetsToSameImage(device: DeviceId, ecuSerials: Seq[EcuSerial],
+                                  diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
+                                 (implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
+    val image = GenCustomImage.generate.copy(diffFormat = diffFormat)
+    val targets = ecuSerials.map { ecu =>
+      ecu -> image
+    }.toMap
+
+    setTargetsOk(device, SetTarget(targets))
+    targets
+  }
+
   val afn: TargetFilename = Refined.unsafeApply("a")
   val bfn: TargetFilename = Refined.unsafeApply("b")
   val cfn: TargetFilename = Refined.unsafeApply("c")

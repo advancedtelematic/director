@@ -244,10 +244,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)
     }
-    previousMap <- fetchTargetVersionAction(namespace, device, version)
     new_version = version + 1
-    new_targets = previousMap ++ targets
-    _ <- storeTargetVersion(namespace, device, updateId, new_version, new_targets)
+    _ <- storeTargetVersion(namespace, device, updateId, new_version, targets)
   } yield new_version
 
   def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {

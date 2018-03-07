@@ -94,6 +94,49 @@ class SetMultiTargetSpec extends DirectorSpec
     update shouldBe expected
   }
 
+  test("only most-recently targeted ecus will be updated") {
+    val device = DeviceId.generate
+    val primEcuReg = GenRegisterEcu.generate
+
+    val ecusFirst = GenRegisterEcu.listBetween(2,5).generate
+    val ecusSecond = GenRegisterEcu.listBetween(2,5).generate
+
+    val ecus = primEcuReg :: (ecusFirst ++ ecusSecond)
+
+    val regDev = RegisterDevice(device, primEcuReg.ecu_serial, ecus)
+    registerDeviceOk(regDev)
+
+    {
+      val mtus = ecusFirst.map { regEcu =>
+        regEcu.hardwareId -> GenTargetUpdateRequest.generate
+      }
+
+      val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
+
+      val expected = ecusFirst.zip(mtus).map { case (ecu, (hw, mtu)) =>
+        ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
+      }.toMap
+
+      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+      val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+      update shouldBe expected
+    }
+
+    {
+      val mtus = ecusSecond.map { regEcu =>
+        regEcu.hardwareId -> GenTargetUpdateRequest.generate
+      }
+      val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
+      val expected = ecusSecond.zip(mtus).map { case (ecu, (hw, mtu)) =>
+        ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
+      }.toMap
+
+      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+      val update = adminRepository.fetchTargetVersion(defaultNs, device, 2).futureValue
+      update shouldBe expected
+    }
+  }
+
   test("can succesfully update a multi-target update") {
     val device = DeviceId.generate
     val primEcuReg = GenRegisterEcu.generate

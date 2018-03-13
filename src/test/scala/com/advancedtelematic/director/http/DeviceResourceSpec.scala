@@ -6,21 +6,23 @@ import java.security.{KeyPairGenerator, PublicKey}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
 import cats.syntax.show._
+import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
-import com.advancedtelematic.director.data.Codecs.{encoderEcuManifest, encoderCustomManifest}
+import com.advancedtelematic.director.data.Codecs.{encoderCustomManifest, encoderEcuManifest}
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RSATufKey, RsaKeyType, TufKey}
 import io.circe.syntax._
 
-class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with ResourceSpec with NamespacedRequests {
+trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
+    with FileCacheDB with RouteResourceSpec with NamespacedRequests {
 
   def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
     SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
@@ -456,8 +458,10 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     deviceVersion(device) shouldBe Some(3)
     deviceScheduledVersion(device) shouldBe 3
   }
+}
 
-  testWithNamespace("Device can't register with too small public key") { implicit ns =>
+class RsaDeviceResourceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with DeviceResourceSpec with RsaGenerators {
+  testWithNamespace("Device can't register with a public RSA key which is too small") { implicit ns =>
     val device = DeviceId.generate
     val ecuSerials = GenEcuSerial.listBetween(5,5).generate
     val primEcu = ecuSerials.head
@@ -481,3 +485,5 @@ class DeviceResourceSpec extends DirectorSpec with DefaultPatience with DeviceRe
     registerDeviceExpected(regDev, StatusCodes.BadRequest)
   }
 }
+
+class EdDeviceResourceSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with DeviceResourceSpec with EdGenerators

@@ -1,11 +1,14 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.util.{DirectorSpec, DefaultPatience, ResourceSpec}
+import com.advancedtelematic.director.client._
+import com.advancedtelematic.director.data.{EdGenerators, RsaGenerators}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType}
 
-class CancelUpdateSpec extends DirectorSpec
+trait CancelUpdateSpec extends DirectorSpec
     with DefaultPatience
     with DeviceRegistrationUtils
-    with ResourceSpec
+    with RouteResourceSpec
     with NamespacedRequests {
 
   testWithNamespace("can cancel update") { implicit ns =>
@@ -58,3 +61,7 @@ class CancelUpdateSpec extends DirectorSpec
     deviceQueueOk(device2).length shouldBe 0
   }
 }
+
+class RsaCancelUpdateSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with CancelUpdateSpec with RsaGenerators
+
+class EdCancelUpdateSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with CancelUpdateSpec with EdGenerators

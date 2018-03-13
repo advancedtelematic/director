@@ -13,18 +13,23 @@ import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType, SignedPayload}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
 import java.time.Instant
+
+import com.advancedtelematic.director.client._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.matchers.{Matcher, MatchResult}
+import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
+
 import scala.concurrent.Future
 
-class FileCacheSpec extends DirectorSpec
+trait FileCacheSpec extends DirectorSpec
+    with KeyGenerators
     with DatabaseSpec
     with BeforeAndAfterAll
     with Eventually
@@ -175,3 +180,7 @@ class FileCacheSpec extends DirectorSpec
     isAvailable[TargetsRole](device, "targets.json").signed.expires shouldBe newTime
   }
 }
+
+class RsaFileCacheSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with FileCacheSpec with RsaGenerators
+
+class EdFileCacheSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with FileCacheSpec with EdGenerators

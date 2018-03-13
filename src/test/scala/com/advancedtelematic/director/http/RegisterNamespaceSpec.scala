@@ -1,23 +1,24 @@
 package com.advancedtelematic.director.http
 
+import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
-import com.advancedtelematic.libtuf.data.TufDataType.RepoId
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId, RsaKeyType}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
 
-class RegisterNamespaceSpec extends DirectorSpec
+trait RegisterNamespaceSpec extends DirectorSpec
     with Eventually
     with DatabaseSpec
     with DefaultPatience
     with NamespacedRequests
-    with ResourceSpec
+    with RouteResourceSpec
     with RepoNameRepositorySupport {
 
   private val timeout = Timeout(Span(5, Seconds))
@@ -43,3 +44,7 @@ class RegisterNamespaceSpec extends DirectorSpec
     fetchRootOk
   }
 }
+
+class RsaRegisterNamespaceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with RegisterNamespaceSpec
+
+class EdRegisterNamespaceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with RegisterNamespaceSpec

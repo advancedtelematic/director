@@ -11,7 +11,7 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespa
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
@@ -51,11 +51,10 @@ object Schema {
 
     def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
 
-    def tufKey = (keyType, publicKey) <>
-      ({case (typ, key) => (TufCrypto.convert(typ, key): TufKey)}, (tufKey:TufKey) => Some((tufKey.keytype, tufKey.keyval)))
-
-    override def * = (ecuSerial, device, namespace, primary, hardwareId, tufKey) <>
-      ((Ecu.apply _).tupled, Ecu.unapply)
+    override def * = (ecuSerial, device, namespace, primary, hardwareId, keyType, publicKey) <>
+      ({case (ecuSerial, device, namespace, primary, hardwareId, keyType, publicKey)
+                      => Ecu(ecuSerial, device, namespace, primary, hardwareId, TufCrypto.convert(keyType, publicKey))},
+        (ecu: Ecu) => Some((ecu.ecuSerial, ecu.device, ecu.namespace, ecu.primary, ecu.hardwareId, ecu.tufKey.keytype, ecu.tufKey.keyval)))
   }
   protected [db] val ecu = TableQuery[EcusTable]
 
@@ -182,12 +181,12 @@ object Schema {
     def namespace = column[Namespace]("namespace")
 
     def fromTargetChecksum: Rep[Option[Checksum]] = (fromHashMethod, fromTargetHash) <> (
-      { case (hashMethod, hash) => (hashMethod |@| hash).map(Checksum)},
+      { case (hashMethod, hash) => (hashMethod, hash).mapN(Checksum)},
       (x: Option[Checksum]) => Some((x.map(_.method), x.map(_.hash)))
       )
 
     def fromTargetUpdate = (fromTarget, fromTargetChecksum, fromTargetSize) <> (
-      { case (target, checksum, size) => (target |@| checksum |@| size).map(TargetUpdate)},
+      { case (target, checksum, size) => (target, checksum, size).mapN(TargetUpdate)},
       (x : Option[TargetUpdate]) => Some((x.map(_.target), x.map(_.checksum), x.map(_.targetLength)))
     )
 

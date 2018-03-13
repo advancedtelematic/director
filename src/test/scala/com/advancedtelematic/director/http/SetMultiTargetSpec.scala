@@ -1,18 +1,22 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.Uri
+import com.advancedtelematic.director.client.FakeKeyserverClient
 import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, SetMultiTargets}
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType}
 
-class SetMultiTargetSpec extends DirectorSpec
+trait SetMultiTargetSpec extends DirectorSpec
+    with KeyGenerators
     with AdminRepositorySupport
     with DeviceRepositorySupport
     with DefaultPatience
-    with ResourceSpec
+    with RouteResourceSpec
     with Requests {
 
   val setMultiTargets = new SetMultiTargets()
@@ -166,3 +170,7 @@ class SetMultiTargetSpec extends DirectorSpec
     deviceRepository.getCurrentVersion(device).futureValue shouldBe 1
   }
 }
+
+class RsaSetMultiTargetSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with SetMultiTargetSpec with RsaGenerators
+
+class EdSetMultiTargetSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with SetMultiTargetSpec with EdGenerators

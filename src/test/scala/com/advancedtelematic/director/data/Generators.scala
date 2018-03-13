@@ -19,30 +19,18 @@ import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
 
+import com.advancedtelematic.libtuf.data.TufDataType.SignatureMethod.SignatureMethod
 import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
 
 trait Generators {
-  import SignatureMethod._
-
   lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
 
-  lazy val GenEcuSerial: Gen[EcuSerial]
-    = Gen.choose(10,64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
-
-  lazy val GenKeyType: Gen[KeyType]
-    = Gen.const(RsaKeyType)
-
-  lazy val GenSignatureMethod: Gen[SignatureMethod]
-    = Gen.const(SignatureMethod.RSASSA_PSS_SHA256)
-
-  lazy val GenTufKey: Gen[TufKey] = for {
-    keyType <- GenKeyType
-    (pub, sec) = TufCrypto.generateKeyPair(keyType, keySize = 2048)
-  } yield pub
+  lazy val GenEcuSerial: Gen[EcuSerial] =
+    Gen.choose(10, 64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
 
   lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
-    Gen.choose(10,200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
+    Gen.choose(10, 200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
 
   lazy val GenTargetFormat: Gen[TargetFormat] =
     Gen.oneOf(BINARY, OSTREE)
@@ -53,27 +41,7 @@ trait Generators {
     uri = Uri("http://example.com/fetch/delta")
   } yield DiffInfo(ch, size, uri)
 
-  lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
-    ecu <- GenEcuSerial
-    hwId <- GenHardwareIdentifier
-    crypto <- GenTufKey
-  } yield RegisterEcu(ecu, hwId, crypto)
-
-  lazy val GenKeyId: Gen[KeyId]= GenRefinedStringByCharN(64, GenHexChar)
-
-  lazy val GenClientSignature: Gen[ClientSignature] = for {
-    keyid <- GenKeyId
-    method <- GenSignatureMethod
-    sig <- GenRefinedStringByCharN[ValidSignature](256, GenHexChar)
-  } yield ClientSignature(keyid, method, sig)
-
-  def GenSignedValue[T : Encoder](value: T): Gen[SignedPayload[T]] = for {
-    nrSig <- Gen.choose(1,10)
-    signature <- Gen.containerOfN[List, ClientSignature](nrSig, GenClientSignature)
-  } yield SignedPayload(signature, value)
-
-  def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =
-    genT.flatMap(t => GenSignedValue(t))
+  lazy val GenKeyId: Gen[KeyId] = GenRefinedStringByCharN(64, GenHexChar)
 
   lazy val GenHashes: Gen[Hashes] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
@@ -108,7 +76,7 @@ trait Generators {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
   } yield Checksum(HashMethod.SHA256, hash)
 
-  def GenEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest]): Gen[EcuManifest] =  for {
+  def GenEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest]): Gen[EcuManifest] = for {
     time <- Gen.const(Instant.now)
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
@@ -117,21 +85,8 @@ trait Generators {
   def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =
     GenImage.flatMap(GenEcuManifestWithImage(ecuSerial, _, custom))
 
-  def GenSignedEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
-    GenSigned(GenEcuManifestWithImage(ecuSerial, image, custom))
-  def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] = GenSigned(GenEcuManifest(ecuSerial, custom))
-
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap).asJson)
-
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}).asJson)
-
-  def GenSignedLegacyDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
-    GenSignedValue(LegacyDeviceManifest(primeEcu, ecusManifests))
-
   def genIdentifier(maxLen: Int): Gen[String] = for {
-  //use a minimum length of 10 to reduce possibility of naming conflicts
+    //use a minimum length of 10 to reduce possibility of naming conflicts
     size <- Gen.choose(10, maxLen)
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
@@ -157,4 +112,69 @@ trait Generators {
   val GenMultiTargetUpdateRequest: Gen[MultiTargetUpdateRequest] = for {
     targets <- Gen.mapOf(Gen.zip(GenHardwareIdentifier, GenTargetUpdateRequest))
   } yield MultiTargetUpdateRequest(targets)
+}
+
+trait KeyGenerators extends Generators {
+  val defaultKeyType: KeyType
+  val defaultKeySize: Int
+
+  val defaultSignatureMethod: SignatureMethod
+
+  lazy val GenKeyType: Gen[KeyType]
+    = Gen.const(defaultKeyType)
+
+  lazy val GenSignatureMethod: Gen[SignatureMethod]
+    = Gen.const(defaultSignatureMethod)
+
+  lazy val GenTufKey: Gen[TufKey] = for {
+    keyType <- GenKeyType
+    keyPair = TufCrypto.generateKeyPair(keyType, keySize = defaultKeySize)
+  } yield keyPair.pubkey
+
+  lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
+    ecu <- GenEcuSerial
+    hwId <- GenHardwareIdentifier
+    crypto <- GenTufKey
+  } yield RegisterEcu(ecu, hwId, crypto)
+
+  lazy val GenClientSignature: Gen[ClientSignature] = for {
+    keyid <- GenKeyId
+    method <- GenSignatureMethod
+    sig <- GenRefinedStringByCharN[ValidSignature](256, GenHexChar)
+  } yield ClientSignature(keyid, method, sig)
+
+  def GenSignedValue[T : Encoder](value: T): Gen[SignedPayload[T]] = for {
+    nrSig <- Gen.choose(1,10)
+    signature <- Gen.containerOfN[List, ClientSignature](nrSig, GenClientSignature)
+  } yield SignedPayload(signature, value)
+
+  def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =
+    genT.flatMap(t => GenSignedValue(t))
+
+  def GenSignedEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
+    GenSigned(GenEcuManifestWithImage(ecuSerial, image, custom))
+
+  def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
+    GenSigned(GenEcuManifest(ecuSerial, custom))
+
+  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
+    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap).asJson)
+
+  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
+    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}).asJson)
+
+  def GenSignedLegacyDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
+    GenSignedValue(LegacyDeviceManifest(primeEcu, ecusManifests))
+}
+
+trait RsaGenerators extends KeyGenerators {
+  val defaultKeyType: KeyType = RsaKeyType
+  val defaultKeySize: Int = 2048
+  val defaultSignatureMethod: SignatureMethod = SignatureMethod.RSASSA_PSS_SHA256
+}
+
+trait EdGenerators extends KeyGenerators {
+  val defaultKeyType: KeyType = Ed25519KeyType
+  val defaultKeySize: Int = 256
+  val defaultSignatureMethod: SignatureMethod = SignatureMethod.ED25519
 }

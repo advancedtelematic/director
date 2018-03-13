@@ -22,13 +22,18 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec with Settings {
   val defaultNs = Namespace("default")
   val defaultNsTag = new NamespaceTag{ val value = defaultNs.get }
 
-  val keyserverClient = FakeKeyserverClient
   val coreClient = FakeCoreClient
   val diffServiceClient = new FakeDiffServiceClient(tufBinaryUri)
-  val rolesGeneration = new RolesGeneration(keyserverClient, diffServiceClient)
-  val roles = new Roles(rolesGeneration)
 
   implicit val msgPub = MessageBusPublisher.ignore
+}
+
+trait RouteResourceSpec extends ResourceSpec {
+  self: Suite =>
+
+  val keyserverClient: FakeKeyserverClient
+  val rolesGeneration = new RolesGeneration(keyserverClient, diffServiceClient)
+  val roles = new Roles(rolesGeneration)
   def routesWithVerifier(verifier: TufKey => Verifier.Verifier) =
     new DirectorRoutes(verifier, coreClient, keyserverClient, roles, diffServiceClient).routes
 

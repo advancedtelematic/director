@@ -5,7 +5,7 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.director.db.Mappers._
-import com.advancedtelematic.libats.data.DataType.{Checksum, Namespace}
+import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -96,7 +96,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
-    val query: Rep[Seq[(EcuSerial,HardwareIdentifier,Boolean,TargetFilename,Long,Checksum)]] = for {
+    val query = for {
       ecu <- Schema.ecu if ecu.namespace === namespace && ecu.device === device
       curImage <- Schema.currentImage if ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id
     } yield (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum)

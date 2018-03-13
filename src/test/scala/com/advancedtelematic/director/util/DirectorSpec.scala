@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.util
 
-import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.director.util.NamespaceTag.{NamespaceTag, withRandomNamespace}
 import java.security.Security
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -9,7 +8,6 @@ import org.scalatest.{FunSuite, Matchers, Tag}
 import org.scalactic.source.Position
 
 abstract class DirectorSpec extends FunSuite
-    with Generators
     with Matchers
     with ScalaFutures {
 

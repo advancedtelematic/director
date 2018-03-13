@@ -8,7 +8,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.PaginationResult
@@ -21,7 +21,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import io.circe.syntax._
 
-trait NamespacedRequests extends DirectorSpec with DefaultPatience with ResourceSpec {
+trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteResourceSpec {
 
   private def checkPagination[U](limit: Option[Long], offset: Option[Long], pag: PaginationResult[U]): PaginationResult[U] = {
     pag.limit shouldBe limit.getOrElse(50L).min(1000)

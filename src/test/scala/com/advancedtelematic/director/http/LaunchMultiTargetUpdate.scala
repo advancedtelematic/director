@@ -1,20 +1,23 @@
 package com.advancedtelematic.director.http
 
+import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.db.FileCacheDB
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, RsaKeyType}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import eu.timepit.refined.api.Refined
 import io.circe.syntax._
 
-class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with FileCacheDB with ResourceSpec with NamespacedRequests {
+trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
+  with DefaultPatience with FileCacheDB with RouteResourceSpec with NamespacedRequests {
   val ato: TargetUpdate = GenTargetUpdate.generate.copy(target = Refined.unsafeApply("a"))
   val bto: TargetUpdate = GenTargetUpdate.generate.copy(target = Refined.unsafeApply("b"))
   val cto: TargetUpdate = GenTargetUpdate.generate.copy(target = Refined.unsafeApply("c"))
@@ -130,7 +133,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     affected shouldBe Seq(device2)
   }
 
-  test("mutli_target_updates update success") {
+  test("multi_target_updates update success") {
     withRandomNamespace { implicit ns =>
       val (device, prim, ecu) = registerDevice(ahw)
       sendManifest(device, prim)(prim -> ato)
@@ -142,7 +145,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     }
   }
 
-  test("mutli_target_upates update failed") {
+  test("multi_target_upates update failed") {
     withRandomNamespace { implicit ns =>
       val (device, prim, ecu) = registerDevice(ahw)
       sendManifest(device, prim)(prim -> ato)
@@ -154,7 +157,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     }
   }
 
-  test("mutli_target_updates update device reports wrong") {
+  test("multi_target_updates update device reports wrong") {
     withRandomNamespace { implicit ns =>
       val (device, prim, ecu) = registerDevice(ahw)
       sendManifest(device, prim)(prim -> ato)
@@ -166,3 +169,7 @@ class LaunchMultiTargetUpdate extends DirectorSpec with DefaultPatience with Fil
     }
   }
 }
+
+class RsaLaunchMultiTargetUpdate extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with LaunchMultiTargetUpdate with RsaGenerators
+
+class EdLaunchMultiTargetUpdate extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with LaunchMultiTargetUpdate with EdGenerators

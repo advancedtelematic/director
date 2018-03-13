@@ -1,21 +1,22 @@
 name := "director"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.3"
+scalaVersion := "2.12.4"
 
-scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
+scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification"
+   )
 
 resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/repositories/releases"
 
 resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.4.14"
+  val akkaV = "2.5.9"
   val akkaHttpV = "10.0.3"
   val scalaTestV = "3.0.0"
   val sotaV = "0.2.89"
   val bouncyCastleV = "1.57"
-  val tufV = "0.2.0-1-g5579c30"
-  val libatsV = "0.1.0-5-g6b585f0"
+  val tufV = "0.2.0-124-g38ca321"
+  val libatsV = "0.1.1-9-gf372cc9"
   val circeConfigV = "0.0.2"
 
   Seq(
@@ -44,7 +45,7 @@ libraryDependencies ++= {
 
     "org.scala-lang.modules" %% "scala-async" % "0.9.6",
 
-    "org.mariadb.jdbc" % "mariadb-java-client" % "1.4.4"
+    "org.mariadb.jdbc" % "mariadb-java-client" % "2.2.1"
   )
 }
 
@@ -55,7 +56,8 @@ scalacOptions in Compile ++= Seq(
   "-Xlint",
   "-Ywarn-unused-import",
   "-Ywarn-dead-code",
-  "-Yno-adapted-args"
+  "-Yno-adapted-args",
+  "-Ypartial-unification"
 )
 
 scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))

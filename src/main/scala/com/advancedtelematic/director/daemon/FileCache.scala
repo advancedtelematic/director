@@ -3,7 +3,7 @@ package com.advancedtelematic.director.daemon
 import akka.actor.Status.{Failure, Success}
 import akka.actor.{Actor, ActorLogging, Props, Status}
 import akka.pattern.pipe
-import cats.syntax.show.toShowOps
+import cats.implicits._
 import com.advancedtelematic.director.daemon.FileCacheDaemon.Tick
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus.{ERROR, SUCCESS}

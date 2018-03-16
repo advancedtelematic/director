@@ -69,7 +69,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       put {
-        (path("manifest") & logDevice(ns, device)) {
+        path("manifest") {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
             onComplete(deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)) {
               case Success(v) => complete(v)
@@ -79,8 +79,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
         }
       } ~
       get {
-        (path(JsonRoleTypeMetaPath) & logDevice(ns, device)) {
-          case RoleType.ROOT => fetchRoot(ns)
+        path(JsonRoleTypeMetaPath) {
+          case RoleType.ROOT =>  logDevice(ns, device) { fetchRoot(ns) }
           case RoleType.TARGETS =>
             val f = roles.fetchTargets(ns, device)
             complete(f)

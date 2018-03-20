@@ -3,10 +3,12 @@ package com.advancedtelematic.director.repo
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
-import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, SignedPayload, TufKey, TufPrivateKey}
+import com.advancedtelematic.libtuf.data.TufDataType
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
+
 import scala.concurrent.{ExecutionContext, Future}
 
 class FakeKeyserverClient(implicit ec: ExecutionContext) extends KeyserverClient {
@@ -25,10 +27,15 @@ class FakeKeyserverClient(implicit ec: ExecutionContext) extends KeyserverClient
 
   override def addTargetKey(repoId: RepoId, key: TufKey): Future[Unit] = ???
 
-  override def deletePrivateKey(repoId: RepoId, keyId: KeyId): Future[TufPrivateKey] = ???
+  override def deletePrivateKey(repoId: RepoId, keyId: KeyId): Future[Unit] = ???
 
   override def updateRoot(repoId: RepoId, signedPayload: SignedPayload[RootRole]): Future[Unit] = ???
 
+  override def fetchRootRole(repoId: RepoId, version: Int): Future[SignedPayload[RootRole]] = ???
+
+  override def fetchKeyPair(repoId: RepoId, keyId: KeyId): Future[TufDataType.TufKeyPair] = ???
+
+  override def fetchTargetKeyPairs(repoId: RepoId): Future[Seq[TufDataType.TufKeyPair]] = ???
 }
 
 class DirectorRepoSpec

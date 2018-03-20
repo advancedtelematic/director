@@ -57,7 +57,7 @@ object Codecs {
         case Some(map) => Right(DeviceManifest(primEcu, map))
         // the legacy format
         case None => cursor.downField("ecu_version_manifest").as[Seq[Json]].flatMap { signedEcus =>
-          signedEcus.toList.traverseU(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
+          signedEcus.toList.traverse(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
             .map(ecus => DeviceManifest(primEcu, ecus.toMap))
         }
       }

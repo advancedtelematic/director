@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import akka.Done
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.diff_service.client.DiffServiceClient
 import com.advancedtelematic.director.data.Codecs.encoderTargetCustom
@@ -14,14 +15,16 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespa
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeToMetaPathOp, SnapshotRole, TargetsRole, TimestampRole}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeOps, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload, TargetFilename, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.Encoder
 import io.circe.syntax._
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -89,9 +92,12 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     TargetUpdate(image.filepath, checksum, image.fileinfo.length)
   }
 
+  // doesn't compile with the more concrete type Map instead of TraversableOnce, related to "-Ypartial-unification".
+  // another  workaround might be to use parTraverse from cats
   def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
-                            targets: Map[EcuSerial, (HardwareIdentifier, CustomImage)]): Future[Map[EcuSerial, TargetCustomImage]] =
-    Future.traverse(targets) { case (ecu, (hw, CustomImage(image, uri, doDiff))) =>
+                            targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
+    Future.traverse(targets) {
+      case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
       doDiff match {
         case None => FastFuture.successful(ecu -> TargetCustomImage(image, hw, uri, None))
         case Some(targetFormat) =>
@@ -103,6 +109,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
           }
       }
     }.map(_.toMap)
+  }
 
   def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int): Future[Done] = for {
     targets <- adminRepository.fetchCustomTargetVersion(namespace, device, targetVersion)

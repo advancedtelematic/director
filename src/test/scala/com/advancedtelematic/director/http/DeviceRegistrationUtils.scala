@@ -4,7 +4,8 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.data.KeyGenerators
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
@@ -13,9 +14,10 @@ import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
 
 trait DeviceRegistrationUtils extends DirectorSpec
+    with KeyGenerators
     with DefaultPatience
     with NamespacedRequests
-    with ResourceSpec {
+    with RouteResourceSpec {
 
   def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
     val device = DeviceId.generate

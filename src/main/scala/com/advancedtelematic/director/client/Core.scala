@@ -7,7 +7,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
-import cats.syntax.show.toShowOps
+import cats.implicits._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
 import com.advancedtelematic.libats.data.DataType.Namespace

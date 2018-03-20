@@ -8,7 +8,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -17,7 +17,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, Signed
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 
-trait Requests extends DirectorSpec with DefaultPatience with ResourceSpec {
+trait Requests extends DirectorSpec with DefaultPatience with RouteResourceSpec {
   def registerDevice(regDev: RegisterDevice): HttpRequest = Post(apiUri("admin/devices"), regDev)
 
   def registerDeviceOk(regDev: RegisterDevice): Unit =

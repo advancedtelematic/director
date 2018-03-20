@@ -5,8 +5,9 @@ import java.time.temporal.ChronoUnit
 
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Ecu
-import com.advancedtelematic.director.data.DeviceRequest.{EcuManifest, DeviceManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec}
@@ -14,40 +15,39 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{EdKeyType, KeyType, RsaKeyType, SignedPayload, TufKey, TufPrivateKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyType, RsaKeyType, SignedPayload, TufKeyPair}
 import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 
 abstract class VerifySpec
     extends DirectorSpec
+    with KeyGenerators
     with DefaultPatience
 {
   val keytype: KeyType
   val keySize: Int
 
-  type KeyPair = (TufKey, TufPrivateKey)
-
-  def generateKey: KeyPair = {
+  def generateKey: TufKeyPair = {
     TufCrypto.generateKeyPair(keytype, keySize)
   }
 
-  def sign[T : Encoder : Decoder](key: KeyPair, payload: T): SignedPayload[T] = {
+  def sign[T : Encoder : Decoder](key: TufKeyPair, payload: T): SignedPayload[T] = {
     val signature = TufCrypto
-      .signPayload(key._2, payload)
-      .toClient(key._1.id)
+      .signPayload(key.privkey, payload)
+      .toClient(key.pubkey.id)
 
     SignedPayload(List(signature), payload)
   }
 
   val namespace = Namespace("verify-spec")
 
-  def generateKeyAndEcuManifest: (KeyPair, Ecu, EcuSerial, EcuManifest) = {
+  def generateKeyAndEcuManifest: (TufKeyPair, Ecu, EcuSerial, EcuManifest) = {
     val deviceId = DeviceId.generate
     val keys = generateKey
 
     val primEcu = GenEcuSerial.generate
 
-    val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, keys._1)
+    val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, keys.pubkey)
 
     val time = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val pretime = Instant.now().truncatedTo(ChronoUnit.SECONDS)
@@ -109,12 +109,12 @@ abstract class VerifySpec
   }
 }
 
-class EdVerifySpec extends VerifySpec {
-  val keytype = EdKeyType
+class EdVerifySpec extends VerifySpec with EdGenerators {
+  val keytype = Ed25519KeyType
   val keySize = 256 // keySize doesn't matter
 }
 
-class RsaVerifySpec extends VerifySpec {
+class RsaVerifySpec extends VerifySpec with RsaGenerators {
   val keytype = RsaKeyType
   val keySize = 2048
 }

@@ -1,13 +1,11 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType}
 
 trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegistrationUtils with FileCacheDB with RouteResourceSpec with NamespacedRequests with SetVersion {
   testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
@@ -155,7 +153,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   }
 
   testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
-    createRepo
+    createRepoOk(testKeyType)
     val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
     setRandomTargets(device, ecuSerials, diffFormat = None)
 
@@ -171,7 +169,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   testWithNamespace("there can be multiple ECUs per image/filename") { implicit ns =>
     import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
 
-    createRepo
+    createRepoOk(testKeyType)
     val (device, primEcuSerial, ecuSerials) = createDeviceWithImages(afn, bfn)
     setRandomTargetsToSameImage(device, ecuSerials, diffFormat = None)
 
@@ -194,6 +192,6 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   }
 }
 
-class RsaAdminResourceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with AdminResourceSpec with RsaGenerators
+class RsaAdminResourceSpec extends AdminResourceSpec with RsaGenerators
 
-class EdAdminResourceSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with AdminResourceSpec with EdGenerators
+class EdAdminResourceSpec extends AdminResourceSpec with EdGenerators

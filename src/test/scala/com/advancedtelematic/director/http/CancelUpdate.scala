@@ -1,9 +1,7 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.{EdGenerators, RsaGenerators}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType}
 
 trait CancelUpdateSpec extends DirectorSpec
     with DefaultPatience
@@ -24,7 +22,7 @@ trait CancelUpdateSpec extends DirectorSpec
   }
 
   testWithNamespace(s"can only cancel if update is not inflight") { implicit ns =>
-    createRepo
+    createRepoOk(testKeyType)
     val (device, primEcu, ecus) = createDeviceWithImages(afn, bfn)
 
     setRandomTargets(device, primEcu+:ecus, None)
@@ -41,7 +39,7 @@ trait CancelUpdateSpec extends DirectorSpec
   }
 
   testWithNamespace("cancel several devices") { implicit ns =>
-    createRepo
+    createRepoOk(testKeyType)
     val (device1, primEcu1, ecus1) = createDeviceWithImages(afn, bfn)
     val (device2, primEcu2, ecus2) = createDeviceWithImages(afn, bfn)
 
@@ -62,6 +60,6 @@ trait CancelUpdateSpec extends DirectorSpec
   }
 }
 
-class RsaCancelUpdateSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with CancelUpdateSpec with RsaGenerators
+class RsaCancelUpdateSpec extends CancelUpdateSpec with RsaGenerators
 
-class EdCancelUpdateSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with CancelUpdateSpec with EdGenerators
+class EdCancelUpdateSpec extends CancelUpdateSpec with EdGenerators

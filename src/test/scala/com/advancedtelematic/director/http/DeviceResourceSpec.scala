@@ -6,7 +6,6 @@ import java.security.{KeyPairGenerator, PublicKey}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
 import cats.syntax.show._
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
@@ -18,7 +17,7 @@ import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
 import com.advancedtelematic.director.data.Codecs.{encoderCustomManifest, encoderEcuManifest}
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RSATufKey, RsaKeyType, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
 import io.circe.syntax._
 
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
@@ -424,7 +423,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
   }
 
   testWithNamespace("Updating don't when failed don't increase current target") { implicit ns =>
-    createRepo
+    createRepoOk(testKeyType)
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -460,7 +459,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
   }
 }
 
-class RsaDeviceResourceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with DeviceResourceSpec with RsaGenerators {
+class RsaDeviceResourceSpec extends DeviceResourceSpec with RsaGenerators {
   testWithNamespace("Device can't register with a public RSA key which is too small") { implicit ns =>
     val device = DeviceId.generate
     val ecuSerials = GenEcuSerial.listBetween(5,5).generate
@@ -486,4 +485,4 @@ class RsaDeviceResourceSpec extends { val keyserverClient: FakeKeyserverClient =
   }
 }
 
-class EdDeviceResourceSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with DeviceResourceSpec with EdGenerators
+class EdDeviceResourceSpec extends DeviceResourceSpec with EdGenerators

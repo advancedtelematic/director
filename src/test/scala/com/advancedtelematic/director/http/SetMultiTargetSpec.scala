@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.client.FakeKeyserverClient
 import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -9,7 +8,6 @@ import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGene
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, SetMultiTargets}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType}
 
 trait SetMultiTargetSpec extends DirectorSpec
     with KeyGenerators
@@ -171,6 +169,6 @@ trait SetMultiTargetSpec extends DirectorSpec
   }
 }
 
-class RsaSetMultiTargetSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with SetMultiTargetSpec with RsaGenerators
+class RsaSetMultiTargetSpec extends SetMultiTargetSpec with RsaGenerators
 
-class EdSetMultiTargetSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with SetMultiTargetSpec with EdGenerators
+class EdSetMultiTargetSpec extends SetMultiTargetSpec with EdGenerators

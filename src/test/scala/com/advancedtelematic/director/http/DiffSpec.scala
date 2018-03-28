@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
 import com.advancedtelematic.diff_service.data.DataType.CreateDiffInfoRequest
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
 import com.advancedtelematic.director.data.Codecs.{decoderTargetCustom, encoderEcuManifest}
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetCustom, TargetUpdate, TargetUpdateRequest}
@@ -12,7 +11,7 @@ import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, Route
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, RepoId, RsaKeyType, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, ValidTargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.OSTREE
 import eu.timepit.refined.api.Refined
 
@@ -101,6 +100,6 @@ trait DiffSpec extends DirectorSpec
   }
 }
 
-class RsaDiffSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with DiffSpec with RsaGenerators
+class RsaDiffSpec extends DiffSpec with RsaGenerators
 
-class EdDiffSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with DiffSpec with EdGenerators
+class EdDiffSpec extends DiffSpec with EdGenerators

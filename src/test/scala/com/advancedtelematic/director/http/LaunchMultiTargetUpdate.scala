@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
@@ -11,7 +10,7 @@ import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, RsaKeyType}
+import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import eu.timepit.refined.api.Refined
 import io.circe.syntax._
@@ -170,6 +169,6 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
   }
 }
 
-class RsaLaunchMultiTargetUpdate extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with LaunchMultiTargetUpdate with RsaGenerators
+class RsaLaunchMultiTargetUpdate extends LaunchMultiTargetUpdate with RsaGenerators
 
-class EdLaunchMultiTargetUpdate extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with LaunchMultiTargetUpdate with EdGenerators
+class EdLaunchMultiTargetUpdate extends LaunchMultiTargetUpdate with EdGenerators

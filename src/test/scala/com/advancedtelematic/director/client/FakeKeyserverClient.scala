@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.client
 
-import java.security.{KeyPair, PublicKey}
+import java.security.PublicKey
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
@@ -15,71 +15,61 @@ import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, Ro
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient.{KeyPairNotFound, RoleKeyNotFound}
 import io.circe.{Decoder, Encoder, Json}
-
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.util.Try
-import KeyserverClient._
 
-class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with Generators {
+class FakeKeyserverClient extends KeyserverClient with Generators {
 
   import io.circe.syntax._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  private val keys = new ConcurrentHashMap[RepoId, Map[RoleType, KeyPair]]()
+  private val keys = new ConcurrentHashMap[RepoId, Map[RoleType, TufKeyPair]]()
 
   private val rootRoles = new ConcurrentHashMap[RepoId, RootRole]()
 
-  def publicKey(repoId: RepoId, roleType: RoleType): PublicKey = keys.get(repoId)(roleType).getPublic
+  def publicKey(repoId: RepoId, roleType: RoleType): PublicKey = keys.get(repoId)(roleType).pubkey.keyval
 
-  private lazy val preGeneratedKeys = RoleType.ALL.map { role =>
-    val keyPair = TufCrypto.generateKeyPair(defaultKeyType, defaultKeyType.crypto.defaultKeySize)
-    role -> new KeyPair(keyPair.pubkey.keyval, keyPair.privkey.keyval)
-  }.toMap
+  private def generateRoot(repoId: RepoId, keyType: KeyType): RootRole = {
+    RoleType.ALL.map { role =>
+      val keyPair = keyType.crypto.generateKeyPair()
 
-  private def generateRoot(repoId: RepoId): RootRole = {
-    val roles = keys.get(repoId).map { case (role, keyPair) =>
-      role -> RoleKeys(List(keyPair.getPublic.id), threshold = 1)
-    }
-
-    val clientKeys = keys.get(repoId).map { case (_, keyPair) =>
-      keyPair.getPublic.id -> defaultKeyType.crypto.convertPublic(keyPair.getPublic)
-    }
-
-    RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)
-  }
-
-  private def generateKeys(repoId: RepoId): List[KeyPair] = {
-    preGeneratedKeys.map { case (role, keyPair) =>
-      keys.compute(repoId, (t: RepoId, u: Map[RoleType, KeyPair]) => {
+      keys.compute(repoId, (t: RepoId, u: Map[RoleType, TufKeyPair]) => {
         if (u == null)
           Map(role -> keyPair)
         else
           u + (role -> keyPair)
       })
-
-      keyPair
     }
-  }.toList
 
-  def deleteRepo(repoId: RepoId): Option[RootRole] =
-    Option(keys.remove(repoId)).flatMap(_ => Option(rootRoles.remove(repoId)))
+    val roles = keys.get(repoId).map { case (role, keyPair) =>
+      role -> RoleKeys(List(keyPair.pubkey.id), threshold = 1)
+    }
+
+    val clientKeys = keys.get(repoId).map { case (_, keyPair) =>
+      keyPair.pubkey.keyval.id -> keyPair.pubkey
+    }
+
+    RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)
+  }
 
   override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = {
     if (keys.contains(repoId)) {
       FastFuture.failed(KeyserverClient.RootRoleConflict)
     } else {
-      generateKeys(repoId)
-      val rootRole = generateRoot(repoId)
+      val rootRole = generateRoot(repoId, keyType)
       rootRoles.put(repoId, rootRole)
       FastFuture.successful(rootRole.asJson)
     }
   }
 
+  def deleteRepo(repoId: RepoId): Option[RootRole] =
+    Option(keys.remove(repoId)).flatMap(_ => Option(rootRoles.remove(repoId)))
+
   override def sign[T: Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = {
     val key = Option(keys.get(repoId)).flatMap(_.get(roleType)).getOrElse(throw KeyserverClient.RoleKeyNotFound)
-    val signature = TufCrypto.signPayload(defaultKeyType.crypto.convertPrivate(key.getPrivate), payload).toClient(key.getPublic.id)
+    val signature = TufCrypto.signPayload(key.privkey, payload).toClient(key.pubkey.id)
 
     FastFuture.successful(SignedPayload(List(signature), payload))
   }
@@ -105,16 +95,15 @@ class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with 
   }
 
   override def deletePrivateKey(repoId: RepoId, keyId: KeyId): Future[Unit] = FastFuture.successful {
-    keys.computeIfPresent(repoId, (id: RepoId, existingKeys: Map[RoleType, KeyPair]) => {
-      existingKeys.filter(_._2.getPublic.id != keyId)
+    keys.computeIfPresent(repoId, (id: RepoId, existingKeys: Map[RoleType, TufKeyPair]) => {
+      existingKeys.filter(_._2.pubkey.id != keyId)
     })
   }
 
   override def fetchTargetKeyPairs(repoId: RepoId): Future[Seq[TufKeyPair]] =  FastFuture.successful {
     val keyPair = keys.asScala.getOrElse(repoId, throw RoleKeyNotFound).getOrElse(RoleType.TARGETS, throw RoleKeyNotFound)
 
-    Seq(defaultKeyType.crypto.toKeyPair(defaultKeyType.crypto.convertPublic(keyPair.getPublic),
-      defaultKeyType.crypto.convertPrivate(keyPair.getPrivate)))
+    Seq(keyPair)
   }
 
   override def fetchRootRole(repoId: RepoId, version: Int): Future[SignedPayload[RootRole]] =
@@ -122,10 +111,7 @@ class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with 
 
   override def fetchKeyPair(repoId: RepoId, keyId: KeyId): Future[TufKeyPair] = Future.fromTry {
     Try {
-      val keyPair = keys.asScala.getOrElse(repoId, throw KeyPairNotFound).values.find(_.getPublic.id == keyId).getOrElse(throw KeyPairNotFound)
-      val pb = defaultKeyType.crypto.convertPublic(keyPair.getPublic)
-      val prv = defaultKeyType.crypto.convertPrivate(keyPair.getPrivate)
-      defaultKeyType.crypto.toKeyPair(pb, prv)
+      keys.asScala.getOrElse(repoId, throw KeyPairNotFound).values.find(_.pubkey.id == keyId).getOrElse(throw KeyPairNotFound)
     }
   }
 }

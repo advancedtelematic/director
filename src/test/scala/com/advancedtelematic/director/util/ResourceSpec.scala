@@ -31,7 +31,7 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec with Settings {
 trait RouteResourceSpec extends ResourceSpec {
   self: Suite =>
 
-  val keyserverClient: FakeKeyserverClient
+  val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient
   val rolesGeneration = new RolesGeneration(keyserverClient, diffServiceClient)
   val roles = new Roles(rolesGeneration)
   def routesWithVerifier(verifier: TufKey => Verifier.Verifier) =

@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
@@ -12,6 +11,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId, Rs
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
+import scala.util.Try
 
 trait RegisterNamespaceSpec extends DirectorSpec
     with Eventually
@@ -25,7 +25,7 @@ trait RegisterNamespaceSpec extends DirectorSpec
   private val interval = Interval(Span(200, Milliseconds))
 
   test("creates root repository and root file for namespace") {
-    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(keyserverClient))
+    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(keyserverClient), defaultKeyType.get)
     val namespace = Namespace("defaultNS")
 
     createRepoWorker.action(UserCreated(namespace.get))
@@ -36,15 +36,19 @@ trait RegisterNamespaceSpec extends DirectorSpec
 
       val rootFile = keyserverClient.fetchRootRole(repoId).futureValue
       rootFile.signed._type shouldBe "Root"
+      rootFile.signed.keys.head._2.keytype shouldBe defaultKeyType.get
     }
   }
 
   testWithNamespace("create repo via end-point") { implicit ns =>
-    createRepo
-    fetchRootOk
+    createRepoOk(defaultKeyType.get)
   }
 }
 
-class RsaRegisterNamespaceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with RegisterNamespaceSpec
+class RsaRegisterNamespaceSpec extends {
+  override val defaultKeyType = Try(RsaKeyType)
+} with RegisterNamespaceSpec
 
-class EdRegisterNamespaceSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with RegisterNamespaceSpec
+class EdRegisterNamespaceSpec extends {
+  override val defaultKeyType = Try(Ed25519KeyType)
+} with RegisterNamespaceSpec

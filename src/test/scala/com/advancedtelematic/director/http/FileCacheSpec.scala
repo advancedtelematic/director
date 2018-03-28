@@ -13,12 +13,11 @@ import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RsaKeyType, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
 import java.time.Instant
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.{MatchResult, Matcher}
@@ -55,7 +54,7 @@ trait FileCacheSpec extends DirectorSpec
   val directorRepo = new DirectorRepo(keyserverClient)
   override def beforeAll() {
     super.beforeAll()
-    directorRepo.findOrCreate(defaultNs).futureValue
+    directorRepo.findOrCreate(defaultNs, testKeyType).futureValue
   }
 
   test("Files are generated") {
@@ -181,6 +180,6 @@ trait FileCacheSpec extends DirectorSpec
   }
 }
 
-class RsaFileCacheSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with FileCacheSpec with RsaGenerators
+class RsaFileCacheSpec extends FileCacheSpec with RsaGenerators
 
-class EdFileCacheSpec extends  { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with FileCacheSpec with EdGenerators
+class EdFileCacheSpec extends FileCacheSpec with EdGenerators

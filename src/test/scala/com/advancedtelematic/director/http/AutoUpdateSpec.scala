@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.daemon.TufTargetWorker
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -12,7 +11,7 @@ import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.ClientDataType.TargetCustom
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, RsaKeyType, TargetName, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import eu.timepit.refined.api.Refined
 
@@ -169,7 +168,6 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
   }
 }
 
+class RsaAutoUpdateSpec extends AutoUpdateSpec with RsaGenerators
 
-class RsaAutoUpdateSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with AutoUpdateSpec with RsaGenerators
-
-class EdAutoUpdateSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with AutoUpdateSpec with EdGenerators
+class EdAutoUpdateSpec extends AutoUpdateSpec with EdGenerators

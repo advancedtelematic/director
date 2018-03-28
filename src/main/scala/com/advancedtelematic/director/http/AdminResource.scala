@@ -1,5 +1,7 @@
 package com.advancedtelematic.director.http
 
+import org.slf4j.LoggerFactory
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives._
@@ -11,9 +13,8 @@ import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport,
-  CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport,
-  SetMultiTargets, SetTargets}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport, SetMultiTargets, SetTargets}
+import com.advancedtelematic.director.http.RepoResource.CreateRepositoryRequest
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -23,20 +24,34 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, TargetName}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.{Decoder, Encoder}
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
-class AdminResource(extractNamespace: Directive1[Namespace],
-                    keyserverClient: KeyserverClient)
+object RepoResource {
+
+  object CreateRepositoryRequest {
+    implicit val encoder: Encoder[CreateRepositoryRequest] = io.circe.generic.semiauto.deriveEncoder
+    implicit val decoder: Decoder[CreateRepositoryRequest] = io.circe.generic.semiauto.deriveDecoder
+  }
+
+  case class CreateRepositoryRequest(keyType: KeyType)
+}
+
+class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: KeyserverClient)
                    (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
     with AutoUpdateRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
     with RepoNameRepositorySupport {
+
+  import RepoResource.CreateRepositoryRequest._
+
+  private lazy val log = LoggerFactory.getLogger(this.getClass)
 
   val directorRepo = new DirectorRepo(keyserverClient)
   val setMultiTargets = new SetMultiTargets()
@@ -51,9 +66,16 @@ class AdminResource(extractNamespace: Directive1[Namespace],
     (limit, offset)
   }
 
-  def createRepo(namespace: Namespace): Route = complete {
-    directorRepo.findOrCreate(namespace).map(StatusCodes.Created -> _)
-  }
+  def createRepo(namespace: Namespace, keyType: KeyType) =
+    complete {
+      directorRepo.findOrCreate(namespace, keyType).map(StatusCodes.Created -> _)
+    }
+
+  def createRepo(namespace: Namespace): Route =
+    entity(as[CreateRepositoryRequest]) { request =>
+      log.debug(s"creating repo with key type ${request.keyType} for namespace $namespace")
+      createRepo(namespace, request.keyType)
+    } ~ createRepo(namespace, RsaKeyType)
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {
     val primEcu = regDev.primary_ecu_serial

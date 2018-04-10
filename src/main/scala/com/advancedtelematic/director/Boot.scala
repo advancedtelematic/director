@@ -17,14 +17,11 @@ import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter, InfluxDbMetricsReporterSettings, OsMetricSet}
-import com.codahale.metrics.jvm.ThreadStatesGaugeSet
+import com.advancedtelematic.metrics._
 import com.typesafe.config.{Config, ConfigFactory}
-import io.circe.Decoder
 import java.security.Security
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.slf4j.LoggerFactory
 
 trait Settings {
   private def mkUri(config: Config, key: String): Uri = {
@@ -44,23 +41,6 @@ trait Settings {
   val coreUri = mkUri(_config, "core.uri")
   val tufBinaryUri = mkUri(_config, "tuf.binary.uri")
 
-  val metricsReporterSettings: Option[InfluxDbMetricsReporterSettings] = {
-    import com.advancedtelematic.circe.config.finiteDurationDecoder
-
-    implicit val metricsReporterDecoder: Decoder[Option[InfluxDbMetricsReporterSettings]] =
-      Decoder.decodeBoolean.prepare(_.downField("reportMetrics")).flatMap { enabled =>
-        if (enabled)
-          io.circe.generic.semiauto.deriveDecoder[InfluxDbMetricsReporterSettings].map(Some.apply)
-        else Decoder.const(None)
-      }
-    import com.advancedtelematic.circe.config.decodeConfigAccumulating
-    decodeConfigAccumulating(_config)(metricsReporterDecoder.prepare(_.downField("ats").downField("metricsReporter"))).fold ({ x =>
-      val errorMessage = s"Invalid service configuration: ${x.show}"
-      LoggerFactory.getLogger(this.getClass).error(errorMessage)
-      throw new Throwable(errorMessage)
-    }, identity)
-  }
-
 }
 
 object Boot extends BootApp
@@ -69,7 +49,8 @@ object Boot extends BootApp
   with VersionInfo
   with DatabaseConfig
   with MetricsSupport
-  with DatabaseMetrics {
+  with DatabaseMetrics
+  with InfluxdbMetricsReporterSupport {
 
   implicit val _db = db
 
@@ -84,12 +65,6 @@ object Boot extends BootApp
   val roles = new Roles(rolesGeneration)
 
   Security.addProvider(new BouncyCastleProvider())
-
-  metricsReporterSettings.foreach{ x =>
-    metricRegistry.register("jvm.thread", new ThreadStatesGaugeSet())
-    metricRegistry.register("jvm.os", OsMetricSet)
-    InfluxDbMetricsReporter.start(x, metricRegistry, AkkaHttpMetricsSink.apply(x))
-  }
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~

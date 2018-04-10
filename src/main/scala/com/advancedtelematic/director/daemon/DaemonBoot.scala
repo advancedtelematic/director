@@ -16,7 +16,7 @@ import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGeneratio
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.{AkkaHttpMetricsSink, InfluxDbMetricsReporter}
+import com.advancedtelematic.metrics.InfluxdbMetricsReporterSupport
 
 object DaemonBoot extends BootApp
     with Settings
@@ -25,7 +25,8 @@ object DaemonBoot extends BootApp
     with DatabaseConfig
     with MetricsSupport
     with DatabaseMetrics
-    with MessageListenerSupport {
+    with MessageListenerSupport
+    with InfluxdbMetricsReporterSupport{
 
   import com.advancedtelematic.libats.http.LogDirectives._
   import com.advancedtelematic.libats.http.VersionDirectives._
@@ -56,10 +57,6 @@ object DaemonBoot extends BootApp
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
   val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
-
-  metricsReporterSettings.foreach{ reporterSettings =>
-    InfluxDbMetricsReporter.start(reporterSettings, metricRegistry, AkkaHttpMetricsSink.apply(reporterSettings))
-  }
 
   val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
     DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route

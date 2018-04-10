@@ -6,16 +6,16 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyType, R
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import io.circe.syntax._
 import org.bouncycastle.util.encoders.Base64
+
 import scala.util.Success
 
 abstract class SignatureVerificationSpec extends DirectorSpec {
   import SignatureVerification.verify
 
   val keytype: KeyType
-  val keySize: Int
 
   test("can verify correct signature") {
-    val keyPair = TufCrypto.generateKeyPair(keytype, keySize = keySize)
+    val keyPair = TufCrypto.generateKeyPair(keytype, keytype.crypto.defaultKeySize)
     val data = "0123456789abcdef"
 
     val sig = TufCrypto.signPayload(keyPair.privkey, data)
@@ -24,7 +24,7 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
   }
 
   test("reject signature from different message") {
-    val keyPair = TufCrypto.generateKeyPair(keytype, keySize = keySize)
+    val keyPair = TufCrypto.generateKeyPair(keytype, keytype.crypto.defaultKeySize)
     val data1 = "0123456789abcdef"
     val data2 = "0123456789abcdfe"
 
@@ -34,7 +34,7 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
   }
 
   test("reject changed signature from valid") {
-    val keyPair = TufCrypto.generateKeyPair(keytype, keySize = keySize)
+    val keyPair = TufCrypto.generateKeyPair(keytype, keytype.crypto.defaultKeySize)
     val data = "0123456789abcdef"
 
     def updateBit(base64: String): String = {
@@ -55,10 +55,8 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
 
 class EdSignatureVerificationSpec extends SignatureVerificationSpec {
   val keytype = Ed25519KeyType
-  val keySize = 256 // keySize doesn't matter for EdKeyType
 }
 
 class RsaSignatureVerificationSpec extends SignatureVerificationSpec {
   val keytype = RsaKeyType
-  val keySize = 2048
 }

@@ -96,8 +96,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   // another  workaround might be to use parTraverse from cats
   def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
                             targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
-    Future.traverse(targets) {
-      case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
+    Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
       doDiff match {
         case None => FastFuture.successful(ecu -> TargetCustomImage(image, hw, uri, None))
         case Some(targetFormat) =>

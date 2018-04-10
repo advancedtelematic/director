@@ -12,7 +12,7 @@ import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
 import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
-import com.advancedtelematic.libats.http.monitoring.MetricsSupport
+import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHealthCheck}
 import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
@@ -92,7 +92,7 @@ object Boot extends BootApp
   }
 
   val routes: Route =
-    DbHealthResource(versionMap).route ~
+    DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
     (versionHeaders(version) & logResponseMetrics(projectName)) {
       new DirectorRoutes(SignatureVerification.verify, coreClient, tuf, roles, diffService).routes
     }

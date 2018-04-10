@@ -1,6 +1,6 @@
 name := "director"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.5"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification"
    )
@@ -11,12 +11,11 @@ resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content
 
 libraryDependencies ++= {
   val akkaV = "2.5.9"
-  val akkaHttpV = "10.0.3"
+  val akkaHttpV = "10.0.11"
   val scalaTestV = "3.0.0"
-  val sotaV = "0.2.89"
   val bouncyCastleV = "1.57"
-  val tufV = "0.2.0-124-g38ca321"
-  val libatsV = "0.1.1-9-gf372cc9"
+  val tufV = "0.3.0-11-g853bc7c"
+  val libatsV = "0.1.1-17-g2a718da"
   val circeConfigV = "0.0.2"
 
   Seq(

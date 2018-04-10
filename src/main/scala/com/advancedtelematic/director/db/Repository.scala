@@ -17,7 +17,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 import java.time.Instant
-
+import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -31,7 +31,7 @@ trait AdminRepositorySupport {
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
     with UpdateTypesRepositorySupport {
-  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, EcuInfoImage, RegisterEcu, QueueResponse}
+  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, RegisterEcu, QueueResponse}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Hashes, Image}
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings.{keyTypeMapper, publicKeyMapper}
 
@@ -96,16 +96,15 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
-    val query = for {
-      ecu <- Schema.ecu if ecu.namespace === namespace && ecu.device === device
-      curImage <- Schema.currentImage if ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id
-    } yield (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum)
-
-    for {
-      devices <- query.result.failIfEmpty(MissingDevice)
-    } yield for {
-      (id, hardwareId, primary, filepath, size, checksum) <- devices
-    } yield EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
+    Schema.ecu
+        .filter(_.namespace === namespace).filter(_.device === device)
+        .join(Schema.currentImage).on(_.ecuSerial === _.id)
+        .map { case (ecu, curImage) => (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum) }
+        .result
+        .failIfEmpty(MissingDevice)
+        .map { _.map { case (id, hardwareId, primary, filepath, size, checksum) =>
+          EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
+        } }
   }
 
   def findDevices(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {

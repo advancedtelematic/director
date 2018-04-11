@@ -8,6 +8,7 @@ import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshaller}
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import cats.implicits._
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.DeviceRequest.OperationResult
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -34,10 +35,7 @@ object CoreHttpClient {
 
   final case class NoContent()
 
-  implicit val noContentUnmarshaller: FromEntityUnmarshaller[NoContent]
-    = Unmarshaller { implicit ec => response =>
-      FastFuture.successful(NoContent())
-    }
+  implicit val noContentUnmarshaller: FromEntityUnmarshaller[NoContent] = Unmarshaller.strict(_ => NoContent())
 }
 
 class CoreHttpClient(uri: Uri)(implicit ec: ExecutionContext, system: ActorSystem, mat: Materializer) extends CoreClient {

@@ -19,6 +19,7 @@ import io.circe.{Decoder, Encoder, Json}
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.util.Try
+import KeyserverClient._
 
 class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with Generators {
 
@@ -94,22 +95,6 @@ class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with 
       sign(repoId, RoleType.ROOT, role)
     }
 
-  override def addTargetKey(repoId: RepoId, key: TufKey): Future[Unit] = {
-    if(!rootRoles.containsKey(repoId))
-      FastFuture.failed(KeyserverClient.RootRoleNotFound)
-    else {
-      rootRoles.computeIfPresent(repoId, (_: RepoId, role: RootRole) => {
-        val newKeys = role.keys + (key.id -> key)
-        val targetRoleKeys = role.roles(RoleType.TARGETS)
-        val newTargetKeys = RoleKeys(targetRoleKeys.keyids :+ key.id, targetRoleKeys.threshold)
-
-        role.copy(keys = newKeys, roles = role.roles + (RoleType.TARGETS -> newTargetKeys))
-      })
-
-      FastFuture.successful(())
-    }
-  }
-
   override def fetchUnsignedRoot(repoId: RepoId): Future[RootRole] = fetchRootRole(repoId).map(_.signed)
 
   override def updateRoot(repoId: RepoId, signedPayload: SignedPayload[RootRole]): Future[Unit] = FastFuture.successful {
@@ -135,11 +120,12 @@ class FakeKeyserverClient(defaultKeyType: KeyType) extends KeyserverClient with 
   override def fetchRootRole(repoId: RepoId, version: Int): Future[SignedPayload[RootRole]] =
     fetchRootRole(repoId).filter(_.signed.version == version)
 
-  override def fetchKeyPair(repoId: RepoId, keyId: KeyId): Future[TufKeyPair] = Future.fromTry { Try {
-    val keyPair = keys.asScala.getOrElse(repoId, throw KeyPairNotFound).values.find(_.getPublic.id == keyId).getOrElse(throw KeyPairNotFound)
-    val pb = defaultKeyType.crypto.convertPublic(keyPair.getPublic)
-    val prv = defaultKeyType.crypto.convertPrivate(keyPair.getPrivate)
-    defaultKeyType.crypto.toKeyPair(pb, prv)
-  } }
-
+  override def fetchKeyPair(repoId: RepoId, keyId: KeyId): Future[TufKeyPair] = Future.fromTry {
+    Try {
+      val keyPair = keys.asScala.getOrElse(repoId, throw KeyPairNotFound).values.find(_.getPublic.id == keyId).getOrElse(throw KeyPairNotFound)
+      val pb = defaultKeyType.crypto.convertPublic(keyPair.getPublic)
+      val prv = defaultKeyType.crypto.convertPrivate(keyPair.getPrivate)
+      defaultKeyType.crypto.toKeyPair(pb, prv)
+    }
+  }
 }

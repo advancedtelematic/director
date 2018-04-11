@@ -14,7 +14,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.0.11"
   val scalaTestV = "3.0.0"
   val bouncyCastleV = "1.57"
-  val tufV = "0.3.0-11-g853bc7c"
+  val tufV = "0.3.0-16-gfde0883"
   val libatsV = "0.1.1-17-g2a718da"
   val circeConfigV = "0.0.2"
 
@@ -22,7 +22,7 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-actor" % akkaV,
     "com.typesafe.akka" %% "akka-stream" % akkaV,
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV,
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "org.scalatest"     %% "scalatest" % scalaTestV % "test",
 

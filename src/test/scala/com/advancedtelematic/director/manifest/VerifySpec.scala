@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.manifest
 
-import java.security.KeyPair
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -16,7 +15,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyType, RsaKeyType, SignedPayload, TufKey, TufKeyPair, TufPrivateKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyType, RsaKeyType, SignedPayload, TufKeyPair}
 import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 

@@ -11,7 +11,7 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, RoleType, SignedPayload, TufKey, TufKeyPair}
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, RoleType, SignedPayload, TufKeyPair}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient.{KeyPairNotFound, RoleKeyNotFound}
 import io.circe.{Decoder, Encoder, Json}

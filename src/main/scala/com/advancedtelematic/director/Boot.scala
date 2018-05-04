@@ -1,6 +1,9 @@
 package com.advancedtelematic.director
 
 
+import java.security.Security
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
@@ -16,21 +19,32 @@ import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHeal
 import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
+import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics._
 import com.typesafe.config.{Config, ConfigFactory}
-import java.security.Security
+import scala.util.Try
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider
+object Util {
+  def namedType[T](name: String): T = {
+    val ru = scala.reflect.runtime.universe
+    val mirror = ru.runtimeMirror(getClass.getClassLoader)
+    val objectSymbol = mirror.staticModule(name)
+    val mm = mirror.reflectModule(objectSymbol)
+    mm.instance.asInstanceOf[T]
+  }
 
-trait Settings {
-  private def mkUri(config: Config, key: String): Uri = {
+  def mkUri(config: Config, key: String): Uri = {
     val uri = Uri(config.getString(key))
     if (!uri.isAbsolute) {
       throw new IllegalArgumentException(s"$key is not an absolute uri")
     }
     uri
   }
+}
+
+trait Settings {
+  import Util._
 
   private lazy val _config = ConfigFactory.load()
 
@@ -41,6 +55,11 @@ trait Settings {
   val coreUri = mkUri(_config, "core.uri")
   val tufBinaryUri = mkUri(_config, "tuf.binary.uri")
 
+  val defaultKeyType: Try[KeyType] = {
+    Try(_config.getString("daemon.defaultKeyType")).map { defaultKeyTypeName =>
+      namedType[KeyType](defaultKeyTypeName)
+    }
+  }
 }
 
 object Boot extends BootApp

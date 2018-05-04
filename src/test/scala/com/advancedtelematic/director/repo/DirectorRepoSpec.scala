@@ -4,7 +4,7 @@ import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, Resou
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import com.advancedtelematic.libtuf.data.TufDataType
-import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyId, KeyType, RepoId, SignedPayload}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
@@ -49,9 +49,9 @@ class DirectorRepoSpec
 
   test("Only create repo once") {
     countKeyserverClient.count shouldBe 0
-    val repoId = directorRepo.findOrCreate(dirNs).futureValue
+    val repoId = directorRepo.findOrCreate(dirNs, Ed25519KeyType).futureValue
     countKeyserverClient.count shouldBe 1
-    val repoId2 = directorRepo.findOrCreate(dirNs).futureValue
+    val repoId2 = directorRepo.findOrCreate(dirNs, Ed25519KeyType).futureValue
 
     countKeyserverClient.count shouldBe 1
     repoId shouldBe repoId2

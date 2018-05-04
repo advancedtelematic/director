@@ -10,7 +10,6 @@ import com.advancedtelematic.director.data.Legacy._
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidTargetFilename}
-import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
@@ -115,20 +114,18 @@ trait Generators {
 }
 
 trait KeyGenerators extends Generators {
-  val defaultKeyType: KeyType
-  val defaultKeySize: Int
-
-  val defaultSignatureMethod: SignatureMethod
+  val testKeyType: KeyType
+  val testSignatureMethod: SignatureMethod
 
   lazy val GenKeyType: Gen[KeyType]
-    = Gen.const(defaultKeyType)
+    = Gen.const(testKeyType)
 
   lazy val GenSignatureMethod: Gen[SignatureMethod]
-    = Gen.const(defaultSignatureMethod)
+    = Gen.const(testSignatureMethod)
 
   lazy val GenTufKey: Gen[TufKey] = for {
     keyType <- GenKeyType
-    keyPair = TufCrypto.generateKeyPair(keyType, keySize = defaultKeySize)
+    keyPair = testKeyType.crypto.generateKeyPair
   } yield keyPair.pubkey
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
@@ -168,13 +165,11 @@ trait KeyGenerators extends Generators {
 }
 
 trait RsaGenerators extends KeyGenerators {
-  val defaultKeyType: KeyType = RsaKeyType
-  val defaultKeySize: Int = 2048
-  val defaultSignatureMethod: SignatureMethod = SignatureMethod.RSASSA_PSS_SHA256
+  val testKeyType: KeyType = RsaKeyType
+  val testSignatureMethod: SignatureMethod = SignatureMethod.RSASSA_PSS_SHA256
 }
 
 trait EdGenerators extends KeyGenerators {
-  val defaultKeyType: KeyType = Ed25519KeyType
-  val defaultKeySize: Int = 256
-  val defaultSignatureMethod: SignatureMethod = SignatureMethod.ED25519
+  val testKeyType: KeyType = Ed25519KeyType
+  val testSignatureMethod: SignatureMethod = SignatureMethod.ED25519
 }

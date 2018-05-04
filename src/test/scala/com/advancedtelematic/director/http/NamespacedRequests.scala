@@ -3,11 +3,12 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.{HttpRequest, StatusCode, StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, FindImageCount, QueueResponse, RegisterDevice, SetTarget}
+import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
+import com.advancedtelematic.director.http.RepoResource.CreateRepositoryRequest
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
@@ -16,7 +17,7 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSe
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, SignedPayload, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, SignedPayload, TargetName, TufKey}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import io.circe.syntax._
@@ -183,11 +184,20 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def createRepo(implicit ns: NamespaceTag): RepoId =
-    Post(apiUri("admin/repo")).namespaced ~> routes ~> check  {
+  def createRepo(keyType: KeyType)(implicit ns: NamespaceTag): RepoId = {
+    import RepoResource.CreateRepositoryRequest._
+
+    Post(apiUri("admin/repo"), CreateRepositoryRequest(keyType)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
       responseAs[RepoId]
     }
+  }
+
+  def createRepoOk(keyType: KeyType)(implicit ns: NamespaceTag): Unit = {
+    createRepo(keyType)
+    val signedRootRole = fetchRootOk
+    signedRootRole.signed.keys.head._2.keytype shouldBe keyType
+  }
 
   def fetchRoot(implicit ns: NamespaceTag): HttpRequest =
     Get(apiUri("admin/root.json")).namespaced

@@ -43,8 +43,11 @@ object DaemonBoot extends BootApp
 
   val fileCacheDaemon = system.actorOf(FileCacheDaemon.props(rolesGeneration), "filecache-daemon")
 
-  val createRepoWorker = new CreateRepoWorker(new DirectorRepo(tuf))
-  val userCreatedBusListener = startListener[UserCreated](createRepoWorker.action)
+  val userCreatedBusListener = defaultKeyType.map { kt =>
+    log.info(s"default key type: $kt")
+    val createRepoWorker = new CreateRepoWorker(new DirectorRepo(tuf), kt)
+    startListener[UserCreated](createRepoWorker.action)
+  }
 
   val campaignCreatedListener = startListener[CampaignLaunched](CampaignWorker.action)
 

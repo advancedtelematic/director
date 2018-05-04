@@ -1,16 +1,12 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.client.{FakeKeyserverClient}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
-import com.advancedtelematic.libtuf.data.TufDataType.Ed25519KeyType
 
 class MultiTargetUpdatesResourceSpec extends DirectorSpec with Generators with DefaultPatience with RouteResourceSpec with Requests {
-
-  val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType)
 
   test("fetching non-existent target info returns 404") {
     val id = UpdateId.generate()

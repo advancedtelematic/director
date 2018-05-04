@@ -1,16 +1,15 @@
 package com.advancedtelematic.director.daemon
 
-import com.advancedtelematic.director.client._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.director.db.SetMultiTargets
 import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, RsaKeyType}
+import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.OSTREE
 import eu.timepit.refined.api.Refined
 
-trait TufTargetWorkerSpec extends DirectorSpec with Generators with RouteResourceSpec {
+class TufTargetWorkerSpec extends DirectorSpec with Generators with RouteResourceSpec {
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
 
@@ -55,7 +54,3 @@ trait TufTargetWorkerSpec extends DirectorSpec with Generators with RouteResourc
 
   }
 }
-
-class RsaTufTargetWorkerSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(RsaKeyType) } with TufTargetWorkerSpec
-
-class EdTufTargetWorkerSpec extends { val keyserverClient: FakeKeyserverClient = new FakeKeyserverClient(Ed25519KeyType) } with TufTargetWorkerSpec

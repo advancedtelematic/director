@@ -1,19 +1,16 @@
 package com.advancedtelematic.director.http
 
 import org.slf4j.LoggerFactory
-
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directive1
+import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.PathMatcher1
-import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, AutoUpdateRepositorySupport, CancelUpdate, DeviceRepositorySupport, FileCacheRequestRepositorySupport, RepoNameRepositorySupport, SetMultiTargets, SetTargets}
+import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.http.RepoResource.CreateRepositoryRequest
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
@@ -28,6 +25,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, Targe
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -71,10 +69,16 @@ class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: Ke
       directorRepo.findOrCreate(namespace, keyType).map(StatusCodes.Created -> _)
     }
 
+  private val malformedRequestContentRejectionHandler = RejectionHandler.newBuilder().handle {
+    case MalformedRequestContentRejection(msg, _) => complete((StatusCodes.BadRequest, msg))
+  }.result()
+
   def createRepo(namespace: Namespace): Route =
-    entity(as[CreateRepositoryRequest]) { request =>
-      log.debug(s"creating repo with key type ${request.keyType} for namespace $namespace")
-      createRepo(namespace, request.keyType)
+    handleRejections(malformedRequestContentRejectionHandler) {
+      entity(as[CreateRepositoryRequest]) { request =>
+        log.debug(s"creating repo with key type ${request.keyType} for namespace $namespace")
+        createRepo(namespace, request.keyType)
+      }
     } ~ createRepo(namespace, RsaKeyType)
 
   def registerDevice(namespace: Namespace, regDev: RegisterDevice): Route = {

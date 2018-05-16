@@ -1,9 +1,11 @@
 package com.advancedtelematic.director.http
 
+import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
@@ -11,6 +13,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId, Rs
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
+
 import scala.util.Try
 
 trait RegisterNamespaceSpec extends DirectorSpec
@@ -40,9 +43,25 @@ trait RegisterNamespaceSpec extends DirectorSpec
     }
   }
 
-  testWithNamespace("create repo via end-point") { implicit ns =>
-    createRepoOk(defaultKeyType.get)
+  testWithNamespace("creates repo using given key type") { implicit ns =>
+    createRepo(defaultKeyType.get)
+    fetchRootKeyType shouldBe defaultKeyType.get
   }
+
+  testWithNamespace("creates repo using default key type") { implicit ns =>
+    Post(apiUri("admin/repo")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+  }
+
+  testWithNamespace("creating repo fails for invalid key type parameter") { implicit ns =>
+    Post(apiUri("admin/repo"))
+        .withEntity(ContentTypes.`application/json`, """ { "keyType":"caesar" } """)
+        .namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+    }
+  }
+
 }
 
 class RsaRegisterNamespaceSpec extends {

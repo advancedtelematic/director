@@ -193,10 +193,12 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
+  def fetchRootKeyType(implicit ns: NamespaceTag): KeyType =
+    fetchRootOk.signed.keys.head._2.keytype
+
   def createRepoOk(keyType: KeyType)(implicit ns: NamespaceTag): Unit = {
     createRepo(keyType)
-    val signedRootRole = fetchRootOk
-    signedRootRole.signed.keys.head._2.keytype shouldBe keyType
+    fetchRootKeyType shouldBe keyType
   }
 
   def fetchRoot(implicit ns: NamespaceTag): HttpRequest =

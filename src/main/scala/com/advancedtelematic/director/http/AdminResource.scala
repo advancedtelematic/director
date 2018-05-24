@@ -15,7 +15,9 @@ import com.advancedtelematic.director.http.RepoResource.CreateRepositoryRequest
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
@@ -28,6 +30,7 @@ import io.circe.{Decoder, Encoder}
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
+
 
 object RepoResource {
 
@@ -70,7 +73,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: Ke
     }
 
   private val malformedRequestContentRejectionHandler = RejectionHandler.newBuilder().handle {
-    case MalformedRequestContentRejection(msg, _) => complete((StatusCodes.BadRequest, msg))
+    case MalformedRequestContentRejection(msg, _) =>
+                      complete((StatusCodes.BadRequest, ErrorRepresentation(InvalidEntity, msg)))
   }.result()
 
   def createRepo(namespace: Namespace): Route =

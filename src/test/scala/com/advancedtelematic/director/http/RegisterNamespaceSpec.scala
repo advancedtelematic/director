@@ -52,6 +52,8 @@ trait RegisterNamespaceSpec extends DirectorSpec
     Post(apiUri("admin/repo")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
     }
+
+    fetchRootKeyType shouldBe RsaKeyType
   }
 
   testWithNamespace("creating repo fails for invalid key type parameter") { implicit ns =>

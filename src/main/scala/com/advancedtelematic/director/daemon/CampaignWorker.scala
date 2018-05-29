@@ -9,8 +9,9 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, SetTargets, Er
 import com.advancedtelematic.libats.codecs.RefinementError
 import com.advancedtelematic.libats.data.DataType.{Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId, ValidTargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.Messages.CampaignLaunched
+import com.advancedtelematic.libtuf.data.TufDataType.ValidTargetFilename
 import org.slf4j.LoggerFactory
 
 import scala.async.Async._

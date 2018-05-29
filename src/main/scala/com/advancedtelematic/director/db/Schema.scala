@@ -9,14 +9,15 @@ import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, Upd
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetName}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
+
 import slick.jdbc.MySQLProfile.api._
 
 object Mappers {

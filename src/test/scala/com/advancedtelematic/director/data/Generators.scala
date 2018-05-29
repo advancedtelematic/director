@@ -9,10 +9,10 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Legacy._
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidTargetFilename}
+import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
+import com.advancedtelematic.libtuf.data.TufDataType.ValidTargetFilename
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
-import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.{BINARY, OSTREE, TargetFormat}
 import io.circe.Encoder
 import io.circe.syntax._

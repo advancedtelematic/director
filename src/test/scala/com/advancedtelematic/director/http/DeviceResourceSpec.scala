@@ -422,7 +422,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     deviceVersion(device) shouldBe Some(1)
   }
 
-  testWithNamespace("Updating don't when failed don't increase current target") { implicit ns =>
+  testWithNamespace("Failed update doesn't increase current target version") { implicit ns =>
     createRepoOk(testKeyType)
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate

@@ -26,31 +26,18 @@ import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, Targe
 import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import io.circe.{Decoder, Encoder}
-
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 
-object RepoResource {
-
-  object CreateRepositoryRequest {
-    implicit val encoder: Encoder[CreateRepositoryRequest] = io.circe.generic.semiauto.deriveEncoder
-    implicit val decoder: Decoder[CreateRepositoryRequest] = io.circe.generic.semiauto.deriveDecoder
-  }
-
-  case class CreateRepositoryRequest(keyType: KeyType)
-}
-
-class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: KeyserverClient)
-                   (implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
+                   (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
     with AutoUpdateRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
-    with RepoNameRepositorySupport {
-
-  import RepoResource.CreateRepositoryRequest._
+    with RepoNameRepositorySupport
+    with RootFetcher {
 
   private lazy val log = LoggerFactory.getLogger(this.getClass)
 
@@ -127,13 +114,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: Ke
     complete(f)
   }
 
-  def fetchRoot(namespace: Namespace): Route = {
-    val f = repoNameRepository.getRepo(namespace).flatMap { repo =>
-      keyserverClient.fetchRootRole(repo)
-    }
-    complete(f)
-  }
-
   def countInstalledImages(namespace: Namespace): Route =
     entity(as[FindImageCount]) { findReq =>
       complete(adminRepository.countInstalledImages(namespace, findReq.filepaths))
@@ -194,8 +174,13 @@ class AdminResource(extractNamespace: Directive1[Namespace], keyserverClient: Ke
       (pathEnd & post) {
         createRepo(ns)
       } ~
-      (path("root.json") & get) {
-        fetchRoot(ns)
+      get {
+        path("root.json") {
+          fetchRoot(ns)
+        } ~
+        path(IntNumber ~ ".root.json") { version ⇒
+          fetchRoot(ns, version)
+        }
       }
     }
 

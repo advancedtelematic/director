@@ -190,6 +190,12 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     // we use Seq here instead of Set, since they are ordered by creation time
     pag.values shouldBe Seq(device1, device2, device3)
   }
+
+  testWithNamespace("versioned root") { implicit ns =>
+    createRepo
+
+    fetchRootOk(1).signed shouldBe fetchRootOk.signed
+  }
 }
 
 class RsaAdminResourceSpec extends AdminResourceSpec with RsaGenerators

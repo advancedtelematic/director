@@ -6,8 +6,8 @@ import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuMan
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, OperationResult}
-import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPayload, TufKey}
 import io.circe.Json
 import org.slf4j.LoggerFactory
 

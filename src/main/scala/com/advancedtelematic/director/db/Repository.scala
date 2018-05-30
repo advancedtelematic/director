@@ -1,5 +1,8 @@
 package com.advancedtelematic.director.db
 
+import java.time.Instant
+
+import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
@@ -7,20 +10,17 @@ import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.director.db.Mappers._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
-import java.time.Instant
-import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
-
 import scala.util.{Failure, Success}
 import Errors._
 
@@ -149,7 +149,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     for {
       currentVersion <- versionOfDevice
       updates <- allUpdatesScheduledAfter(currentVersion)
-      queue <- DBIO.sequence(updates.map(queueResult _))
+      queue <- DBIO.sequence(updates.map(queueResult))
     } yield queue
   }
 

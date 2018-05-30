@@ -2,8 +2,8 @@ package com.advancedtelematic.director.data
 
 import java.security.PublicKey
 
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, TufKey}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, TargetFilename, TufKey}
 
 object AdminRequest {
   import DataType._

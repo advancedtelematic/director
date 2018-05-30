@@ -422,7 +422,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     deviceVersion(device) shouldBe Some(1)
   }
 
-  testWithNamespace("Updating don't when failed don't increase current target") { implicit ns =>
+  testWithNamespace("Failed update doesn't increase current target version") { implicit ns =>
     createRepoOk(testKeyType)
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -456,6 +456,20 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifest2)
     deviceVersion(device) shouldBe Some(3)
     deviceScheduledVersion(device) shouldBe 3
+  }
+
+  testWithNamespace("Device can get versioned root.json") { implicit ns =>
+    createRepo(testKeyType)
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    fetchRootFor(device).signed shouldBe fetchRootFor(device, 1).signed
   }
 }
 

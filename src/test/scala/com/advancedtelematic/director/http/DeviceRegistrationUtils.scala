@@ -7,8 +7,8 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.KeyGenerators
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename}
-import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen

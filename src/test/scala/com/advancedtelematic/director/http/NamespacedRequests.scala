@@ -8,16 +8,16 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
-import com.advancedtelematic.director.http.RepoResource.CreateRepositoryRequest
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, SignedPayload, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, SignedPayload, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import io.circe.syntax._
@@ -99,6 +99,18 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
       responseAs[SignedPayload[TargetsRole]]
     }
   }
+
+  def fetchRootFor(device: DeviceId)(implicit ns: NamespaceTag): SignedPayload[RootRole] =
+    Get(apiUri(s"device/${device.show}/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+  def fetchRootFor(device: DeviceId, version: Int)(implicit ns: NamespaceTag): SignedPayload[RootRole] =
+    Get(apiUri(s"device/${device.show}/$version.root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
 
   def setTargets(device: DeviceId, targets: SetTarget)(implicit ns: NamespaceTag): HttpRequest =
     Put(apiUri(s"admin/devices/${device.show}/targets"), targets).namespaced
@@ -184,14 +196,17 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def createRepo(keyType: KeyType)(implicit ns: NamespaceTag): RepoId = {
-    import RepoResource.CreateRepositoryRequest._
+  def createRepo(implicit ns: NamespaceTag): RepoId =
+    Post(apiUri("admin/repo")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[RepoId]
+    }
 
+  def createRepo(keyType: KeyType)(implicit ns: NamespaceTag): RepoId =
     Post(apiUri("admin/repo"), CreateRepositoryRequest(keyType)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
       responseAs[RepoId]
     }
-  }
 
   def fetchRootKeyType(implicit ns: NamespaceTag): KeyType =
     fetchRootOk.signed.keys.head._2.keytype
@@ -202,10 +217,19 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
   }
 
   def fetchRoot(implicit ns: NamespaceTag): HttpRequest =
-    Get(apiUri("admin/root.json")).namespaced
+    Get(apiUri("admin/repo/root.json")).namespaced
+
+  def fetchRoot(version: Int)(implicit ns: NamespaceTag): HttpRequest =
+    Get(apiUri(s"admin/repo/$version.root.json")).namespaced
 
   def fetchRootOk(implicit ns: NamespaceTag): SignedPayload[RootRole] =
     fetchRoot ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+  def fetchRootOk(version: Int)(implicit ns: NamespaceTag): SignedPayload[RootRole] =
+    fetchRoot(version) ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[SignedPayload[RootRole]]
     }

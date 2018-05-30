@@ -3,12 +3,11 @@ package com.advancedtelematic.director.daemon
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.db.{AutoUpdateRepositorySupport, MultiTargetUpdatesRepositorySupport,
-  SetMultiTargets}
+import com.advancedtelematic.director.db.{AutoUpdateRepositorySupport, MultiTargetUpdatesRepositorySupport, SetMultiTargets}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId, ValidTargetFilename}
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName, ValidTargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import org.slf4j.LoggerFactory

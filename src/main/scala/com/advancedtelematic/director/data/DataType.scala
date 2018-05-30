@@ -4,9 +4,9 @@ import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, DeviceId, TargetFilename, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json

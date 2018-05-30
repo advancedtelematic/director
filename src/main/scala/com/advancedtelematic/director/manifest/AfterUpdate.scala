@@ -7,12 +7,12 @@ import com.advancedtelematic.director.data.DeviceRequest.{OperationResult => Cor
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate,
-  LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate, LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, OperationResult}
-import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateReport
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.data.TufDataType.OperationResult
+import com.advancedtelematic.libtuf_server.data.Messages.DeviceUpdateReport
 
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}

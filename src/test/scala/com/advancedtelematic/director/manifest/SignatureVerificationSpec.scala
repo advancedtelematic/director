@@ -18,7 +18,7 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
     val keyPair = TufCrypto.generateKeyPair(keytype, keytype.crypto.defaultKeySize)
     val data = "0123456789abcdef"
 
-    val sig = TufCrypto.signPayload(keyPair.privkey, data)
+    val sig = TufCrypto.signPayload(keyPair.privkey, data.asJson)
 
     verify(keyPair.pubkey)(sig, data.asJson.noSpaces.getBytes) shouldBe Success(true)
   }
@@ -28,7 +28,7 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
     val data1 = "0123456789abcdef"
     val data2 = "0123456789abcdfe"
 
-    val sig = TufCrypto.signPayload(keyPair.privkey, data1)
+    val sig = TufCrypto.signPayload(keyPair.privkey, data1.asJson)
 
     verify(keyPair.pubkey)(sig, data2.asJson.noSpaces.getBytes) shouldBe Success(false)
   }
@@ -44,7 +44,7 @@ abstract class SignatureVerificationSpec extends DirectorSpec {
     }
 
     val sig = {
-      val orig = TufCrypto.signPayload(keyPair.privkey, data)
+      val orig = TufCrypto.signPayload(keyPair.privkey, data.asJson)
       val newSig = updateBit(orig.sig.value).refineTry[ValidSignature].get
       orig.copy(sig = newSig)
     }

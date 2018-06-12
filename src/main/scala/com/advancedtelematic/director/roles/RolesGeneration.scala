@@ -18,8 +18,9 @@ import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeOps, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RoleType, SignedPayload, TargetFilename, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, SignedPayload, TargetFilename, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.Encoder
@@ -75,14 +76,19 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                   expires = expires,
                   version = version)
 
+  private def signRole[T : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = {
+    tuf.sign(repoId, roleType, payload.asJson).map { signedJson ⇒
+      SignedPayload(signedJson.signatures, payload, signedJson.signed)
+    }
+  }
 
   def generateWithCustom(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int, targets: Map[EcuSerial, TargetCustomImage]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
     expires = Instant.now.plus(31, ChronoUnit.DAYS)
-    targetsRole   <- tuf.sign(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires))
-    snapshotRole  <- tuf.sign(repo, RoleType.SNAPSHOT, snapshotRole(targetsRole, targetVersion, expires))
-    timestampRole <- tuf.sign(repo, RoleType.TIMESTAMP, timestampRole(snapshotRole, timestampVersion, expires))
+    targetsRole   <- signRole(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires))
+    snapshotRole  <- signRole(repo, RoleType.SNAPSHOT, snapshotRole(targetsRole, targetVersion, expires))
+    timestampRole <- signRole(repo, RoleType.TIMESTAMP, timestampRole(snapshotRole, timestampVersion, expires))
 
     _ <- fileCacheRepository.storeJson(device, timestampVersion, expires, targetsRole, snapshotRole, timestampRole)
   } yield Done

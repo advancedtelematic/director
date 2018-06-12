@@ -61,10 +61,11 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
   def updateManifestOk(device: DeviceId, manifest: SignedPayload[Json])(implicit ns: NamespaceTag): Unit =
     updateManifestOkWith(device, manifest, routes)
 
-  def updateManifestOkWith(device: DeviceId, manifest: SignedPayload[Json], withRoutes: Route)(implicit ns: NamespaceTag): Unit =
+  def updateManifestOkWith(device: DeviceId, manifest: SignedPayload[Json], withRoutes: Route)(implicit ns: NamespaceTag): Unit = {
     updateManifest(device, manifest) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
     }
+  }
 
   def updateManifestExpect(device: DeviceId, manifest: SignedPayload[Json], expected: StatusCode)(implicit ns: NamespaceTag): Unit =
     updateManifest(device, manifest) ~> routes ~> check {

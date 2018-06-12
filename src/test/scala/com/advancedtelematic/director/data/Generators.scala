@@ -143,7 +143,7 @@ trait KeyGenerators extends Generators {
   def GenSignedValue[T : Encoder](value: T): Gen[SignedPayload[T]] = for {
     nrSig <- Gen.choose(1,10)
     signature <- Gen.containerOfN[List, ClientSignature](nrSig, GenClientSignature)
-  } yield SignedPayload(signature, value)
+  } yield SignedPayload(signature, value, value.asJson)
 
   def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =
     genT.flatMap(t => GenSignedValue(t))

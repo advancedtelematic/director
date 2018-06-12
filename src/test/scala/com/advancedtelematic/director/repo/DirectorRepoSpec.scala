@@ -4,7 +4,7 @@ import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, Resou
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import com.advancedtelematic.libtuf.data.TufDataType
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyId, KeyType, RepoId, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, JsonSignedPayload, KeyId, KeyType, RepoId, SignedPayload}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import io.circe.{Decoder, Encoder, Json}
@@ -19,7 +19,7 @@ class FakeKeyserverClient(implicit ec: ExecutionContext) extends KeyserverClient
     Json.obj()
   }
 
-  override def sign[T : Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = ???
+  override def sign(repoId: RepoId, roleType: RoleType, payload: Json): Future[JsonSignedPayload] = ???
 
   override def fetchUnsignedRoot(repoId: RepoId): Future[RootRole] = ???
 

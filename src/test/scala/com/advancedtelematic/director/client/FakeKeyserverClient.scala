@@ -11,10 +11,11 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{KeyId, KeyType, RepoId, RoleType, SignedPayload, TufKeyPair}
+import com.advancedtelematic.libtuf.data.TufDataType.{JsonSignedPayload, KeyId, KeyType, RepoId, RoleType, SignedPayload, TufKeyPair}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient.{KeyPairNotFound, RoleKeyNotFound}
-import io.circe.{Decoder, Encoder, Json}
+import io.circe.Json
+
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.util.Try
@@ -67,11 +68,10 @@ class FakeKeyserverClient extends KeyserverClient with Generators {
   def deleteRepo(repoId: RepoId): Option[RootRole] =
     Option(keys.remove(repoId)).flatMap(_ => Option(rootRoles.remove(repoId)))
 
-  override def sign[T: Decoder : Encoder](repoId: RepoId, roleType: RoleType, payload: T): Future[SignedPayload[T]] = {
+  override def sign(repoId: RepoId, roleType: RoleType, payload: Json): Future[JsonSignedPayload] = {
     val key = Option(keys.get(repoId)).flatMap(_.get(roleType)).getOrElse(throw KeyserverClient.RoleKeyNotFound)
     val signature = TufCrypto.signPayload(key.privkey, payload).toClient(key.pubkey.id)
-
-    FastFuture.successful(SignedPayload(List(signature), payload))
+    FastFuture.successful(JsonSignedPayload(List(signature), payload))
   }
 
   override def fetchRootRole(repoId: RepoId): Future[SignedPayload[RootRole]] =
@@ -82,7 +82,9 @@ class FakeKeyserverClient extends KeyserverClient with Generators {
         case _: NoSuchElementException => throw KeyserverClient.RootRoleNotFound
       }
     }.flatMap { role =>
-      sign(repoId, RoleType.ROOT, role)
+      sign(repoId, RoleType.ROOT, role.asJson).map { jsonSigned ⇒
+        SignedPayload(jsonSigned.signatures, role, jsonSigned.signed)
+      }
     }
 
   override def fetchUnsignedRoot(repoId: RepoId): Future[RootRole] = fetchRootRole(repoId).map(_.signed)

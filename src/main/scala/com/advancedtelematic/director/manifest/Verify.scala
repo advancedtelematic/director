@@ -9,11 +9,12 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, JsonSignedPayload, Signature, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import io.circe.{Encoder, Json}
 import io.circe.syntax._
 import org.slf4j.LoggerFactory
+
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
@@ -28,15 +29,15 @@ object Verify {
 
   val log = LoggerFactory.getLogger(this.getClass)
 
-  def checkSigned[T : Encoder](what: SignedPayload[T], checkSignature: Verifier): Try[T] = {
-    val data = what.signed.asJson.canonical.getBytes
+  def checkSigned(what: SignedPayload[Json], checkSignature: Verifier): Try[Json] = {
+    val data = what.signed.canonical.getBytes
 
     if( log.isDebugEnabled ) {
       log.debug(s"Verifying signature of ${what.signed.asJson.canonical}, data digest: ${Sha256Digest.digest(data)}")
     }
 
     @tailrec
-    def go(sigs: Seq[ClientSignature]): Try[T] = sigs match {
+    def go(sigs: Seq[ClientSignature]): Try[Json] = sigs match {
       case Seq() => Success(what.signed)
       case sig +: xs => checkSignature(sig.toSignature, data) match {
         case Success(b) if b => go(xs)

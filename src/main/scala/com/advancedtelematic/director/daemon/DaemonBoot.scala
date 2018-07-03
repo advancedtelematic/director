@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.daemon
 
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.diff_service.daemon.DiffListener
 import com.advancedtelematic.director.{Settings, VersionInfo}
@@ -10,15 +10,19 @@ import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.roles.RolesGeneration
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.http.BootApp
+import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
+import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, CampaignLaunched, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.InfluxdbMetricsReporterSupport
+import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, InfluxdbMetricsReporterSupport}
+import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 
 object DaemonBoot extends BootApp
+    with Directives
     with Settings
     with VersionInfo
     with BootMigrations
@@ -26,10 +30,9 @@ object DaemonBoot extends BootApp
     with MetricsSupport
     with DatabaseMetrics
     with MessageListenerSupport
-    with InfluxdbMetricsReporterSupport{
-
-  import com.advancedtelematic.libats.http.LogDirectives._
-  import com.advancedtelematic.libats.http.VersionDirectives._
+    with InfluxdbMetricsReporterSupport
+    with AkkaHttpRequestMetrics
+    with PrometheusMetricsSupport {
 
   implicit val _db = db
 
@@ -61,7 +64,8 @@ object DaemonBoot extends BootApp
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
   val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
 
-  val routes: Route = (versionHeaders(version) & logResponseMetrics(projectName)) {
+  val routes: Route = (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
+    prometheusMetricsRoutes ~
     DbHealthResource(versionMap, healthMetrics = Seq(new BusListenerMetrics(metricRegistry))).route
   }
 

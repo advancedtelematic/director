@@ -34,6 +34,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-messaging" % libatsV,
     "com.advancedtelematic" %% "libats-messaging-datatype" % libatsV,
     "com.advancedtelematic" %% "libats-metrics-akka" % libatsV,
+    "com.advancedtelematic" %% "libats-metrics-prometheus" % libatsV,
     "com.advancedtelematic" %% "libats-slick" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,

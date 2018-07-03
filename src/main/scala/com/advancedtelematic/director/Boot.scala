@@ -21,7 +21,9 @@ import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics._
+import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, InfluxdbMetricsReporterSupport}
+import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
+
 import com.typesafe.config.{Config, ConfigFactory}
 import scala.util.Try
 
@@ -69,7 +71,9 @@ object Boot extends BootApp
   with DatabaseConfig
   with MetricsSupport
   with DatabaseMetrics
-  with InfluxdbMetricsReporterSupport {
+  with InfluxdbMetricsReporterSupport
+  with AkkaHttpRequestMetrics
+  with PrometheusMetricsSupport {
 
   implicit val _db = db
 
@@ -87,7 +91,8 @@ object Boot extends BootApp
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (versionHeaders(version) & logResponseMetrics(projectName)) {
+    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
+      prometheusMetricsRoutes ~
       new DirectorRoutes(SignatureVerification.verify, coreClient, tuf, roles, diffService).routes
     }
 

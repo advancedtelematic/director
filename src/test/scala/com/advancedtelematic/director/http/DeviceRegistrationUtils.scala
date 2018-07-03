@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
 import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.KeyGenerators
@@ -38,7 +37,7 @@ trait DeviceRegistrationUtils extends DirectorSpec
     val ecuManifests = ecus.keys.toSeq.map { ecu =>
       val sig = GenSignedEcuManifest(ecu).generate
       val newImage = sig.signed.installed_image.copy(filepath = ecus(ecu))
-      sig.copy(signed = sig.signed.copy(installed_image = newImage))
+      sig.updated(signed = sig.signed.copy(installed_image = newImage))
     }
 
     val devManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate

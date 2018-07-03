@@ -29,8 +29,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
   def sendManifest(device: DeviceId, primEcu: EcuSerial)(hwimages: (EcuSerial, TargetUpdate)*)(implicit ns: NamespaceTag): Unit = {
     val ecuManifest = hwimages.map {case (ecu, target) =>
       val sig = GenSignedEcuManifest(ecu).generate
-
-      sig.copy(signed = sig.signed.copy(installed_image = target.image))
+      sig.updated(signed = sig.signed.copy(installed_image = target.image))
     }
 
     updateManifestOk(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate)
@@ -39,7 +38,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
   def sendManifestCustom(device: DeviceId, primEcu: EcuSerial, target: TargetUpdate, custom: CustomManifest)(implicit ns: NamespaceTag): Unit = {
     val ecuManifest = Seq {
       val sig = GenSignedEcuManifest(primEcu).generate
-      sig.copy(signed = sig.signed.copy(installed_image = target.image, custom = Some(custom.asJson)))
+      sig.updated(signed = sig.signed.copy(installed_image = target.image, custom = Some(custom.asJson)))
     }
 
     updateManifestOk(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate)

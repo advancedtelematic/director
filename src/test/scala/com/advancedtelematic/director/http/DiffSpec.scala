@@ -46,7 +46,7 @@ trait DiffSpec extends DirectorSpec
 
     val ecuManifest = hwimages.zip(regEcus.map(_.ecu_serial)).map {case ((hw, target), ecu) =>
       val sig = GenSignedEcuManifest(ecu).generate
-      sig.copy(signed = sig.signed.copy(installed_image = target.image))
+      sig.updated(signed = sig.signed.copy(installed_image = target.image))
     }
 
     updateManifestOk(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate)

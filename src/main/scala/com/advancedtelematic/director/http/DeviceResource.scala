@@ -16,11 +16,12 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{JsonSignedPayload, RoleType, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
+
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 import slick.jdbc.MySQLProfile.api._

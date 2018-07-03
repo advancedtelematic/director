@@ -77,7 +77,7 @@ object Boot extends BootApp
 
   val coreClient = new CoreHttpClient(coreUri)
   val tuf = KeyserverHttpClient(tufUri)
-  implicit val msgPublisher = MessageBus.publisher(system, config).fold(throw _, identity)
+  implicit val msgPublisher = MessageBus.publisher(system, config)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
 
   val rolesGeneration = new RolesGeneration(tuf, diffService)

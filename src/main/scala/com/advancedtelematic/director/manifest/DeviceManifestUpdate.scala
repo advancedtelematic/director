@@ -7,7 +7,7 @@ import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate,
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
-import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPayload, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{JsonSignedPayload, OperationResult, SignedPayload, TufKey}
 import io.circe.Json
 import org.slf4j.LoggerFactory
 

@@ -33,10 +33,10 @@ abstract class VerifySpec
 
   def sign[T : Encoder : Decoder](key: TufKeyPair, payload: T): SignedPayload[T] = {
     val signature = TufCrypto
-      .signPayload(key.privkey, payload)
+      .signPayload(key.privkey, payload.asJson)
       .toClient(key.pubkey.id)
 
-    SignedPayload(List(signature), payload)
+    SignedPayload(List(signature), payload, payload.asJson)
   }
 
   val namespace = Namespace("verify-spec")
@@ -97,7 +97,7 @@ abstract class VerifySpec
   test("can still verify with ecu-manifest with extra fields") {
     val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
     val jsonEcuMan = ecuMan.asJson.hcursor.downField("installed_image").downField("fileinfo").downField("hashes")
-      .withFocus(_.mapObject(_.add("sha512", Json.fromString("sha512 comes here")))).top
+      .withFocus(_.mapObject(_.add("sha512", Json.fromString("sha512 comes here")))).top.get
     val sEcu = sign(keys, jsonEcuMan)
 
     val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))

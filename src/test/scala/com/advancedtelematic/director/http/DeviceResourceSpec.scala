@@ -238,7 +238,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifest)
 
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { sig =>
-      sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
+      sig.updated(signed = sig.signed.copy(installed_image = targetImage.image))
     }
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
 
@@ -293,7 +293,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val operation = OperationResult(updateId.show, 0, "Yeah that worked")
     val custom = CustomManifest(operation)
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial, Some(custom)).generate }.map { sig =>
-      sig.copy(signed = sig.signed.copy(installed_image = targetImage.image))
+      sig.updated(signed = sig.signed.copy(installed_image = targetImage.image))
     }
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
 
@@ -328,7 +328,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val custom = CustomManifest(operation)
 
     val ecuManifestsTarget = ecuManifests.map { secu =>
-      secu.copy(signed = secu.signed.copy(custom = Some(custom.asJson)))
+      secu.updated(signed = secu.signed.copy(custom = Some(custom.asJson)))
     }
 
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
@@ -363,7 +363,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val custom = CustomManifest(operation)
 
     val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { secu =>
-      secu.copy(signed = secu.signed.copy(custom = Some(custom.asJson)))
+      secu.updated(signed = secu.signed.copy(custom = Some(custom.asJson)))
     }
 
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate

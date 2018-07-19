@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.db
 
 import java.time.Instant
+import java.util.UUID
 
 import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
@@ -19,8 +20,10 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
+
 import scala.util.{Failure, Success}
 import Errors._
 
@@ -531,6 +534,9 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
+
+  protected [db] def setUpdateMetadata(updateId: UpdateId, metadata: Json): DBIO[Unit] =
+    Schema.updateMetadata.insertOrUpdate((updateId, metadata)).map(_ => ()) //TODO:SM Write tests for update
 
   protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
     Schema.multiTargets

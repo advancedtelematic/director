@@ -10,6 +10,8 @@ import com.advancedtelematic.director.data.UpdateType
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import io.circe.Json
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -79,11 +81,16 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 
-  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId)
+  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, updateMetadata: Option[Json] = None)
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = {
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
+      _ <-
+        if(updateMetadata.isDefined)
+          multiTargetUpdatesRepository.setUpdateMetadata(updateId, updateMetadata.get)
+        else
+          DBIO.successful(())
       _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
       _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield toUpdate

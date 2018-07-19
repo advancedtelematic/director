@@ -5,6 +5,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.util.FastFuture
+import com.advancedtelematic.director.client.DataType.SetMultiTargetUpdate
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
@@ -26,6 +27,8 @@ import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, Targe
 import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.advancedtelematic.director.client.Codecs._
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -235,8 +238,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
-      (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
-        setMultiTargetUpdateForDevices(ns, devices, updateId)
+      (pathEnd & put & entity(as[SetMultiTargetUpdate])) { req =>
+        setMultiTargetUpdateForDevices(ns, req.devices, updateId)
       } ~
       (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)

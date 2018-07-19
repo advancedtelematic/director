@@ -17,6 +17,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
+import java.util.UUID
 
 import slick.jdbc.MySQLProfile.api._
 

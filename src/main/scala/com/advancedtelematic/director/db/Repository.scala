@@ -221,14 +221,6 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .map(_.toMap)
   }
 
-  protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
-                                        version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
-    val act = (Schema.ecuTargets
-      ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)})
-
-    act.map(_ => ()).transactionally
-  }
-
   protected [db] def updateDeviceTargetsAction(device: DeviceId, updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
     val target = DeviceUpdateTarget(device, updateId, version, inFlight = false)
 
@@ -237,15 +229,20 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .handleIntegrityErrors(ConflictingTarget)
   }
 
-  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
-    version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
-      case Success(x) => DBIO.successful(x)
-      case Failure(NoTargetsScheduled) => DBIO.successful(0)
-      case Failure(ex) => DBIO.failed(ex)
-    }
-    new_version = version + 1
-    _ <- storeTargetVersion(namespace, device, updateId, new_version, targets)
-  } yield new_version
+  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = {
+    def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], version: Int, targets: Map[EcuSerial, CustomImage]) =
+      (Schema.ecuTargets ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)}).transactionally
+
+    for {
+      version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
+        case Success(x) => DBIO.successful(x)
+        case Failure(NoTargetsScheduled) => DBIO.successful(0)
+        case Failure(ex) => DBIO.failed(ex)
+      }
+      new_version = version + 1
+      _ <- storeTargetVersion(namespace, device, updateId, new_version, targets)
+    } yield new_version
+  }
 
   def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
     updateTargetAction(namespace, device, updateId, targets).transactionally

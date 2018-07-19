@@ -123,7 +123,6 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     _ <- generateWithCustom(namespace, device, targetVersion, timestampVersion, customTargets)
   } yield Done
 
-  def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = for {
-    _ <- tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion)
-  } yield ()
+  def processFileCacheRequest(fcr: FileCacheRequest): Future[Done] =
+    tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion)
 }

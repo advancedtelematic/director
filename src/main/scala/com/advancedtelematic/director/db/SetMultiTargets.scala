@@ -75,7 +75,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
   def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId)
                            (implicit db: Database, ec: ExecutionContext): Future[Unit] =
     setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId).flatMap {
-      case Seq(d) => FastFuture.successful(())
+      case _ :: Nil => FastFuture.successful(())
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 

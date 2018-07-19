@@ -229,12 +229,16 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       }
     }
 
+
+
+  // case class SetMultiTargetUpdate(devices: Seq[Device])
+
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
         setMultiTargetUpdateForDevices(ns, devices, updateId)
       } ~
-        (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
+      (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
       }
     }

@@ -21,11 +21,13 @@ import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, TargetName}
+import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, SignedPayload, TargetName, ValidKeyId}
 import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
@@ -37,14 +39,15 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
     with RepoNameRepositorySupport
-    with RootFetcher {
+    with RootFetcher
+    with NamespaceDirectives {
 
   private lazy val log = LoggerFactory.getLogger(this.getClass)
 
   val directorRepo = new DirectorRepo(keyserverClient)
   val setMultiTargets = new SetMultiTargets()
   val cancelUpdate = new CancelUpdate
-
+  val KeyIdPath = Segment.flatMap(_.refineTry[ValidKeyId].toOption)
   val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
   val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
@@ -171,8 +174,17 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   def repoRoute(ns: Namespace): Route =
     pathPrefix("repo") {
-      (pathEnd & post) {
-        createRepo(ns)
+      post {
+        pathEnd {
+          createRepo(ns)
+        } ~
+        (pathPrefix("root") & pathEnd & entity(as[SignedPayload[RootRole]])) { signedPayload =>
+          complete {
+            repoNameRepository.getRepo(ns).flatMap { repo =>
+              keyserverClient.updateRoot(repo, signedPayload)
+            }
+          }
+        }
       } ~
       get {
         path("root.json") {
@@ -180,6 +192,20 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         } ~
         path(IntNumber ~ ".root.json") { version ⇒
           fetchRoot(ns, version)
+        }
+      } ~
+      path("private_keys" / KeyIdPath) { keyId =>
+        withRepoId(ns) { repo =>
+          delete {
+            complete {
+              keyserverClient.deletePrivateKey(repo, keyId)
+            }
+          } ~
+          get {
+            complete {
+              keyserverClient.fetchKeyPair(repo, keyId)
+            }
+          }
         }
       }
     }

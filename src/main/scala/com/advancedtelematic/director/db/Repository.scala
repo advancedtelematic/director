@@ -19,16 +19,20 @@ import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
+
 import scala.util.{Failure, Success}
 import Errors._
+import slick.dbio.Effect
+import slick.sql.FixedSqlAction
 
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
 }
 
-protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
+class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
     with UpdateTypesRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, RegisterEcu, QueueResponse}
@@ -62,6 +66,10 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
+
+  def deleteDevice(namespace: Namespace, device: DeviceId): Future[Int] = {
+    db.run(byDevice(namespace, device).delete)
+  }
 
   protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, (HardwareIdentifier, Option[Image])]] =
     byDevice(namespace, device)

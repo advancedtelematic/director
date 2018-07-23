@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.diff_service.daemon.DiffListener
 import com.advancedtelematic.director.{Settings, VersionInfo}
-import com.advancedtelematic.director.db.SetMultiTargets
+import com.advancedtelematic.director.db.{AdminRepository, SetMultiTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.roles.RolesGeneration
 import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
@@ -63,6 +63,10 @@ object DaemonBoot extends BootApp
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
   val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
+
+  val adminRepo = new AdminRepository()
+  val deleteDeviceHandler = new DeleteDeviceHandler(adminRepo)
+  startListener[DeleteDeviceHandler.DeleteDeviceRequest](deleteDeviceHandler.deleteDevice)
 
   val routes: Route = (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
     prometheusMetricsRoutes ~

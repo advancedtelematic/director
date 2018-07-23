@@ -28,6 +28,8 @@ import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import com.advancedtelematic.director.client.Codecs._
+import DirectorRoutes._
+import io.circe.Json
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
@@ -47,9 +49,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   val directorRepo = new DirectorRepo(keyserverClient)
   val setMultiTargets = new SetMultiTargets()
   val cancelUpdate = new CancelUpdate
-
-  val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
-  val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
   val paginationParameters = (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)).tmap { case (mLimit, mOffset) =>
     val limit  = mLimit.getOrElse(50L).min(1000)
@@ -112,8 +111,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
-    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, updateMetadata: Option[Json]): Route = {
+    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId, updateMetadata)
     complete(f)
   }
 
@@ -239,7 +238,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
       (pathEnd & put & entity(as[SetMultiTargetUpdate])) { req =>
-        setMultiTargetUpdateForDevices(ns, req.devices, updateId)
+        setMultiTargetUpdateForDevices(ns, req.devices, updateId, req.updateMetadata)
       } ~
       (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)

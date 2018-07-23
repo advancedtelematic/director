@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.{HttpRequest, StatusCode, StatusCodes, Uri}
 import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.client.DataType.SetMultiTargetUpdate
+import com.advancedtelematic.director.client.Codecs._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
@@ -128,11 +129,8 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
       status shouldBe StatusCodes.OK
     }
 
-  import com.advancedtelematic.director.client.Codecs._
-
-  def launchMtu(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =
-    Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), devices).namespaced ~> routes ~> check {
-      // Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), SetMultiTargetUpdate(devices)).namespaced ~> routes ~> check {
+  def launchMtu(updateId: UpdateId, devices: Seq[DeviceId], metadata: Option[Json] = None)(implicit ns: NamespaceTag): Seq[DeviceId] =
+    Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), SetMultiTargetUpdate(devices, metadata)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       val affected = responseAs[Seq[DeviceId]]
       affected
@@ -287,5 +285,11 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     Put(apiUri(s"admin/devices/queue/cancel"), devices).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[DeviceId]]
+    }
+
+  def findUpdateMetadata(device: DeviceId, target: TargetFilename)(implicit ns: NamespaceTag): Json =
+    Get(apiUri(s"device/${device.show}/targets/${target.value}/metadata")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Json]
     }
 }

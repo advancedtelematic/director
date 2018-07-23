@@ -23,18 +23,19 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
 
   protected [db] def resolve(namespace: Namespace, device: DeviceId, mtuRows: Seq[MultiTargetUpdateRow])
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
-    val hwTargets = mtuRows.map{ mtu =>
+    val hwTargets = mtuRows.map { mtu =>
       val diffFormat = if (mtu.generateDiff) Some(mtu.targetFormat) else None
       mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat)))
     }.toMap
-    for {
-      ecus <- adminRepository.fetchHwMappingAction(namespace, device)
-    } yield ecus.mapValues { case (hw, currentImage) =>
+
+    adminRepository.fetchHwMappingAction(namespace, device).map { ecus =>
+      ecus.mapValues { case (hw, currentImage) =>
         hwTargets.get(hw).collect {
           case (None, toTarget) => toTarget
           case (Some(fromCond), toTarget) if currentImage.contains(fromCond.image) => toTarget
         }
-    }.collect{ case (k, Some(v)) => k -> v}
+      }.collect { case (k, Some(v)) => k -> v }
+    }
   }
 
   protected [db] def checkDevicesSupportUpdates(namespace: Namespace, devices: Seq[DeviceId], mtuRows: Seq[MultiTargetUpdateRow])

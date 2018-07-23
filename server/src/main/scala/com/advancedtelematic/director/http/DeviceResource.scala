@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.{Directive0, Directive1}
 import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
@@ -16,13 +15,14 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{JsonSignedPayload, RoleType, SignedPayload, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload, TargetName, TufKey}
 import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
+import DirectorRoutes._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import slick.jdbc.MySQLProfile.api._
 
@@ -56,8 +56,15 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     }
   }
 
+  def findTargetMetadata(ns: Namespace, device: DeviceId, target: TargetName): Future[Json] = ???
+
   val route = extractNamespace { ns =>
     pathPrefix("device" / DeviceId.Path) { device =>
+      path("targets" / TargetNamePath / "metadata") { targetName =>
+        get {
+          complete(findTargetMetadata(ns, device, targetName))
+        }
+      } ~
       post {
         (path("ecus") & entity(as[DeviceRegistration])) { regDev =>
           registerDevice(ns, device, regDev)

@@ -17,13 +17,14 @@ import scala.reflect.ClassTag
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import DeviceId._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import cats.syntax.option._
 
 trait DirectorClient {
   def setMultiUpdateTarget[M : Encoder](
     ns: Namespace,
     update: UpdateId,
     devices: Seq[DeviceId],
-    metadata: M): Future[Seq[DeviceId]]
+    metadata: Option[M]): Future[Seq[DeviceId]]
 
   def cancelUpdate(
     ns: Namespace,
@@ -40,9 +41,9 @@ class DirectorHttpClient(uri: Uri, httpClient: HttpRequest => Future[HttpRespons
 
   import io.circe.syntax._
 
-  override def setMultiUpdateTarget[M : Encoder](ns: Namespace, update: UpdateId, devices: Seq[DeviceId], metadata: M): Future[Seq[DeviceId]] = {
+  override def setMultiUpdateTarget[M : Encoder](ns: Namespace, update: UpdateId, devices: Seq[DeviceId], metadata: Option[M]): Future[Seq[DeviceId]] = {
     val path   = uri.path / "api" / "v1" / "admin" / "multi_target_updates" / update.show
-    val payload = SetMultiTargetUpdate(devices, metadata.asJson)
+    val payload = SetMultiTargetUpdate(devices, metadata.map(_.asJson))
     val entity = HttpEntity(ContentTypes.`application/json`, payload.asJson.noSpaces)
     val req    = HttpRequest(
       method = HttpMethods.PUT,

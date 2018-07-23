@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.db
 
 import java.time.Instant
-import java.util.UUID
 
 import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
@@ -27,6 +26,9 @@ import slick.jdbc.MySQLProfile.api._
 import scala.util.{Failure, Success}
 import Errors._
 
+// TODO: This needs to be split.
+// Each repository should handle only one schema table, unless it requires updating foreign keys or select from joins
+// Repositories should not include any business logic, should be a thin layer over slick
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
 }
@@ -233,22 +235,17 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = {
-    def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], version: Int, targets: Map[EcuSerial, CustomImage]) =
-      (Schema.ecuTargets ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)}).transactionally
-
-    for {
+    val io = for {
       version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
         case Success(x) => DBIO.successful(x)
         case Failure(NoTargetsScheduled) => DBIO.successful(0)
         case Failure(ex) => DBIO.failed(ex)
       }
       new_version = version + 1
-      _ <- storeTargetVersion(namespace, device, updateId, new_version, targets)
+      _ <- Schema.ecuTargets ++= targets.map { case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage) }
     } yield new_version
-  }
 
-  def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
-    updateTargetAction(namespace, device, updateId, targets).transactionally
+    io.transactionally
   }
 
   def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
@@ -537,6 +534,14 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
 
   protected [db] def setUpdateMetadata(updateId: UpdateId, metadata: Json): DBIO[Unit] =
     Schema.updateMetadata.insertOrUpdate((updateId, metadata)).map(_ => ()) //TODO:SM Write tests for update
+
+  def findUpdateMetadaByTarget(deviceId: DeviceId, target: TargetFilename): Future[Json] = {
+    Schema.multiTargets.join(Schema.launchedMultiTargetUpdates).on(_.id === _.update)
+      .filter { case (mtu, um) => mtu.toTarget === target }
+      .join(Schema.updateMetadata).on(_.device === deviceId)
+
+      Schema.updateMetadata.filter(_.)
+  }
 
   protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
     Schema.multiTargets

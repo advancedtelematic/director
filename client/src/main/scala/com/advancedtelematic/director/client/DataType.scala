@@ -15,5 +15,5 @@ object Codecs {
 
 
 object DataType {
-  case class SetMultiTargetUpdate(devices: Seq[DeviceId], campaignMetadata: Json = Json.arr())
+  case class SetMultiTargetUpdate(devices: Seq[DeviceId], updateMetadata: Option[Json] = None)
 }

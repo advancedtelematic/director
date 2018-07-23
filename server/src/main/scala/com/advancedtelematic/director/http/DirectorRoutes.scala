@@ -10,11 +10,22 @@ import com.advancedtelematic.director.roles.Roles
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libtuf.data.TufDataType.TufKey
+import com.advancedtelematic.libats.messaging_datatype.DataType.ValidEcuSerial
+import com.advancedtelematic.libtuf.data.TufDataType.{TargetName, TufKey}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
+
+import com.advancedtelematic.libats.data.RefinedUtils._
+
+
+object DirectorRoutes {
+  import Directives._
+
+  val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
+  val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
+}
 
 
 class DirectorRoutes(verifier: TufKey => Verifier,

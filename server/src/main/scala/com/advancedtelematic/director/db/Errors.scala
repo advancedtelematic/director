@@ -21,6 +21,7 @@ object ErrorCodes {
   val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
   val EcuAlreadyRegistered = ErrorCode("ecu_already_registered")
   val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
+  val MissingMultiTargetUpdateMetadata = ErrorCode("missing_multi_target_update_metadata")
   val MissingUpdateType = ErrorCode("missing_update_type")
   val MissingDevice = ErrorCode("missing_device")
   val CouldNotScheduleDevice = ErrorCode("could_not_schedule_device")
@@ -57,6 +58,7 @@ object Errors {
 
   val ConflictingMultiTargetUpdate = EntityAlreadyExists[MultiTargetUpdateRow]
   val MissingMultiTargetUpdate = RawError(ErrorCodes.MissingMultiTargetUpdate, StatusCodes.NotFound, "multi-target update not found")
+  val MissingMultiTargetUpdateMetadata = RawError(ErrorCodes.MissingMultiTargetUpdateMetadata, StatusCodes.NotFound, "multi-target update metadata not found")
 
   val DeviceMissing = MissingEntity[DeviceId]
 

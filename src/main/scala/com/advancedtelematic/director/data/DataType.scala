@@ -52,19 +52,19 @@ object DataType {
     }
   }
 
+  final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
+
   // TODO: CustomImage should not even exist, why not just use TargetCustomImage ?
   final case class CustomImage(image: Image, uri: Uri, diffFormat: Option[TargetFormat])
   final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
-
-  final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
-
   final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
 
   // TODO: Why, why do we have 4 custom image case classes?
   final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuSerial,
                                 hardwareId: HardwareIdentifier,
                                 uri: Uri, diff: Option[DiffInfo],
-                                ecuIdentifiers: Map[EcuSerial, TargetCustomUri])
+                                ecuIdentifiers: Map[EcuSerial, TargetCustomUri],
+                                updateId: Option[UpdateId])
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, tufKey: TufKey) {

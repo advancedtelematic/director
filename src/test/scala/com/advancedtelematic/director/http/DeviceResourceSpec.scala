@@ -491,7 +491,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     schedule(device, targets, updateId)
 
-    // fetchTargetsFor(device).signed.targets.head._2.customParsed[TargetCustom] shouldBe updateId
+    fetchTargetsFor(device).signed.targets.head._2.customParsed[TargetCustom].flatMap(_.updateId) should contain(updateId)
   }
 }
 

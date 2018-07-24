@@ -17,7 +17,6 @@ import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
-import java.util.UUID
 
 import slick.jdbc.MySQLProfile.api._
 
@@ -221,17 +220,6 @@ object Schema {
   }
 
   protected [db] val launchedMultiTargetUpdates = TableQuery[LaunchedMultiTargetUpdatesTable]
-
-  class UpdateMetadataTable(tag: Tag) extends Table[(UpdateId, Json)](tag, "update_metadata") {
-    def updateId = column[UpdateId]("update_id")
-    def metadata = column[Json]("metadata")
-
-    def primKey = primaryKey("update_metadata_pk", updateId)
-
-    override def * = (updateId, metadata)
-  }
-
-  protected [db] val updateMetadata = TableQuery[UpdateMetadataTable]
 
   class UpdateTypes(tag: Tag) extends Table[(UpdateId, UpdateType.UpdateType)](tag, "update_types") {
     def update = column[UpdateId]("update_id", O.PrimaryKey)

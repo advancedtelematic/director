@@ -531,10 +531,6 @@ trait MultiTargetUpdatesRepositorySupport {
 }
 
 protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-
-  protected [db] def setUpdateMetadata(updateId: UpdateId, metadata: Json): DBIO[Unit] =
-    Schema.updateMetadata.insertOrUpdate((updateId, metadata)).map(_ => ()) //TODO:SM Write tests for update
-
   protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
     Schema.multiTargets
       .filter(_.id === id)

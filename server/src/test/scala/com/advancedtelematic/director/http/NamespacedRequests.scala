@@ -130,7 +130,7 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
 
   def launchMtu(updateId: UpdateId, devices: Seq[DeviceId], metadata: Option[Json] = None)(implicit ns: NamespaceTag): Seq[DeviceId] =
-    Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), SetMultiTargetUpdate(devices, metadata)).namespaced ~> routes ~> check {
+    Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), SetMultiTargetUpdate(devices)).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       val affected = responseAs[Seq[DeviceId]]
       affected

@@ -43,7 +43,7 @@ class DirectorHttpClient(uri: Uri, httpClient: HttpRequest => Future[HttpRespons
 
   override def setMultiUpdateTarget[M : Encoder](ns: Namespace, update: UpdateId, devices: Seq[DeviceId], metadata: Option[M]): Future[Seq[DeviceId]] = {
     val path   = uri.path / "api" / "v1" / "admin" / "multi_target_updates" / update.show
-    val payload = SetMultiTargetUpdate(devices, metadata.map(_.asJson))
+    val payload = SetMultiTargetUpdate(devices)
     val entity = HttpEntity(ContentTypes.`application/json`, payload.asJson.noSpaces)
     val req    = HttpRequest(
       method = HttpMethods.PUT,

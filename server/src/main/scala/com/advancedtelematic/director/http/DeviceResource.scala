@@ -56,15 +56,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     }
   }
 
-  def findTargetMetadata(ns: Namespace, device: DeviceId, target: TargetName): Future[Json] = ???
-
   val route = extractNamespace { ns =>
     pathPrefix("device" / DeviceId.Path) { device =>
-      path("targets" / TargetNamePath / "metadata") { targetName =>
-        get {
-          complete(findTargetMetadata(ns, device, targetName))
-        }
-      } ~
       post {
         (path("ecus") & entity(as[DeviceRegistration])) { regDev =>
           registerDevice(ns, device, regDev)

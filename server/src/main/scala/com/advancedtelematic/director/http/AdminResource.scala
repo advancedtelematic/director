@@ -111,8 +111,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, updateMetadata: Option[Json]): Route = {
-    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId, updateMetadata)
+  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
     complete(f)
   }
 
@@ -238,7 +238,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
       (pathEnd & put & entity(as[SetMultiTargetUpdate])) { req =>
-        setMultiTargetUpdateForDevices(ns, req.devices, updateId, req.updateMetadata)
+        setMultiTargetUpdateForDevices(ns, req.devices, updateId)
       } ~
       (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)

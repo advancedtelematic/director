@@ -25,7 +25,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
     val hwTargets = mtuRows.map { mtu =>
       val diffFormat = if (mtu.generateDiff) Some(mtu.targetFormat) else None
-      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat)))
+      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat, Some(mtu.id))))
     }.toMap
 
     adminRepository.fetchHwMappingAction(namespace, device).map { ecus =>
@@ -82,16 +82,11 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 
-  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, updateMetadata: Option[Json] = None)
+  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId)
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = {
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
-      _ <-
-        if(updateMetadata.isDefined)
-          multiTargetUpdatesRepository.setUpdateMetadata(updateId, updateMetadata.get)
-        else
-          DBIO.successful(())
       _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
       _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield toUpdate

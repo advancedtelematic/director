@@ -117,11 +117,17 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     }
   }
 
-  testWithNamespace("device/queue (device not reported)") { implicit ns =>
+  testWithNamespace("XXX device/queue (device not reported)") { implicit ns =>
     val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
     val targets = setRandomTargets(device, ecuSerials)
 
     val q = deviceQueueOk(device)
+
+    println(">>>>>>>>>>>>>>>>>>")
+    println(targets)
+    println(">>>>>>>>>>>>>>>>>>")
+
+
     q.map(_.targets) shouldBe Seq(targets)
   }
 

@@ -389,7 +389,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifest)
 
     val updateId = UpdateId.generate
-    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None, Some(updateId))))
+    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
 
     schedule(device, targets, updateId)
     updateManifestOk(device, deviceManifest)

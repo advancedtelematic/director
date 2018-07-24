@@ -54,11 +54,11 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
 
     val clientTargetItems = byFilename.mapValues { ecuImageMap =>
       val targetCustomUris = ecuImageMap.mapValues {
-        case TargetCustomImage(_, hardwareId, uri, diff, _) => TargetCustomUri(hardwareId, uri, diff)
+        case TargetCustomImage(_, hardwareId, uri, diff) => TargetCustomUri(hardwareId, uri, diff)
       }
 
-      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1, updateId)) = ecuImageMap.head
-      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris, updateId)
+      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1)) = ecuImageMap.head
+      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris)
 
       ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
@@ -104,13 +104,13 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                             targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
     Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, ci: CustomImage)) =>
       ci.diffFormat match {
-        case None => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, None, ci.updateId))
+        case None => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, None))
         case Some(targetFormat) =>
           val from = fromImage(currentImages(ecu))
           val to = fromImage(ci.image)
           diffService.findDiffInfo(ns, targetFormat, from, to).flatMap {
             case None => FastFuture.failed(MtuDiffDataMissing)
-            case Some(diffInfo) => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, Some(diffInfo), ci.updateId))
+            case Some(diffInfo) => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, Some(diffInfo)))
           }
       }
     }.map(_.toMap)

@@ -52,5 +52,5 @@ object CampaignWorker extends AdminRepositorySupport {
   private def getImage(cl: CampaignLaunched): Try[CustomImage] = for {
     hash <- cl.pkgChecksum.refineTry[ValidChecksum]
     filepath <- cl.pkg.mkString.refineTry[ValidTargetFilename]
-  } yield CustomImage(Image(filepath, FileInfo(Hashes(hash), cl.pkgSize.toInt)), Uri(cl.pkgUri.toString), None, Some(UpdateId(cl.updateId)))
+  } yield CustomImage(Image(filepath, FileInfo(Hashes(hash), cl.pkgSize.toInt)), Uri(cl.pkgUri.toString), None)
 }

@@ -25,7 +25,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
     val hwTargets = mtuRows.map { mtu =>
       val diffFormat = if (mtu.generateDiff) Some(mtu.targetFormat) else None
-      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat, Some(mtu.id))))
+      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat)))
     }.toMap
 
     adminRepository.fetchHwMappingAction(namespace, device).map { ecus =>

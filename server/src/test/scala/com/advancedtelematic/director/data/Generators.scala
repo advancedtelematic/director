@@ -69,7 +69,7 @@ trait Generators {
   lazy val GenCustomImage: Gen[CustomImage] = for {
     im <- GenImage
     tf <- Gen.option(GenTargetFormat)
-  } yield CustomImage(im, Uri("http://www.example.com"), tf, None)
+  } yield CustomImage(im, Uri("http://www.example.com"), tf)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)

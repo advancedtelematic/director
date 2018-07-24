@@ -49,16 +49,16 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
     // there can be multiple ECUs per filename
     val byFilename: Map[TargetFilename, Map[EcuSerial, TargetCustomImage]] = targets.groupBy {
-      case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
+      case (_, targetCustom) => targetCustom.image.filepath.value.refineTry[ValidTargetFilename].get
     }
 
     val clientTargetItems = byFilename.mapValues { ecuImageMap =>
       val targetCustomUris = ecuImageMap.mapValues {
-        case TargetCustomImage(_, hardwareId, uri, diff) => TargetCustomUri(hardwareId, uri, diff)
+        case TargetCustomImage(_, hardwareId, uri, diff, _) => TargetCustomUri(hardwareId, uri, diff)
       }
 
-      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1)) = ecuImageMap.head
-      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris)
+      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1, updateId)) = ecuImageMap.head
+      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris, updateId)
 
       ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
@@ -102,15 +102,15 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   // another  workaround might be to use parTraverse from cats
   def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
                             targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
-    Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
-      doDiff match {
-        case None => FastFuture.successful(ecu -> TargetCustomImage(image, hw, uri, None))
+    Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, ci: CustomImage)) =>
+      ci.diffFormat match {
+        case None => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, None, ci.updateId))
         case Some(targetFormat) =>
           val from = fromImage(currentImages(ecu))
-          val to = fromImage(image)
+          val to = fromImage(ci.image)
           diffService.findDiffInfo(ns, targetFormat, from, to).flatMap {
             case None => FastFuture.failed(MtuDiffDataMissing)
-            case Some(diffInfo) => FastFuture.successful(ecu -> TargetCustomImage(image, hw, uri, Some(diffInfo)))
+            case Some(diffInfo) => FastFuture.successful(ecu -> TargetCustomImage(ci.image, hw, ci.uri, Some(diffInfo), ci.updateId))
           }
       }
     }.map(_.toMap)

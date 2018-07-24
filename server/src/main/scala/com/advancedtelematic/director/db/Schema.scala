@@ -102,6 +102,8 @@ object Schema {
     def uri = column[Uri]("uri")
     def diffFormat = column[Option[TargetFormat]]("diff_format")
 
+    def updateId  = column[Option[UpdateId]]("update_id")
+
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
 
     def primKey = primaryKey("ecu_target_pk", (namespace, version, id))
@@ -113,7 +115,7 @@ object Schema {
 
     def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
 
-    def customImage = (image, uri, diffFormat) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
+    def customImage = (image, uri, diffFormat, updateId) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
 
     override def * = (namespace, version, id, customImage) <> ((EcuTarget.apply _).tupled, EcuTarget.unapply)
   }

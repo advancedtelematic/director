@@ -6,3 +6,6 @@ CREATE TABLE `update_metadata`(
 
   PRIMARY KEY (update_id)
 );
+
+alter table `ecu_targets` ADD COLUMN `update_id` varchar(200) DEFAULT NULL
+;

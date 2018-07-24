@@ -535,14 +535,6 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
   protected [db] def setUpdateMetadata(updateId: UpdateId, metadata: Json): DBIO[Unit] =
     Schema.updateMetadata.insertOrUpdate((updateId, metadata)).map(_ => ()) //TODO:SM Write tests for update
 
-  def findUpdateMetadaByTarget(deviceId: DeviceId, target: TargetFilename): Future[Json] = {
-    Schema.multiTargets.join(Schema.launchedMultiTargetUpdates).on(_.id === _.update)
-      .filter { case (mtu, um) => mtu.toTarget === target }
-      .join(Schema.updateMetadata).on(_.device === deviceId)
-
-      Schema.updateMetadata.filter(_.)
-  }
-
   protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
     Schema.multiTargets
       .filter(_.id === id)

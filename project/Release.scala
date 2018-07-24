@@ -4,30 +4,14 @@ import sbt.Keys._
 import sbtrelease.ReleaseStateTransformations._
 import sbtrelease.ReleasePlugin.autoImport._
 
-import com.typesafe.sbt.SbtGit.GitKeys._
-import com.typesafe.sbt.packager.SettingsHelper._
-import sbtrelease._
-import sbtrelease.ReleaseStateTransformations.{setReleaseVersion => _, _}
-import sbt.Keys._
-import sbt._
-
-import sbtrelease.ReleasePlugin.autoImport._
-
 object Release {
-  def settings(toPublish: Project*) = {
-    val publishSteps = toPublish.map(p => ReleaseStep(releaseStepTask(publish in p), enableCrossBuild = true))
-
-    val prepareSteps: Seq[ReleaseStep] = Seq(
-      checkSnapshotDependencies)
-
-    val dockerPublishSteps: Seq[ReleaseStep] = Seq(releaseStepCommand("server/docker:publish"))
-
-    val allSteps = prepareSteps ++ dockerPublishSteps ++ publishSteps
-
+  lazy val settings = {
     Seq(
-      releaseIgnoreUntrackedFiles := true,
-      releaseProcess := allSteps,
-      releaseCrossBuild := true
+      releaseProcess := Seq(
+        checkSnapshotDependencies,
+        ReleaseStep(releaseStepTask(publish in Docker))
+      ),
+      releaseIgnoreUntrackedFiles := true
     )
   }
 }

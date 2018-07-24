@@ -13,7 +13,6 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSe
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import eu.timepit.refined.api.Refined
-import io.circe.Json
 import io.circe.syntax._
 
 trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
@@ -165,32 +164,6 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
       launchMtu(update, Seq(device))
 
       sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay, but wrong report")))
-    }
-  }
-
-  test("accepts MTU metadata with device list") {
-    withRandomNamespace { implicit ns =>
-      val (device, prim, ecu) = registerDevice(ahw)
-      sendManifest(device, prim)(prim -> ato)
-
-      val meta = Json.obj("mydevice" -> Json.fromString("name"))
-
-      val update = createMtu(ahw -> cto)
-      launchMtu(update, Seq(device), Option(meta))
-    }
-  }
-
-  test("a device can get metadata after MTU metadata is set") {
-    withRandomNamespace { implicit ns =>
-      val (device, prim, ecu) = registerDevice(ahw)
-      val meta = Json.obj("mydevice" -> Json.fromString("name"))
-
-      sendManifest(device, prim)(prim -> ato)
-
-      val update = createMtu(ahw -> cto)
-      launchMtu(update, Seq(device), Option(meta))
-
-      findUpdateMetadata(device, ato.target) shouldBe meta
     }
   }
 }

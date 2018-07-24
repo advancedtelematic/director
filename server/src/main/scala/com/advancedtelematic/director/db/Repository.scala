@@ -242,60 +242,61 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
         case Failure(ex) => DBIO.failed(ex)
       }
       new_version = version + 1
-      _ <- Schema.ecuTargets ++= targets.map { case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage) }
+      _ <- (Schema.ecuTargets ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, new_version, ecuSerial, customImage)})
+      //_ <- storeTargetVersion(new_version)
     } yield new_version
 
     io.transactionally
   }
 
   def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
-    Schema.ecu
-      .filter(_.device === device)
-      .filter(_.primary)
-      .map(_.ecuSerial)
-      .result
-      .failIfNotSingle(DeviceMissingPrimaryEcu)
-  }
+      Schema.ecu
+        .filter(_.device === device)
+        .filter(_.primary)
+        .map(_.ecuSerial)
+        .result
+        .failIfNotSingle(DeviceMissingPrimaryEcu)
+    }
 
-  def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
-                       fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[UpdateId])]] = db.run {
-    Schema.deviceTargets
-      .filter(_.device === device)
-      .filter(_.version > fromVersion)
-      .filter(_.version <= toVersion)
-      .map(x => (x.version, x.update))
-      .sortBy(_._1)
-      .result
-  }
+    def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
+                         fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[UpdateId])]] = db.run {
+      Schema.deviceTargets
+        .filter(_.device === device)
+        .filter(_.version > fromVersion)
+        .filter(_.version <= toVersion)
+        .map(x => (x.version, x.update))
+        .sortBy(_._1)
+        .result
+    }
 
-  def findAllHardwareIdentifiers(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .map(_.hardwareId)
-      .distinct
-      .paginateAndSortResult(identity, offset = offset, limit = limit)
-  }
+    def findAllHardwareIdentifiers(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
+      Schema.ecu
+        .filter(_.namespace === namespace)
+        .map(_.hardwareId)
+        .distinct
+        .paginateAndSortResult(identity, offset = offset, limit = limit)
+    }
 
-  def countInstalledImages(namespace: Namespace, filepaths: Seq[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
-    Schema.currentImage
-      .filter(_.namespace === namespace)
-      .filter(_.filepath inSet(filepaths))
-      .groupBy(_.filepath)
-      .map { case (filepath, results) => (filepath, results.length) }
-      .drop(0) //workaround for slick issue: https://github.com/slick/slick/issues/1355
-      .result
-      .map(_.toMap)
-  }
+    def countInstalledImages(namespace: Namespace, filepaths: Seq[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
+      Schema.currentImage
+        .filter(_.namespace === namespace)
+        .filter(_.filepath inSet(filepaths))
+        .groupBy(_.filepath)
+        .map { case (filepath, results) => (filepath, results.length) }
+        .drop(0) //workaround for slick issue: https://github.com/slick/slick/issues/1355
+        .result
+        .map(_.toMap)
+    }
 
-  protected [db] def updateExistsAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Boolean] =
+    protected [db] def updateExistsAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Boolean] =
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
       .exists
       .result
 
-  def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] =
-    db.run(updateExistsAction(namespace, device, version))
+    def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] =
+      db.run(updateExistsAction(namespace, device, version))
 }
 
 trait DeviceRepositorySupport {

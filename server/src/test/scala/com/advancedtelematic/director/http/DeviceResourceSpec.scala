@@ -471,6 +471,28 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     fetchRootFor(device).signed shouldBe fetchRootFor(device, 1).signed
   }
+
+  testWithNamespace("targets custom includes updateId") { implicit ns =>
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    pending
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val cimage = GenCustomImage.generate
+
+    val targets = SetTarget(Map(primEcu -> cimage))
+    val updateId = UpdateId.generate
+
+    schedule(device, targets, updateId)
+
+    // fetchTargetsFor(device).signed.targets.head._2.customParsed[TargetCustom] shouldBe updateId
+  }
 }
 
 class RsaDeviceResourceSpec extends DeviceResourceSpec with RsaGenerators {

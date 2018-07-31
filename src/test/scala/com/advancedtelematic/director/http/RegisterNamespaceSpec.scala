@@ -1,15 +1,23 @@
 package com.advancedtelematic.director.http
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import com.advancedtelematic.director.daemon.CreateRepoWorker
 import com.advancedtelematic.director.db.RepoNameRepositorySupport
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.Messages.UserCreated
 import com.advancedtelematic.libats.test.DatabaseSpec
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId, RsaKeyType}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, JsonSignedPayload, RepoId, RsaKeyType}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.syntax._
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
@@ -61,6 +69,19 @@ trait RegisterNamespaceSpec extends DirectorSpec
         .withEntity(ContentTypes.`application/json`, """ { "keyType":"caesar" } """)
         .namespaced ~> routes ~> check {
       status shouldBe StatusCodes.BadRequest
+    }
+  }
+
+  testWithNamespace("push signed root") { implicit ns =>
+    Post(apiUri("admin/repo")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    val rootRole = RootRole(Map.empty, Map.empty, 2, Instant.now().plus(1, ChronoUnit.DAYS))
+    val signedPayload = JsonSignedPayload(Seq.empty, rootRole.asJson)
+
+    Post(apiUri("admin/repo/root"), signedPayload).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
     }
   }
 

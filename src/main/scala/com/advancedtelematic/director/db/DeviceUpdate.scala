@@ -4,6 +4,7 @@ import com.advancedtelematic.director.data.DataType.Image
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, TargetFilename}
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
@@ -69,21 +70,30 @@ object DeviceUpdate extends AdminRepositorySupport
     db.run(dbAct.transactionally)
   }
 
-  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, version: Int)
+  private def copyTargetsAction(namespace: Namespace, device: DeviceId, failedTargets: Map[EcuSerial, TargetFilename],
+                                deviceVersion: Int, nextTimestampVersion: Int)(implicit db: Database, ec: ExecutionContext) =
+    if (failedTargets.isEmpty) {
+      adminRepository.copyTargetsAction(namespace, device, deviceVersion, nextTimestampVersion)
+    } else {
+      adminRepository.copyTargetsAction(namespace, device, nextTimestampVersion - 1, nextTimestampVersion, failedTargets)
+    }
+
+  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, operations: Map[EcuSerial, OperationResult])
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
+    val failedTargets = operations.filterNot { case (_, v) => v.isSuccess }.mapValues(_.target)
     val dbAct = for {
-      latestVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
-      nextTimestampVersion = latestVersion + 1
-      _ <- adminRepository.copyTargetsAction(namespace, device, version, nextTimestampVersion)
+      latestScheduledVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
+      nextTimestampVersion = latestScheduledVersion + 1
+      _ <- copyTargetsAction(namespace, device, failedTargets, deviceVersion, nextTimestampVersion)
       _ <- adminRepository.updateDeviceTargetsAction(device, None, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
-    } yield (latestVersion)
+    } yield latestScheduledVersion
 
     dbAct.transactionally
   }
 
-  def clearTargetsFrom(namespace: Namespace, device: DeviceId, version: Int)
-                      (implicit db: Database, ec: ExecutionContext): Future[Int] = db.run{
-    clearTargetsFromAction(namespace, device, version)
+  def clearTargetsFrom(namespace: Namespace, device: DeviceId, deviceVersion: Int, operations: Map[EcuSerial, OperationResult])
+                      (implicit db: Database, ec: ExecutionContext): Future[Int] = db.run {
+    clearTargetsFromAction(namespace, device, deviceVersion, operations)
   }
 }

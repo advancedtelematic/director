@@ -19,12 +19,13 @@ import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGene
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
 import io.circe.syntax._
+import org.scalatest.Inspectors
 
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with RouteResourceSpec with NamespacedRequests {
+    with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors {
 
-  def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
-    SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
+  def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId)(implicit ns: NamespaceTag): Unit = {
+    SetTargets.setTargets(ns.get, Seq(device -> targets), Some(updateId)).futureValue
     pretendToGenerate().futureValue
   }
 
@@ -308,7 +309,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
 

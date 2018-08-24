@@ -50,16 +50,16 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
         case UpdateType.MULTI_TARGET_UPDATE =>
           multiTargetUpdate(res)
       }
-    case res@Failed(namespace, device, currentVersion, operations) => async {
-      val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, currentVersion))
-      val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, currentVersion, lastVersion))
+    case res@Failed(namespace, device, deviceVersion, operations) => async {
+      val operationResults = operations.getOrElse(Map())
+      val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, deviceVersion, operationResults))
+      val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, deviceVersion, lastVersion))
 
       updatesToCancel match {
         case Nil => Unit
         case (version, up) +: rest =>
-          val operationResults: Map[EcuSerial, OperationResult] = Map()
-          await(clear(namespace, device, up, version, operations.getOrElse(operationResults)))
-          await(rest.toList.traverse{case (version, up) => clear(namespace, device, up, version, operationResults)})
+          await(clear(namespace, device, up, version, operationResults))
+          await(rest.toList.traverse{case (version, up) => clear(namespace, device, up, version, Map())})
       }
     }
   }

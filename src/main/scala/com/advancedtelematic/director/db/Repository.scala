@@ -15,11 +15,13 @@ import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, OperationResult, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
+
 import scala.util.{Failure, Success}
 import Errors._
 
@@ -186,12 +188,35 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfMany
       .map(_.flatten)
 
+  // skips any targets with version > sourceVersion
   protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
       .join(Schema.ecuTargets.filter(_.version === sourceVersion)).on(_.ecuSerial === _.id)
       .map(_._2)
+      .result
+      .flatMap { ecuTargets =>
+        Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
+      }.map(_ => ())
+
+  private def contains(map: Map[EcuSerial, TargetFilename], pair: (Rep[EcuSerial], Rep[TargetFilename])) =
+    map.map { case (key, value) =>
+      pair._1 === key && pair._2 === value
+    }.reduce(_ || _)
+
+  // skips any targets in "failed"
+  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int,
+                                       failed: Map[EcuSerial, TargetFilename]): DBIO[Unit] =
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .filter(_.device === device)
+      .join(Schema.ecuTargets.filter(_.version === sourceVersion)).on(_.ecuSerial === _.id)
+      .map(_._2)
+      // remove the failed ecuTargets
+      .filterNot { ecuTarget =>
+        contains(failed, ecuTarget.id -> ecuTarget.filepath)
+      }
       .result
       .flatMap { ecuTargets =>
         Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))

@@ -41,6 +41,9 @@ object Codecs {
   implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder
   implicit val encoderCustomImage: Encoder[CustomImage] = deriveEncoder
 
+  implicit val multiTargetUpdateRowDecoder: Decoder[MultiTargetUpdateRow] = deriveDecoder
+  implicit val multiTargetUpdateRowEncoder: Encoder[MultiTargetUpdateRow] = deriveEncoder
+
   /*** Device Request ***/
 
   implicit val decoderEcuManifest: Decoder[EcuManifest] = deriveDecoder

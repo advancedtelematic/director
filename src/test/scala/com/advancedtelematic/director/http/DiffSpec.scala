@@ -2,7 +2,7 @@ package com.advancedtelematic.director.http
 
 import com.advancedtelematic.diff_service.data.DataType.CreateDiffInfoRequest
 import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
-import com.advancedtelematic.director.data.Codecs.{decoderTargetCustom, encoderEcuManifest}
+import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetCustom, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}

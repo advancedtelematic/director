@@ -6,6 +6,7 @@ import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGene
 import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import org.scalatest.LoneElement._
 
 trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegistrationUtils with FileCacheDB with RouteResourceSpec with NamespacedRequests with SetVersion {
   testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
@@ -195,6 +196,14 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     createRepo
 
     fetchRootOk(1).signed shouldBe fetchRootOk.signed
+  }
+
+  testWithNamespace("multi_target_update/updateId gives all the MTUs in the namespace") { implicit ns =>
+    val newMTURequest = GenMultiTargetUpdateRequest.generate
+    val updateId = createMultiTargetUpdateOK(newMTURequest)
+
+    val foundUpdates = findByUpdate(updateId)
+    foundUpdates.map(_.id).distinct.loneElement should be(updateId)
   }
 }
 

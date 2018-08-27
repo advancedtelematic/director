@@ -302,7 +302,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     coreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
-  testWithNamespace("Failed campaign update is reported to core and cancels remaining") { implicit ns =>
+  testWithNamespace("Campaign update with failed result_code is reported to core but doesn't cancel remaining") { implicit ns =>
+    createRepoOk(testKeyType)
 
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -314,12 +315,18 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     registerDeviceOk(regDev)
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val firstEcuManifest = ecuManifests.head
     val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
 
     updateManifestOk(device, deviceManifest)
 
-    val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> targetImage))
+    // ensure that the first ecu has the given filepath as target
+    val firstFilepath = firstEcuManifest.signed.installed_image.filepath
+    val image = Image(firstFilepath, GenFileInfo.generate)
+    val customImage = CustomImage(image, Uri("http://www.example.com"), None)
+    val images = ecus.tail.map { ecu => ecu.ecu_serial -> GenCustomImage.generate.copy(diffFormat = None) }.toMap +
+                                                                                (ecus.head.ecu_serial -> customImage)
+    val targets = SetTarget(images)
     val updateId = UpdateId.generate
 
     schedule(device, targets, updateId)
@@ -327,15 +334,15 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val operation = OperationResult(updateId.show, 4, "sad face")
     val custom = CustomManifest(operation)
 
-    val ecuManifestsTarget = ecuManifests.map { secu =>
-      secu.updated(signed = secu.signed.copy(custom = Some(custom.asJson)))
-    }
+    val ecuManifestsTarget =
+      firstEcuManifest.updated(signed = firstEcuManifest.signed.copy(custom = Some(custom.asJson))) +: ecuManifests.tail
 
     val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
 
     updateManifestOk(device, deviceManifestTarget)
 
     coreClient.getReport(updateId) shouldBe Seq(operation)
+    fetchTargetsFor(device).signed.targets.keys shouldNot contain(firstFilepath)
   }
 
   testWithNamespace("Device update to target counts as failed campaign") { implicit ns =>

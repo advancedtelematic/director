@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
@@ -132,6 +132,12 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
       status shouldBe StatusCodes.OK
       val affected = responseAs[Seq[DeviceId]]
       affected
+    }
+
+  def findByUpdate(updateId: UpdateId)(implicit ns: NamespaceTag): Seq[MultiTargetUpdateRow] =
+    Get(apiUri(s"admin/multi_target_updates/${updateId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[MultiTargetUpdateRow]]
     }
 
   def findAffectedByUpdate(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =

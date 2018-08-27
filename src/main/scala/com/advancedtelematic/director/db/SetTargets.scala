@@ -15,7 +15,8 @@ import com.advancedtelematic.director.data.FileCacheRequestStatus
 
 object SetTargets extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport
-    with UpdateTypesRepositorySupport {
+    with UpdateTypesRepositorySupport
+    with ProcessedManifestsRepositorySupport {
 
   protected [db] def setDeviceTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage])
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
@@ -27,6 +28,7 @@ object SetTargets extends AdminRepositorySupport
 
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)], updateId: Option[UpdateId] = None)
                 (implicit db: Database, ec: ExecutionContext): Future[Unit] = {
+
     def devAction(device: DeviceId, targets: SetTarget): DBIO[Int] =
       setDeviceTargetAction(namespace, device, updateId, targets.updates)
 
@@ -36,8 +38,15 @@ object SetTargets extends AdminRepositorySupport
         updateTypesRepository.persistAction(updateId, UpdateType.OLD_STYLE_CAMPAIGN)
     }
 
-    val dbAct = DBIO.sequence(devTargets.map((devAction _).tupled))
-      .andThen(updateType)
+    val updateDeviceTargets: Seq[DBIO[Int]] = devTargets.map { case (deviceId, setTarget) =>
+      devAction(deviceId, setTarget).flatMap { _ =>
+        // deleting the incoming manifest "cache" on targets change
+        processedManifestsRepository.deleteAction(namespace, deviceId)
+      }
+    }
+
+    val dbAct = DBIO.sequence(updateDeviceTargets)
+                  .andThen(updateType)
 
     db.run(dbAct.transactionally)
   }

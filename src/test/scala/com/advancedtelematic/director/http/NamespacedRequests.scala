@@ -134,6 +134,12 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
       affected
     }
 
+  def findByUpdate(updateId: UpdateId)(implicit ns: NamespaceTag): MultiTargetUpdateRequest =
+    Get(apiUri(s"admin/multi_target_updates/${updateId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[MultiTargetUpdateRequest]
+    }
+
   def findAffectedByUpdate(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =
     Get(apiUri(s"admin/multi_target_updates/${updateId.show}/affected"), devices).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK

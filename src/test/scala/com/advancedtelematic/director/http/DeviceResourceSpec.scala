@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.http
 
 import java.util.concurrent.ConcurrentHashMap
-import java.security.{KeyPairGenerator, PublicKey}
+import java.security.{KeyPairGenerator, MessageDigest, PublicKey}
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
@@ -10,21 +10,23 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, ProcessedManifestsRepositorySupport, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
 import com.advancedtelematic.director.data.Codecs.{encoderCustomManifest, encoderEcuManifest}
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import io.circe.syntax._
 
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with RouteResourceSpec with NamespacedRequests {
+    with FileCacheDB with RouteResourceSpec with NamespacedRequests with ProcessedManifestsRepositorySupport {
 
-  def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId): Unit = {
-    SetTargets.setTargets(defaultNs, Seq(device -> targets), Some(updateId)).futureValue
+  def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId)(implicit ns: NamespaceTag): Unit = {
+    SetTargets.setTargets(ns.get, Seq(device -> targets), Some(updateId)).futureValue
     pretendToGenerate().futureValue
   }
 
@@ -302,7 +304,10 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     coreClient.getReport(updateId) shouldBe Seq(operation)
   }
 
-  testWithNamespace("Failed campaign update is reported to core and cancels remaining") { implicit ns =>
+  testWithNamespace("Campaign update with failed result_code is reported to core but cancels remaining only once") { implicit ns =>
+    val ERROR = 4
+
+    createRepoOk(testKeyType)
 
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -318,13 +323,13 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     updateManifestOk(device, deviceManifest)
 
-    val targetImage = GenCustomImage.generate
+    val targetImage = GenSimpleCustomImage.generate
     val targets = SetTarget(Map(primEcu -> targetImage))
     val updateId = UpdateId.generate
 
     schedule(device, targets, updateId)
 
-    val operation = OperationResult(updateId.show, 4, "sad face")
+    val operation = OperationResult(updateId.show, ERROR, "sad face")
     val custom = CustomManifest(operation)
 
     val ecuManifestsTarget = ecuManifests.map { secu =>
@@ -336,6 +341,13 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifestTarget)
 
     coreClient.getReport(updateId) shouldBe Seq(operation)
+    fetchTargetsFor(device).signed.targets shouldBe empty
+
+    // schedule and confirm again
+    schedule(device, targets, updateId)
+    fetchTargetsFor(device).signed.targets shouldNot be(empty)
+    updateManifestOk(device, deviceManifestTarget)
+    fetchTargetsFor(device).signed.targets shouldBe empty
   }
 
   testWithNamespace("Device update to target counts as failed campaign") { implicit ns =>
@@ -373,6 +385,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     coreClient.getReport(updateId).map(_.result_code) shouldBe Seq(4)
   }
 
+  val digester: MessageDigest = MessageDigest.getInstance("SHA-256")
+
   testWithNamespace("Update where the device is already") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -388,13 +402,20 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     updateManifestOk(device, deviceManifest)
 
+    val digest = Sha256Digest.digest(deviceManifest.signed.canonical.getBytes("UTF-8")).hash.value
+
+    processedManifestsRepository.contains(ns.get, device, digest).futureValue shouldBe true
+
     val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
     val updateId = UpdateId.generate
 
     schedule(device, targets, updateId)
+
+    processedManifestsRepository.contains(ns.get, device, digest).futureValue shouldBe false
+
     updateManifestOk(device, deviceManifest)
 
-    deviceVersion(device) shouldBe Some(1)
+    deviceVersion(device) should contain(1)
   }
 
   testWithNamespace("First Device can also update") { implicit ns =>
@@ -454,8 +475,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     // currently device-current-target and device-update-target are both at 2
     // sending empty device manifest should not update device-current-target to 3
     updateManifestOk(device, deviceManifest2)
-    deviceVersion(device) shouldBe Some(3)
-    deviceScheduledVersion(device) shouldBe 3
+    deviceVersion(device) should contain(2)
+    deviceScheduledVersion(device) shouldBe 2
   }
 
   testWithNamespace("Device can get versioned root.json") { implicit ns =>

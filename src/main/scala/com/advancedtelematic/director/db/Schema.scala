@@ -237,5 +237,17 @@ object Schema {
     override def * = (namespace, device, ecuSerial, targetName) <>
       ((AutoUpdate.apply _).tupled, AutoUpdate.unapply)
   }
+
   protected [db] val autoUpdates = TableQuery[AutoUpdates]
+
+  class ProcessedManifests(tag: Tag) extends Table[ProcessedManifest](tag, "processed_manifests") {
+    def namespace = column[Namespace]("namespace")
+    def device = column[DeviceId]("device")
+    def hash = column[String]("hash")
+    def primKey = primaryKey("namespace_device_pk", (namespace, device))
+
+    override def * = (namespace, device, hash) <> ((ProcessedManifest.apply _).tupled, ProcessedManifest.unapply)
+  }
+
+  protected[db] val processedManifests = TableQuery[ProcessedManifests]
 }

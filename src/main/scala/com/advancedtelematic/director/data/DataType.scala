@@ -114,4 +114,6 @@ object DataType {
                                              status: LaunchedMultiTargetUpdateStatus.Status)
 
   final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
+
+  final case class ProcessedManifest(namespace: Namespace, device: DeviceId, hash: String)
 }

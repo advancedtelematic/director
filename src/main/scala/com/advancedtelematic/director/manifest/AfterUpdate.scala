@@ -16,7 +16,7 @@ import com.advancedtelematic.libtuf_server.data.Messages.DeviceUpdateReport
 
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
-import slick.driver.MySQLDriver.api._
+import slick.jdbc.MySQLProfile.api._
 
 sealed abstract class DeviceManifestUpdateResult
 
@@ -40,7 +40,7 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     with LaunchedMultiTargetUpdateRepositorySupport
     with UpdateTypesRepositorySupport {
 
-  val report: DeviceManifestUpdateResult => Future[Unit] = {
+  def report(deviceManifestUpdateResult: DeviceManifestUpdateResult): Future[Unit] = deviceManifestUpdateResult match {
     case NoChange() => FastFuture.successful(Unit)
     case SuccessWithoutUpdateId() => FastFuture.successful(())
     case res:SuccessWithUpdateId =>

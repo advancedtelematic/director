@@ -196,6 +196,14 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
 
     fetchRootOk(1).signed shouldBe fetchRootOk.signed
   }
+
+  testWithNamespace("multi_target_update/updateId gives all the MTUs in the namespace") { implicit ns =>
+    val newMTU = GenMultiTargetUpdateRequest.generate
+    val updateId = createMultiTargetUpdateOK(newMTU)
+
+    val foundMTU = findByUpdate(updateId)
+    foundMTU shouldBe newMTU
+  }
 }
 
 class RsaAdminResourceSpec extends AdminResourceSpec with RsaGenerators

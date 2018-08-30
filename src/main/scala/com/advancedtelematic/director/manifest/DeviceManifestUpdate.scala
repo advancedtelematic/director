@@ -13,7 +13,6 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSe
 import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
-
 import io.circe.Json
 import org.slf4j.LoggerFactory
 

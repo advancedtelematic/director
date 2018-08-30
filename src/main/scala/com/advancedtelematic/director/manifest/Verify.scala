@@ -9,9 +9,9 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, JsonSignedPayload, Signature, SignedPayload, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload, TufKey}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
-import io.circe.{Encoder, Json}
+import io.circe.Json
 import io.circe.syntax._
 import org.slf4j.LoggerFactory
 

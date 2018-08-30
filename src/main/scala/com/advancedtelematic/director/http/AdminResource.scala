@@ -1,22 +1,22 @@
 package com.advancedtelematic.director.http
 
-import org.slf4j.LoggerFactory
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server._
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.Messages.UpdateSpec
+import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
+import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.http.UUIDKeyPath._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
@@ -27,9 +27,10 @@ import com.advancedtelematic.libtuf.data.TufDataType.{KeyType, RsaKeyType, Signe
 import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import org.slf4j.LoggerFactory
+import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
-import slick.jdbc.MySQLProfile.api._
 
 
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
@@ -105,6 +106,15 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       }
     }
     complete(act)
+  }
+
+  def getMultiTargetUpdates(namespace: Namespace, updateId: UpdateId): Route = {
+    val f = setMultiTargets.
+      getMultiTargetUpdates(namespace, updateId)
+      .map(_.map(mtuRow => mtuRow.hardwareId -> TargetUpdateRequest(mtuRow.fromTarget, mtuRow.toTarget, mtuRow.targetFormat, mtuRow.generateDiff)))
+      .map(_.toMap)
+      .map(MultiTargetUpdateRequest)
+    complete(f)
   }
 
   def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
@@ -257,6 +267,9 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
+      (pathEnd & get) {
+        getMultiTargetUpdates(ns, updateId)
+      } ~
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
         setMultiTargetUpdateForDevices(ns, devices, updateId)
       } ~

@@ -2,16 +2,16 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.director.data.DataType.{CustomImage, LaunchedMultiTargetUpdate, MultiTargetUpdateRow}
-import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
-import com.advancedtelematic.director.data.Messages.UpdateSpec
+import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.UpdateType
+import com.advancedtelematic.director.data.Messages.UpdateSpec
+import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport
@@ -72,10 +72,13 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     dbAct.transactionally
   }
 
+  def getMultiTargetUpdates(namespace: Namespace, updateId: UpdateId)(implicit db: Database, ec: ExecutionContext): Future[Seq[MultiTargetUpdateRow]] =
+    multiTargetUpdatesRepository.fetch(updateId, namespace)
+
   def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId)
                            (implicit db: Database, ec: ExecutionContext): Future[Unit] =
     setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId).flatMap {
-      case Seq(d) => FastFuture.successful(())
+      case Seq(_) => FastFuture.successful(())
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 

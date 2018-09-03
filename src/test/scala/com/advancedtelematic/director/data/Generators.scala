@@ -66,15 +66,10 @@ trait Generators {
     fi <- GenFileInfoInvalidHash
   } yield Image(fp, fi)
 
-  // doesn't contain a diff/target format
-  lazy val GenSimpleCustomImage: Gen[CustomImage] = for {
-    im <- GenImage
-  } yield CustomImage(im, Uri("http://www.example.com"), None)
-
   lazy val GenCustomImage: Gen[CustomImage] = for {
-    ci <- GenSimpleCustomImage
+    im <- GenImage
     tf <- Gen.option(GenTargetFormat)
-  } yield ci.copy(diffFormat = tf)
+  } yield CustomImage(im, Uri("http://www.example.com"), tf)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)

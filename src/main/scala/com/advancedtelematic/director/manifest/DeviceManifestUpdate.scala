@@ -1,48 +1,28 @@
 package com.advancedtelematic.director.manifest
 
-import java.security.MessageDigest
-
-import akka.http.scaladsl.util.FastFuture
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuManifest}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, ProcessedManifestsRepositorySupport, UpdateTypesRepositorySupport}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPayload, TufKey}
-import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
-import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import io.circe.Json
 import org.slf4j.LoggerFactory
 
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
-import slick.jdbc.MySQLProfile.api._
+import slick.driver.MySQLDriver.api._
 
 class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
                            verifier: TufKey => Verifier
                           )(implicit val db: Database, val ec: ExecutionContext)
-    extends DeviceRepositorySupport with UpdateTypesRepositorySupport with ProcessedManifestsRepositorySupport {
+    extends DeviceRepositorySupport
+    with UpdateTypesRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
-  val digester: MessageDigest = MessageDigest.getInstance("SHA-256")
 
-  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = {
-    val signed = signedDevMan.signed
-    val timeless = signed.mapObject(_.remove("timeserver_time").remove("previous_timeserver_time"))
-    val digest = Sha256Digest.digest(timeless.canonical.getBytes("UTF-8")).hash.value
-
-    processedManifestsRepository.contains(namespace, device, digest).flatMap {
-      case true =>
-        FastFuture.successful(())
-      case false =>
-        processDeviceManifest(namespace, device, signedDevMan).flatMap { _ =>
-          processedManifestsRepository.add(namespace, device, digest).map(_ => ())
-        }
-    }
-  }
-
-  def processDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
+  def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
     ecus <- deviceRepository.findEcus(namespace, device)
     ecuImages <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
     _ <- ecuManifests(namespace, device, ecuImages)
@@ -61,8 +41,8 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         Failed(namespace, device, currentVersion, Some(operations))
       }
     }
-
     await(afterUpdate.report(updateResult))
+
   }
 
   private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],

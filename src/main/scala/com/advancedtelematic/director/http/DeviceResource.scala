@@ -2,7 +2,6 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive0, Directive1}
-import com.advancedtelematic.director.client.CoreClient
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.DeviceRegistration
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
@@ -27,7 +26,6 @@ import slick.jdbc.MySQLProfile.api._
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
                      verifier: TufKey => Verifier,
-                     coreClient: CoreClient,
                      val keyserverClient: KeyserverClient,
                      roles: Roles)
                     (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
@@ -38,7 +36,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
 
-  private val afterUpdate = new AfterDeviceManifestUpdate(coreClient)
+  private val afterUpdate = new AfterDeviceManifestUpdate()
   private val deviceManifestUpdate = new DeviceManifestUpdate(afterUpdate, verifier)
 
   def logDevice(namespace: Namespace, device: DeviceId): Directive0 = {

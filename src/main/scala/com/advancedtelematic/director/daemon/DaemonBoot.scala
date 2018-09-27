@@ -14,7 +14,7 @@ import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, CampaignLaunched, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
@@ -51,8 +51,6 @@ object DaemonBoot extends BootApp
     val createRepoWorker = new CreateRepoWorker(new DirectorRepo(tuf), kt)
     startListener[UserCreated](createRepoWorker.action)
   }
-
-  val campaignCreatedListener = startListener[CampaignLaunched](CampaignWorker.action)
 
   val diffListener = new DiffListener
   val generatedDeltaListener = startListener[GeneratedDelta](diffListener.generatedDeltaAction)

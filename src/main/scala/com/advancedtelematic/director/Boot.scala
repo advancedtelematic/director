@@ -8,7 +8,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
-import com.advancedtelematic.director.client.CoreHttpClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
 import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
@@ -54,7 +53,6 @@ trait Settings {
   val port = _config.getInt("server.port")
 
   val tufUri = mkUri(_config, "keyserver.uri")
-  val coreUri = mkUri(_config, "core.uri")
   val tufBinaryUri = mkUri(_config, "tuf.binary.uri")
 
   val defaultKeyType: Try[KeyType] = {
@@ -79,7 +77,6 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val coreClient = new CoreHttpClient(coreUri)
   val tuf = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
@@ -93,7 +90,7 @@ object Boot extends BootApp
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
     (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
       prometheusMetricsRoutes ~
-      new DirectorRoutes(SignatureVerification.verify, coreClient, tuf, roles, diffService).routes
+      new DirectorRoutes(SignatureVerification.verify, tuf, roles, diffService).routes
     }
 
   Http().bindAndHandle(routes, host, port)

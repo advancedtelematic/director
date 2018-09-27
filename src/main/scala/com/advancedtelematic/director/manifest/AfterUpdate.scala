@@ -2,8 +2,6 @@ package com.advancedtelematic.director.manifest
 
 import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
-import com.advancedtelematic.director.client.CoreClient
-import com.advancedtelematic.director.data.DeviceRequest.{OperationResult => CoreOperationResult}
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
@@ -33,7 +31,7 @@ final case class Failed(namespace: Namespace, device: DeviceId, currentTimestamp
     extends DeviceManifestUpdateResult
 
 
-class AfterDeviceManifestUpdate(coreClient: CoreClient)
+class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
@@ -45,8 +43,7 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     case SuccessWithoutUpdateId() => FastFuture.successful(())
     case res:SuccessWithUpdateId =>
       updateTypesRepository.getType(res.updateId).flatMap {
-        case UpdateType.OLD_STYLE_CAMPAIGN  =>
-          oldStyleCampaign(res)
+        case UpdateType.OLD_STYLE_CAMPAIGN => FastFuture.successful(())
         case UpdateType.MULTI_TARGET_UPDATE =>
           multiTargetUpdate(res)
       }
@@ -64,19 +61,13 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     }
   }
 
-  private def toCoreOperationResult(updateId: UpdateId, operations: Map[EcuSerial, OperationResult]): Seq[CoreOperationResult] =
-    operations.toSeq.map { case (ecu, op) =>
-      CoreOperationResult(updateId.show, op.resultCode, op.resultText)
-    }
-
   private def clear(namespace: Namespace, device: DeviceId, mUpdateId: Option[UpdateId],
                     version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = async {
     mUpdateId match {
       case None => Unit
       case Some(updateId) =>
         await(updateTypesRepository.getType(updateId)) match {
-          case UpdateType.OLD_STYLE_CAMPAIGN =>
-            await(clearOldStyleCampaign(namespace, device, updateId, operations))
+          case UpdateType.OLD_STYLE_CAMPAIGN => Unit
           case UpdateType.MULTI_TARGET_UPDATE =>
             await(clearMultiTargetUpdate(namespace, device, updateId, version, operations))
         }
@@ -95,15 +86,6 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     } yield ()
   }
 
-  private def clearOldStyleCampaign(namespace: Namespace, device: DeviceId, updateId: UpdateId,
-                                operations: Map[EcuSerial, OperationResult]): Future[Unit] = {
-    val coreOperations = toCoreOperationResult(updateId, operations) match {
-      case Nil => Seq(CoreOperationResult("", 4, "Director and device not in sync"))
-      case xs => xs
-    }
-    coreClient.updateReport(namespace, device, updateId, coreOperations)
-  }
-
   private def multiTargetUpdate(result: SuccessWithUpdateId): Future[Unit] = {
     val status = LaunchedMultiTargetUpdateStatus.Finished
     val OK_RESULT_CODE = 0
@@ -116,10 +98,4 @@ class AfterDeviceManifestUpdate(coreClient: CoreClient)
     } yield ()
   }
 
-  private def oldStyleCampaign(result: SuccessWithUpdateId): Future[Unit] = {
-    val operations: Seq[CoreOperationResult] = result.operations.map(toCoreOperationResult(result.updateId,_)).getOrElse {
-      Seq(CoreOperationResult(result.updateId.show, 0, "Device did not report an operationresult, but is at the correct target"))
-    }
-    coreClient.updateReport(result.namespace, result.device, result.updateId, operations)
-  }
 }

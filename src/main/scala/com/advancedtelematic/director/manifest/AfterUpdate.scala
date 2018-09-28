@@ -4,8 +4,8 @@ import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate, LaunchedMultiTargetUpdateRepositorySupport, UpdateTypesRepositorySupport}
+import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate, LaunchedMultiTargetUpdateRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -35,18 +35,12 @@ class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
-    with LaunchedMultiTargetUpdateRepositorySupport
-    with UpdateTypesRepositorySupport {
+    with LaunchedMultiTargetUpdateRepositorySupport {
 
   val report: DeviceManifestUpdateResult => Future[Unit] = {
     case NoChange() => FastFuture.successful(Unit)
     case SuccessWithoutUpdateId() => FastFuture.successful(())
-    case res:SuccessWithUpdateId =>
-      updateTypesRepository.getType(res.updateId).flatMap {
-        case UpdateType.OLD_STYLE_CAMPAIGN => FastFuture.successful(())
-        case UpdateType.MULTI_TARGET_UPDATE =>
-          multiTargetUpdate(res)
-      }
+    case res:SuccessWithUpdateId => multiTargetUpdate(res)
     case res@Failed(namespace, device, deviceVersion, operations) => async {
       val operationResults = operations.getOrElse(Map())
       val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, deviceVersion, operationResults))
@@ -65,12 +59,7 @@ class AfterDeviceManifestUpdate()
                     version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = async {
     mUpdateId match {
       case None => Unit
-      case Some(updateId) =>
-        await(updateTypesRepository.getType(updateId)) match {
-          case UpdateType.OLD_STYLE_CAMPAIGN => Unit
-          case UpdateType.MULTI_TARGET_UPDATE =>
-            await(clearMultiTargetUpdate(namespace, device, updateId, version, operations))
-        }
+      case Some(updateId) => await(clearMultiTargetUpdate(namespace, device, updateId, version, operations))
     }
   }
 

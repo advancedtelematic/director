@@ -5,7 +5,7 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
+import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -16,8 +16,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport
     with MultiTargetUpdatesRepositorySupport
-    with LaunchedMultiTargetUpdateRepositorySupport
-    with UpdateTypesRepositorySupport {
+    with LaunchedMultiTargetUpdateRepositorySupport {
 
   protected [db] def resolve(namespace: Namespace, device: DeviceId, mtuRows: Seq[MultiTargetUpdateRow])
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
@@ -88,7 +87,6 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
       _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
-      _ <- updateTypesRepository.persistAction(updateId, UpdateType.MULTI_TARGET_UPDATE)
     } yield toUpdate
 
     db.run(dbAct.transactionally).flatMap { scheduled =>

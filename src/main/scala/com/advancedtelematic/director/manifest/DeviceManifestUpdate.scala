@@ -3,7 +3,7 @@ package com.advancedtelematic.director.manifest
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuManifest}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult, UpdateTypesRepositorySupport}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
@@ -18,8 +18,7 @@ import slick.driver.MySQLDriver.api._
 class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
                            verifier: TufKey => Verifier
                           )(implicit val db: Database, val ec: ExecutionContext)
-    extends DeviceRepositorySupport
-    with UpdateTypesRepositorySupport {
+    extends DeviceRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {

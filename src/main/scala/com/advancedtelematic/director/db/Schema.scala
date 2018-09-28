@@ -5,7 +5,7 @@ import java.security.PublicKey
 import akka.http.scaladsl.model.Uri
 import cats.implicits._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.{LaunchedMultiTargetUpdateStatus, UpdateType}
+import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
@@ -218,15 +218,6 @@ object Schema {
   }
 
   protected [db] val launchedMultiTargetUpdates = TableQuery[LaunchedMultiTargetUpdatesTable]
-
-  class UpdateTypes(tag: Tag) extends Table[(UpdateId, UpdateType.UpdateType)](tag, "update_types") {
-    def update = column[UpdateId]("update_id", O.PrimaryKey)
-    def updateType = column[UpdateType.UpdateType]("update_type")
-
-    override def * = (update, updateType)
-  }
-
-  protected [db] val updateTypes = TableQuery[UpdateTypes]
 
   class AutoUpdates(tag: Tag) extends Table[AutoUpdate](tag, "auto_updates") {
     def namespace = column[Namespace]("namespace")

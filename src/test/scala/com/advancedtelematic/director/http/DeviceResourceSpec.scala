@@ -24,8 +24,8 @@ import org.scalatest.Inspectors
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
     with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors {
 
-  def schedule(device: DeviceId, targets: SetTarget, updateId: UpdateId)(implicit ns: NamespaceTag): Unit = {
-    SetTargets.setTargets(ns.get, Seq(device -> targets), Some(updateId)).futureValue
+  def schedule(device: DeviceId, targets: SetTarget)(implicit ns: NamespaceTag): Unit = {
+    SetTargets.setTargets(ns.get, Seq(device -> targets)).futureValue
     pretendToGenerate().futureValue
   }
 
@@ -285,9 +285,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifest)
 
     val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
-    val updateId = UpdateId.generate
 
-    schedule(device, targets, updateId)
+    schedule(device, targets)
     updateManifestOk(device, deviceManifest)
 
     deviceVersion(device) shouldBe Some(1)
@@ -306,9 +305,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val cimage = GenCustomImage.generate
 
     val targets = SetTarget(Map(primEcu -> cimage))
-    val updateId = UpdateId.generate
 
-    schedule(device, targets, updateId)
+    schedule(device, targets)
 
     val ecuManifests = ecus.map { regEcu => GenSignedEcuManifestWithImage(regEcu.ecu_serial, cimage.image).generate }
     val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
@@ -336,9 +334,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     val targetImage = GenCustomImage.generate
     val targets = SetTarget(Map(primEcu -> targetImage))
-    val updateId = UpdateId.generate
 
-    schedule(device, targets, updateId)
+    schedule(device, targets)
     updateManifestOk(device, deviceManifest)
 
     val deviceManifest2 = GenSignedDeviceManifest(primEcu, Seq()).generate

@@ -2,7 +2,6 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.ErrorCode
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, RawError}
@@ -21,7 +20,6 @@ object ErrorCodes {
   val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
   val EcuAlreadyRegistered = ErrorCode("ecu_already_registered")
   val MissingMultiTargetUpdate = ErrorCode("missing_multi_target_update")
-  val MissingUpdateType = ErrorCode("missing_update_type")
   val MissingDevice = ErrorCode("missing_device")
   val CouldNotScheduleDevice = ErrorCode("could_not_schedule_device")
   val NoCacheEntry = ErrorCode("no_cache_entry")
@@ -59,9 +57,6 @@ object Errors {
   val MissingMultiTargetUpdate = RawError(ErrorCodes.MissingMultiTargetUpdate, StatusCodes.NotFound, "multi-target update not found")
 
   val DeviceMissing = MissingEntity[DeviceId]
-
-  val ConflictingUpdateType = EntityAlreadyExists[UpdateType]
-  val MissingUpdateType = RawError(ErrorCodes.MissingUpdateType, StatusCodes.InternalServerError, "update type not found")
 
   val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists[LaunchedMultiTargetUpdate]
   val MissingLaunchedMultiTargetUpdate = MissingEntity[LaunchedMultiTargetUpdate]

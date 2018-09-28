@@ -26,12 +26,6 @@ object LaunchedMultiTargetUpdateStatus extends CirceEnum with SlickEnum {
   val Pending, InFlight, Canceled, Failed, Finished = Value
 }
 
-object UpdateType extends CirceEnum with SlickEnum {
-  type UpdateType = Value
-
-  val OLD_STYLE_CAMPAIGN, MULTI_TARGET_UPDATE = Value
-}
-
 object DataType {
   import RoleType.RoleType
 

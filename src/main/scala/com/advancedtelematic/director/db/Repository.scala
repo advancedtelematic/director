@@ -6,7 +6,6 @@ import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.director.data.UpdateType.UpdateType
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -30,8 +29,7 @@ trait AdminRepositorySupport {
 }
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
-    with FileCacheRequestRepositorySupport
-    with UpdateTypesRepositorySupport {
+    with FileCacheRequestRepositorySupport {
   import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, RegisterEcu, QueueResponse}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Hashes, Image}
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings.{keyTypeMapper, publicKeyMapper}
@@ -612,36 +610,6 @@ protected class LaunchedMultiTargetUpdateRepository()(implicit db: Database, ec:
       .map(_.status)
       .update(status)
       .handleSingleUpdateError(MissingLaunchedMultiTargetUpdate)
-  }
-}
-
-trait UpdateTypesRepositorySupport {
-  def updateTypesRepository(implicit db: Database, ec: ExecutionContext) = new UpdateTypesRepository()
-}
-
-protected class UpdateTypesRepository()(implicit db: Database, ec: ExecutionContext) {
-  protected [db] def persistAction(updateId: UpdateId, ofType: UpdateType): DBIO[Unit] = {
-    Schema.updateTypes
-      .filter(_.update === updateId)
-      .filter(_.updateType === ofType)
-      .exists
-      .result.flatMap {
-      case true => DBIO.successful(())
-      case false => (Schema.updateTypes += ((updateId, ofType)))
-          .handleIntegrityErrors(ConflictingUpdateType)
-          .map(_ => ())
-    }
-  }
-
-  protected [db] def getTypeAction(updateId: UpdateId): DBIO[UpdateType] =
-    Schema.updateTypes
-      .filter(_.update === updateId)
-      .map(_.updateType)
-      .result
-      .failIfNotSingle(MissingUpdateType)
-
-  def getType(updateId: UpdateId): Future[UpdateType] = db.run {
-    getTypeAction(updateId)
   }
 }
 

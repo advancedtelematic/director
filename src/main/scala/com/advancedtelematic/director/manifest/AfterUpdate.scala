@@ -37,53 +37,44 @@ class AfterDeviceManifestUpdate()
     extends AdminRepositorySupport
     with LaunchedMultiTargetUpdateRepositorySupport {
 
+  val OK_RESULT_CODE = 0
+  val GENERAL_ERROR_RESULT_CODE = 19
+
   val report: DeviceManifestUpdateResult => Future[Unit] = {
     case NoChange() => FastFuture.successful(Unit)
     case SuccessWithoutUpdateId() => FastFuture.successful(())
-    case res:SuccessWithUpdateId => multiTargetUpdate(res)
+    case res@SuccessWithUpdateId(namespace, device, updateId, timestampVersion, operations) =>
+      clearMultiTargetUpdate(
+        namespace, device, updateId, timestampVersion, operations.getOrElse(Map()),
+        LaunchedMultiTargetUpdateStatus.Finished, UpdateStatus.Finished, OK_RESULT_CODE)
     case res@Failed(namespace, device, deviceVersion, operations) => async {
-      val operationResults = operations.getOrElse(Map())
+      var operationResults = operations.getOrElse(Map())
       val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, deviceVersion, operationResults))
       val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, deviceVersion, lastVersion))
+        .filter { case (version, up) => up.isDefined }
 
-      updatesToCancel match {
-        case Nil => Unit
-        case (version, up) +: rest =>
-          await(clear(namespace, device, up, version, operationResults))
-          await(rest.toList.traverse{case (version, up) => clear(namespace, device, up, version, Map())})
-      }
+      await(updatesToCancel.toList.traverse { case(version, updateId) =>
+        val fut = clearMultiTargetUpdate(
+          namespace, device, updateId.get, version, operationResults,
+          LaunchedMultiTargetUpdateStatus.Failed, UpdateStatus.Failed, GENERAL_ERROR_RESULT_CODE)
+        operationResults = Map()
+        fut
+      })
+
     }
   }
 
-  private def clear(namespace: Namespace, device: DeviceId, mUpdateId: Option[UpdateId],
-                    version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = async {
-    mUpdateId match {
-      case None => Unit
-      case Some(updateId) => await(clearMultiTargetUpdate(namespace, device, updateId, version, operations))
-    }
-  }
-
-  private def clearMultiTargetUpdate(namespace: Namespace, device: DeviceId, updateId: UpdateId,
-                                 version: Int, operations: Map[EcuSerial, OperationResult]): Future[Unit] = {
-    val status = LaunchedMultiTargetUpdateStatus.Failed
-    val GENERAL_ERROR_RESULT_CODE = 19
+  private def clearMultiTargetUpdate(
+      namespace: Namespace, device: DeviceId, updateId: UpdateId,
+      version: Int, operations: Map[EcuSerial, OperationResult],
+      launchedUpdateStatus: LaunchedMultiTargetUpdateStatus.Status,
+      updateSpecStatus: UpdateStatus.UpdateStatus,
+      resultCode: Int
+    ): Future[Unit] = {
     for {
-      _ <- launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, status)
-      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version,
-                                                          operations, GENERAL_ERROR_RESULT_CODE))
-      _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Failed))
-    } yield ()
-  }
-
-  private def multiTargetUpdate(result: SuccessWithUpdateId): Future[Unit] = {
-    val status = LaunchedMultiTargetUpdateStatus.Finished
-    val OK_RESULT_CODE = 0
-    for {
-      _ <- launchedMultiTargetUpdateRepository.setStatus(result.device, result.updateId, result.timestampVersion, status)
-      _ <- messageBusPublisher.publish(DeviceUpdateReport(result.namespace, result.device, result.updateId,
-                                                          result.timestampVersion, result.operations.getOrElse(Map()),
-                                                          OK_RESULT_CODE))
-      _ <- messageBusPublisher.publish(UpdateSpec(result.namespace, result.device, UpdateStatus.Finished))
+      _ <- launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, launchedUpdateStatus)
+      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations, resultCode))
+      _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
     } yield ()
   }
 

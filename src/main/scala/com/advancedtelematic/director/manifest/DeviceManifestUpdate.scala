@@ -11,7 +11,6 @@ import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPay
 import io.circe.Json
 import org.slf4j.LoggerFactory
 
-import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
@@ -27,48 +26,38 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     _ <- ecuManifests(namespace, device, ecuImages)
   } yield ()
 
-  def ecuManifests(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Unit] = async {
-    val updateResult = {
-      val operations = deviceManifestOperationResults(ecuImages)
-      if (operations.isEmpty) {
-        await(clientReportedNoErrors(namespace, device, ecuImages, None))
-      } else if (operations.forall(_._2.isSuccess)) {
-        await(clientReportedNoErrors(namespace, device, ecuImages, Some(operations)))
-      } else {
-        _log.info(s"Device ${device.show} reports errors during install: $operations")
-        val currentVersion = await(deviceRepository.getCurrentVersion(device))
-        Failed(namespace, device, currentVersion, Some(operations))
-      }
-    }
-    await(afterUpdate.report(updateResult))
+  private def ecuManifests(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Unit] = {
 
-  }
-
-  private def clientReportedNoErrors(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest],
-                                     clientReport: Option[Map[EcuSerial, OperationResult]]): Future[DeviceManifestUpdateResult] =
-    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).map {
-      case DeviceUpdateResult.NoChange => NoChange()
-      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, None) => SuccessWithoutUpdateId()
-      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, Some(updateId)) =>
-        SuccessWithUpdateId(namespace, device, updateId, nextVersion, clientReport)
-      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, None, manifest) =>
-        _log.error(s"Device ${device.show} updated when no update was available")
-        _log.info {
-          s"""currentVersion: $currentVersion
-             |manifest      : $manifest
-           """.stripMargin
+    val operations = deviceManifestOperationResults(ecuImages)
+    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).flatMap {
+      case DeviceUpdateResult.NoChange =>
+        if (operations.find(!_._2.isSuccess).isDefined) {
+          _log.info(s"Device ${device.show} reports errors during install: $operations")
+          deviceRepository.getCurrentVersion(device).flatMap { currentVersion =>
+            afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, operations)
+          }
+        } else {
+          Future.successful(())
         }
-        Failed(namespace, device, currentVersion, None)
-      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, Some(targets), manifest) =>
-        _log.error(s"Device ${device.show} updated to the wrong target")
+      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, None) => Future.successful(())
+      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, Some(updateId)) =>
+        afterUpdate.successMultiTargetUpdate(namespace, device, updateId, nextVersion, operations)
+      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, targets, manifest) =>
+        if (targets.isEmpty) {
+          _log.error(s"Device ${device.show} updated when no update was available")
+        } else {
+          _log.error(s"Device ${device.show} updated to the wrong target")
+        }
         _log.info {
           s"""version : ${currentVersion + 1}
              |targets : $targets
              |manifest: $manifest
            """.stripMargin
         }
-        Failed(namespace, device, currentVersion, None)
+        afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, operations)
     }
+
+  }
 
   private def deviceManifestOperationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, OperationResult] =
     ecuManifests.par.flatMap{ ecuManifest =>

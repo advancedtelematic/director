@@ -17,7 +17,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.http.UUIDKeyPath._
+import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.data.ClientCodecs._

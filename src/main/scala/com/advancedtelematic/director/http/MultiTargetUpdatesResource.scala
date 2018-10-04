@@ -8,7 +8,7 @@ import com.advancedtelematic.director.data.DataType.MultiTargetUpdateRequest
 import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
 import com.advancedtelematic.libats.codecs.CirceRefined._
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.http.UUIDKeyPath._
+import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database

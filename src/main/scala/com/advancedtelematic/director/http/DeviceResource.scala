@@ -9,7 +9,7 @@ import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.director.roles.Roles
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.http.UUIDKeyPath._
+import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceSeen

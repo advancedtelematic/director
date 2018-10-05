@@ -39,8 +39,8 @@ class Roles(rolesGeneration: RolesGeneration)
       case true  => fileCacheRepository.versionIsCached(device, timestampVersion).flatMap {
         case true => FastFuture.successful(timestampVersion)
         case false =>
-          fileCacheRequestRepository.findTargetVersion(ns, device, timestampVersion).flatMap { targetVersion =>
-            rolesGeneration.tryToGenerate(ns, device, targetVersion, timestampVersion).map(_ => timestampVersion).recover {
+          fileCacheRequestRepository.findByVersion(ns, device, timestampVersion).flatMap { fcr =>
+            rolesGeneration.processFileCacheRequest(fcr).map(_ => timestampVersion).recover {
               case MtuDiffDataMissing => currentVersion
             }
           }

@@ -511,12 +511,11 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
       .map(_ => ())
   }
 
-  def findTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Int] = db.run {
+  def findByVersion(namespace: Namespace, device: DeviceId, version: Int): Future[FileCacheRequest] = db.run {
     Schema.fileCacheRequest
       .filter(_.namespace === namespace)
       .filter(_.timestampVersion === version)
       .filter(_.device === device)
-      .map(_.targetVersion)
       .result
       .failIfNotSingle(MissingFileCacheRequest)
   }

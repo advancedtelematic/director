@@ -14,7 +14,7 @@ import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, OperationResult, RepoId, RoleType, TargetFilename, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 
@@ -22,6 +22,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 import scala.util.{Failure, Success}
+
+import SlickMapping._
 import Errors._
 
 trait AdminRepositorySupport {
@@ -484,8 +486,6 @@ trait FileCacheRequestRepositorySupport {
 }
 
 protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.FileCacheRequestStatus._
-  import DataType.FileCacheRequest
 
   protected [db] def persistAction(req: FileCacheRequest): DBIO[Unit] =
     (Schema.fileCacheRequest += req)
@@ -497,7 +497,7 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
   }
 
   def findPending(limit: Int = 10): Future[Seq[FileCacheRequest]] = db.run {
-    Schema.fileCacheRequest.filter(_.status === PENDING).take(limit).result
+    Schema.fileCacheRequest.filter(_.status === FileCacheRequestStatus.PENDING).take(limit).result
   }
 
   def updateRequest(req: FileCacheRequest): Future[Unit] = db.run {

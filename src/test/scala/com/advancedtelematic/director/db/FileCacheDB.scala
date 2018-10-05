@@ -10,6 +10,8 @@ import java.time.temporal.ChronoUnit
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
+import SlickMapping._
+
 trait FileCacheDB {
   def makeFilesExpire(device: DeviceId)
                      (implicit db: Database, ec: ExecutionContext): Future[Done] = db.run {

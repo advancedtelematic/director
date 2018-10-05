@@ -33,7 +33,7 @@ trait SetMultiTargetSpec extends DirectorSpec
 
     val mtuId = createMultiTargetUpdateOK(mtu)
 
-    setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
+    setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, CorrelationId.from(mtuId)).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
 
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri(), None))
@@ -58,7 +58,8 @@ trait SetMultiTargetSpec extends DirectorSpec
 
     val mtuId = createMultiTargetUpdateOK(mtu)
 
-    val affected = setMultiTargets.setMultiUpdateTargetsForDevices(defaultNs, Seq(device0, device1), mtuId).futureValue
+    val affected = setMultiTargets.setMultiUpdateTargetsForDevices(
+      defaultNs, Seq(device0, device1), mtuId, CorrelationId.from(mtuId)).futureValue
 
     affected.toSet shouldBe Set(device0, device1)
 
@@ -91,7 +92,7 @@ trait SetMultiTargetSpec extends DirectorSpec
       ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
     }.toMap
 
-    setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+    setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, CorrelationId.from(updateId)).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
     update shouldBe expected
   }
@@ -119,7 +120,7 @@ trait SetMultiTargetSpec extends DirectorSpec
         ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
       }.toMap
 
-      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, CorrelationId.from(updateId)).futureValue
       val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
       update shouldBe expected
     }
@@ -133,7 +134,7 @@ trait SetMultiTargetSpec extends DirectorSpec
         ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
       }.toMap
 
-      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId).futureValue
+      setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, CorrelationId.from(updateId)).futureValue
       val update = adminRepository.fetchTargetVersion(defaultNs, device, 2).futureValue
       update shouldBe expected
     }
@@ -157,7 +158,7 @@ trait SetMultiTargetSpec extends DirectorSpec
 
     val mtuId = createMultiTargetUpdateOK(mtu)
 
-    setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId).futureValue
+    setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, CorrelationId.from(mtuId)).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri(), None))
 

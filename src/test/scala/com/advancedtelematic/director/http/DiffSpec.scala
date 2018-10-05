@@ -17,7 +17,7 @@ import eu.timepit.refined.api.Refined
 
 import scala.concurrent.Future
 
-trait DiffSpec extends DirectorSpec
+trait DeviceUpdateSpec extends DirectorSpec
     with KeyGenerators
     with DefaultPatience
     with RouteResourceSpec
@@ -71,6 +71,9 @@ trait DiffSpec extends DirectorSpec
       _ <- repoNameRepository.persist(ns.get, repoId)
       } yield ()
   }
+}
+
+trait DiffSpec extends DeviceUpdateSpec {
 
   testWithNamespace("device waits for diff") { implicit ns =>
     createRepo().futureValue

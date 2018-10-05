@@ -123,6 +123,9 @@ object Codecs {
 
   implicit val autoUpdateEncoder: Encoder[AutoUpdate] = deriveEncoder
   implicit val autoUpdateDecoder: Decoder[AutoUpdate] = deriveDecoder
+
+  implicit val targetsCustomEncoder: Encoder[TargetsCustom] = deriveEncoder
+  implicit val targetsCustomDecoder: Decoder[TargetsCustom] = deriveDecoder
 }
 
 object AkkaHttpUnmarshallingSupport {

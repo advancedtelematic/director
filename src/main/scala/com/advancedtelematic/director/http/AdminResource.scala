@@ -7,7 +7,7 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{CorrelationId, MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
@@ -17,6 +17,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.http.AnyvalMarshallingSupport._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
@@ -57,6 +58,11 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     val offset = mOffset.getOrElse(0L)
     (limit, offset)
   }
+
+  private def correlationIdParameter(updateId: UpdateId): Directive1[CorrelationId] =
+    parameters('correlationId.as[CorrelationId].?).map {
+      _.getOrElse(CorrelationId.from(updateId))
+    }
 
   def createRepo(namespace: Namespace, keyType: KeyType) =
     complete {
@@ -117,13 +123,16 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
-    val f = setMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
+  def setMultiUpdateTarget(namespace: Namespace,
+                           device: DeviceId,
+                           updateId: UpdateId,
+                           correlationId: CorrelationId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargets(namespace, device, updateId, correlationId)
     complete(f)
   }
 
-  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
-    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, correlationId: CorrelationId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId, correlationId)
     complete(f)
   }
 
@@ -260,21 +269,31 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       } ~
       path("multi_target_update" / UpdateId.Path) { updateId =>
         put {
-          setMultiUpdateTarget(ns, device, updateId)
+          correlationIdParameter(updateId) { correlationId =>
+            setMultiUpdateTarget(ns, device, updateId, correlationId)
+          }
         }
       }
     }
 
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
-      (pathEnd & get) {
-        getMultiTargetUpdates(ns, updateId)
+      pathEnd {
+        get {
+          getMultiTargetUpdates(ns, updateId)
+        } ~
+        put {
+          entity(as[Seq[DeviceId]]) { devices =>
+            correlationIdParameter(updateId) { correlationId =>
+              setMultiTargetUpdateForDevices(ns, devices, updateId, correlationId)
+            }
+          }
+        }
       } ~
-      (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
-        setMultiTargetUpdateForDevices(ns, devices, updateId)
-      } ~
-        (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
-        findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
+      path("affected") {
+        (get & entity(as[Seq[DeviceId]])) { devices =>
+          findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
+        }
       }
     }
 

@@ -4,6 +4,7 @@ import java.security.PublicKey
 
 import akka.http.scaladsl.model.Uri
 import cats.implicits._
+import SlickMapping._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus

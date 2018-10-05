@@ -2,7 +2,6 @@ package com.advancedtelematic.director.data
 
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.codecs.CirceEnum
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
@@ -12,15 +11,15 @@ import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
 
-import com.advancedtelematic.libats.slick.codecs.SlickEnum
 
-object FileCacheRequestStatus extends CirceEnum with SlickEnum {
+object FileCacheRequestStatus extends Enumeration {
   type FileCacheRequestStatus = Value
 
   val SUCCESS, ERROR, PENDING = Value
 }
 
-object LaunchedMultiTargetUpdateStatus extends CirceEnum with SlickEnum {
+
+object LaunchedMultiTargetUpdateStatus extends Enumeration {
   type Status = Value
 
   val Pending, InFlight, Canceled, Failed, Finished = Value

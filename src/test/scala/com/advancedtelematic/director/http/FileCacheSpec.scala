@@ -4,11 +4,13 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.DataType.{CorrelationId, TargetsCustom}
+import com.advancedtelematic.director.data.Codecs.targetsCustomEncoder
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.util.DirectorSpec
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole}
@@ -16,6 +18,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder}
+import io.circe.syntax._
 import java.time.Instant
 
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
@@ -82,6 +85,38 @@ trait FileCacheSpec extends DirectorSpec
       ts.signed.version shouldBe 1
       isAvailable[SnapshotRole](device, "snapshot.json")
       isAvailable[TargetsRole](device, "targets.json")
+      isAvailable[RootRole](device, "root.json")
+    }
+  }
+
+  test("Files are generated with correlationId") {
+    val device = DeviceId.generate
+    val updateId = UpdateId.generate
+    val correlationId = CorrelationId.from(updateId)
+
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+
+    val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
+    registerDeviceOk(regDev)
+
+    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
+    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
+
+    updateManifestOk(device, devManifest)
+
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
+
+    val target = SetTarget(Map(primEcu -> targetImage))
+
+    SetTargets.setTargets(defaultNs, Seq(device -> target), Some(correlationId)).futureValue
+
+    eventually(timeout, interval) {
+      val ts = isAvailable[TimestampRole](device, "timestamp.json")
+      ts.signed.version shouldBe 1
+      isAvailable[SnapshotRole](device, "snapshot.json")
+      val tg = isAvailable[TargetsRole](device, "targets.json")
+      tg.signed.custom shouldBe Some(TargetsCustom(Some(correlationId)).asJson)
       isAvailable[RootRole](device, "root.json")
     }
   }

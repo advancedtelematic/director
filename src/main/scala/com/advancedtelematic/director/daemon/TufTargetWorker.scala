@@ -2,6 +2,7 @@ package com.advancedtelematic.director.daemon
 
 import akka.Done
 import akka.http.scaladsl.util.FastFuture
+import com.advancedtelematic.director.data.DataType.CorrelationId
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.db.{AutoUpdateRepositorySupport, MultiTargetUpdatesRepositorySupport, SetMultiTargets}
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -77,7 +78,9 @@ class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, e
     val updateId = UpdateId.generate
     val m = request.multiTargetUpdateRows(updateId, namespace)
     multiTargetUpdatesRepository.create(m).flatMap { _ =>
-      setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId).map(_ => updateId)
+      setMultiTargets.setMultiUpdateTargetsForDevices(
+        namespace, devices, updateId, CorrelationId.from(updateId)
+      ).map(_ => updateId)
     }
   }
 }

@@ -46,7 +46,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     MetaItem(Map(checkSum.method -> checkSum.hash), file.length, version = version)
   }
 
-  def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
+  private def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
     // there can be multiple ECUs per filename
     val byFilename: Map[TargetFilename, Map[EcuSerial, TargetCustomImage]] = targets.groupBy {
       case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
@@ -66,12 +66,12 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     TargetsRole(expires, clientTargetItems, targetVersion)
   }
 
-  def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =
+  private def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =
     SnapshotRole(meta = Map(RoleType.TARGETS.toMetaPath -> metaItem(version, targetsRole)),
                  expires = expires,
                  version = version)
 
-  def timestampRole(snapshotRole: SignedPayload[SnapshotRole], version: Int, expires: Instant): TimestampRole =
+  private def timestampRole(snapshotRole: SignedPayload[SnapshotRole], version: Int, expires: Instant): TimestampRole =
     TimestampRole(meta = Map(RoleType.SNAPSHOT.toMetaPath -> metaItem(version, snapshotRole)),
                   expires = expires,
                   version = version)
@@ -82,7 +82,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     }
   }
 
-  def generateWithCustom(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int, targets: Map[EcuSerial, TargetCustomImage]): Future[Done] = for {
+  private def generateWithCustom(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int, targets: Map[EcuSerial, TargetCustomImage]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
     expires = Instant.now.plus(31, ChronoUnit.DAYS)
@@ -100,7 +100,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
 
   // doesn't compile with the more concrete type Map instead of TraversableOnce, related to "-Ypartial-unification".
   // another  workaround might be to use parTraverse from cats
-  def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
+  private def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
                             targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
     Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
       doDiff match {
@@ -116,7 +116,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     }.map(_.toMap)
   }
 
-  def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int): Future[Done] = for {
+  private def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int): Future[Done] = for {
     targets <- adminRepository.fetchCustomTargetVersion(namespace, device, targetVersion)
     currentImages <- adminRepository.findImages(namespace, device)
     customTargets <- generateCustomTargets(namespace, device, currentImages.toMap, targets)

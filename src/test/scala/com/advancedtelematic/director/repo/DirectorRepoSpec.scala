@@ -7,7 +7,7 @@ import com.advancedtelematic.libtuf.data.TufDataType
 import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, JsonSignedPayload, KeyId, KeyType, RepoId, SignedPayload}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
-import io.circe.{Decoder, Encoder, Json}
+import io.circe.Json
 
 import scala.concurrent.{ExecutionContext, Future}
 

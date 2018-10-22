@@ -67,12 +67,12 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   }
 
   private def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =
-    SnapshotRole(meta = Map(RoleType.TARGETS.toMetaPath -> metaItem(version, targetsRole)),
+    SnapshotRole(meta = Map(RoleType.TARGETS.metaPath -> metaItem(version, targetsRole)),
                  expires = expires,
                  version = version)
 
   private def timestampRole(snapshotRole: SignedPayload[SnapshotRole], version: Int, expires: Instant): TimestampRole =
-    TimestampRole(meta = Map(RoleType.SNAPSHOT.toMetaPath -> metaItem(version, snapshotRole)),
+    TimestampRole(meta = Map(RoleType.SNAPSHOT.metaPath -> metaItem(version, snapshotRole)),
                   expires = expires,
                   version = version)
 

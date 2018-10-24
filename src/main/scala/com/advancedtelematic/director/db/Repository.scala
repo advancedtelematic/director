@@ -350,7 +350,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(persistAllAction(namespace, ecuManifests))
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
-    val fcr = FileCacheRequest(namespace, 0, device, None, FileCacheRequestStatus.PENDING, 0)
+    val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
     (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0, inFlight = false))
       .andThen(fileCacheRequestRepository.persistAction(fcr))
   }

@@ -61,8 +61,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
   private def deviceManifestOperationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, OperationResult] =
     ecuManifests.par.flatMap{ ecuManifest =>
-      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map{ custom =>
-        val op = custom.operation_result
+      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).flatMap(_.operation_result).map { op =>
         val image = ecuManifest.installed_image
         ecuManifest.ecu_serial -> OperationResult(image.filepath, image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
                                                   op.result_code, op.result_text)

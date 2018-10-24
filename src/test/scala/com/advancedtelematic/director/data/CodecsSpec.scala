@@ -140,17 +140,18 @@ class CodecsSpec extends DirectorSpec {
   }
 
   {
-    val sample: String ="""{"operation_result": {"id": "some-id", "result_code": 0, "result_text": "update successful"}}"""
+    val sample: String ="""{"operation_result": {"id": "some-id", "result_code": 0, "result_text": "update successful"}, "installationReport": null}"""
     val parsed = CustomManifest(
-      OperationResult(
+      Some(OperationResult(
         "some-id",
         0,
-        "update successful"))
+        "update successful")),
+      None)
     example(sample, parsed)
   }
 
   {
-    val sample: String = """{"timeserver_time": "2016-10-14T16:06:03Z", "installed_image": {"filepath": "/file2.txt", "fileinfo": {"hashes": {"sha256": "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a"}, "length": 21}}, "previous_timeserver_time": "2016-10-14T16:06:03Z", "ecu_serial": "ecu11111", "attacks_detected": "", "custom": {"operation_result": {"id": "some-id", "result_code": 0, "result_text": "victory"}}}"""
+    val sample: String = """{"timeserver_time": "2016-10-14T16:06:03Z", "installed_image": {"filepath": "/file2.txt", "fileinfo": {"hashes": {"sha256": "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a"}, "length": 21}}, "previous_timeserver_time": "2016-10-14T16:06:03Z", "ecu_serial": "ecu11111", "attacks_detected": "", "custom": {"operation_result": {"id": "some-id", "result_code": 0, "result_text": "victory"}, "installationReport": null}}"""
 
     val parsed: EcuManifest = EcuManifest(
       timeserver_time = Instant.ofEpochSecond(1476461163),
@@ -162,10 +163,9 @@ class CodecsSpec extends DirectorSpec {
       previous_timeserver_time = Instant.ofEpochSecond(1476461163),
       ecu_serial = "ecu11111".refineTry[ValidEcuSerial].get,
       attacks_detected = "",
-      custom = Some(CustomManifest(OperationResult(
-                                     "some-id",
-                                     0,
-                                     "victory")).asJson)
+      custom = Some(CustomManifest(
+        Some(OperationResult("some-id", 0, "victory")),
+        None).asJson)
     )
 
     example(sample, parsed, "with custom field")

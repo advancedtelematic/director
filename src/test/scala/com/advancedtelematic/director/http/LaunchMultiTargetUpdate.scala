@@ -139,7 +139,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
       val update = createMtu(ahw -> bto)
       launchMtu(update, Seq(device))
 
-      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay")))
+      sendManifestCustom(device, prim, bto, CustomManifest(Some(OperationResult("hh", 0, "okay")), None))
     }
   }
 
@@ -151,7 +151,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
       val update = createMtu(ahw -> bto)
       launchMtu(update, Seq(device))
 
-      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 19, "error")))
+      sendManifestCustom(device, prim, bto, CustomManifest(Some(OperationResult("hh", 19, "error")), None))
     }
   }
 
@@ -163,7 +163,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
       val update = createMtu(ahw -> cto)
       launchMtu(update, Seq(device))
 
-      sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay, but wrong report")))
+      sendManifestCustom(device, prim, bto, CustomManifest(Some(OperationResult("hh", 0, "okay, but wrong report")), None))
     }
   }
 }

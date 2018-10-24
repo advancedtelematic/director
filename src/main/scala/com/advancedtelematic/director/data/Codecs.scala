@@ -70,6 +70,9 @@ object Codecs {
   implicit val decoderOperationResult: Decoder[OperationResult] = deriveDecoder
   implicit val encoderOperationResult: Encoder[OperationResult] = deriveEncoder
 
+  implicit val decoderInstallationReport: Decoder[InstallationReport] = deriveDecoder
+  implicit val encoderInstallationReport: Encoder[InstallationReport] = deriveEncoder
+
   implicit val decoderCustomManifest: Decoder[CustomManifest] = deriveDecoder
   implicit val encoderCustomManifest: Encoder[CustomManifest] = deriveEncoder
 

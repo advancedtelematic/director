@@ -65,7 +65,7 @@ object DataType {
 
   final case class FileCache(role: RoleType, version: Int, device: DeviceId, expires: Instant, file: Json)
 
-  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId, updateId: Option[UpdateId],
+  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId,
                                     status: FileCacheRequestStatus, timestampVersion: Int,
                                     correlationId: Option[CorrelationId] = None)
 

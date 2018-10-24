@@ -23,13 +23,13 @@ class Roles(rolesGeneration: RolesGeneration)
   private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Done] =
     fileCacheRepository.haveExpired(device,version).flatMap {
       case true =>
-        val fcr = FileCacheRequest(ns, version, device, None, FileCacheRequestStatus.PENDING, version)
+        val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
         rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
       case false =>
         FastFuture.successful(Done)
     }.recoverWith {
       case DBErrors.NoCacheEntry =>
-        val fcr = FileCacheRequest(ns, version, device, None, FileCacheRequestStatus.PENDING, version)
+        val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
         rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
     }
 

@@ -584,34 +584,6 @@ protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: Execut
   }
 }
 
-trait LaunchedMultiTargetUpdateRepositorySupport {
-  def launchedMultiTargetUpdateRepository(implicit db: Database, ec: ExecutionContext) = new LaunchedMultiTargetUpdateRepository()
-}
-
-protected class LaunchedMultiTargetUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.DataType.LaunchedMultiTargetUpdate
-  import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
-  import Schema.launchedMultiTargetUpdates
-
-  protected [db] def persistAction(lmtu: LaunchedMultiTargetUpdate): DBIO[LaunchedMultiTargetUpdate] =
-    (launchedMultiTargetUpdates += lmtu)
-      .handleIntegrityErrors(ConflictingLaunchedMultiTargetUpdate)
-      .map(_ => lmtu)
-
-  def persist(lmtu: LaunchedMultiTargetUpdate): Future[LaunchedMultiTargetUpdate] = db.run(persistAction(lmtu))
-
-  def setStatus(device: DeviceId, updateId: UpdateId, timestampVersion: Int,
-                status: LaunchedMultiTargetUpdateStatus.Status): Future[Unit] = db.run {
-    launchedMultiTargetUpdates
-      .filter(_.device === device)
-      .filter(_.update === updateId)
-      .filter(_.timestampVersion === timestampVersion)
-      .map(_.status)
-      .update(status)
-      .handleSingleUpdateError(MissingLaunchedMultiTargetUpdate)
-  }
-}
-
 trait AutoUpdateRepositorySupport {
   def autoUpdateRepository(implicit db: Database, ec: ExecutionContext) = new AutoUpdateRepository()
 }

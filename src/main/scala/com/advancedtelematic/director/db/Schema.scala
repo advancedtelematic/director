@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.Uri
 import cats.implicits._
 import SlickMapping._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
@@ -207,20 +206,6 @@ object Schema {
   }
 
   protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
-
-  class LaunchedMultiTargetUpdatesTable(tag: Tag) extends Table[LaunchedMultiTargetUpdate](tag, "launched_multi_target_updates") {
-    def device = column[DeviceId]("device")
-    def update = column[UpdateId]("update_id")
-    def timestampVersion = column[Int]("timestamp_version")
-    def status = column[LaunchedMultiTargetUpdateStatus.Status]("status")
-
-    def primKey = primaryKey("launched_multi_target_updates_pk", (device, update, timestampVersion))
-
-    override def * = (device, update, timestampVersion, status) <>
-      ((LaunchedMultiTargetUpdate.apply _).tupled, LaunchedMultiTargetUpdate.unapply)
-  }
-
-  protected [db] val launchedMultiTargetUpdates = TableQuery[LaunchedMultiTargetUpdatesTable]
 
   class AutoUpdates(tag: Tag) extends Table[AutoUpdate](tag, "auto_updates") {
     def namespace = column[Namespace]("namespace")

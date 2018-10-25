@@ -3,8 +3,7 @@ package com.advancedtelematic.director.manifest
 import cats.implicits._
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate, LaunchedMultiTargetUpdateRepositorySupport}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -19,8 +18,7 @@ import slick.driver.MySQLDriver.api._
 class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
-    extends AdminRepositorySupport
-    with LaunchedMultiTargetUpdateRepositorySupport {
+    extends AdminRepositorySupport {
 
   val OK_RESULT_CODE = 0
   val GENERAL_ERROR_RESULT_CODE = 19
@@ -30,7 +28,7 @@ class AfterDeviceManifestUpdate()
       version: Int, operations: Map[EcuSerial, OperationResult]) : Future[Unit] =
       clearMultiTargetUpdate(
         namespace, device, updateId, version, operations,
-        LaunchedMultiTargetUpdateStatus.Finished, UpdateStatus.Finished, OK_RESULT_CODE)
+        UpdateStatus.Finished, OK_RESULT_CODE)
 
   def failedMultiTargetUpdate(
       namespace: Namespace, device: DeviceId,
@@ -43,7 +41,7 @@ class AfterDeviceManifestUpdate()
       await(updatesToCancel.toList.traverse { case(version, updateId) =>
         clearMultiTargetUpdate(
           namespace, device, updateId.get, version, operations,
-          LaunchedMultiTargetUpdateStatus.Failed, UpdateStatus.Failed, GENERAL_ERROR_RESULT_CODE)
+          UpdateStatus.Failed, GENERAL_ERROR_RESULT_CODE)
       })
 
     }
@@ -51,12 +49,10 @@ class AfterDeviceManifestUpdate()
   private def clearMultiTargetUpdate(
       namespace: Namespace, device: DeviceId, updateId: UpdateId,
       version: Int, operations: Map[EcuSerial, OperationResult],
-      launchedUpdateStatus: LaunchedMultiTargetUpdateStatus.Status,
       updateSpecStatus: UpdateStatus.UpdateStatus,
       resultCode: Int
     ): Future[Unit] = {
     for {
-      _ <- launchedMultiTargetUpdateRepository.setStatus(device, updateId, version, launchedUpdateStatus)
       _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations, resultCode))
       _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
     } yield ()

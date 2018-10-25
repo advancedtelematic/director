@@ -58,9 +58,6 @@ object Errors {
 
   val DeviceMissing = MissingEntity[DeviceId]
 
-  val ConflictingLaunchedMultiTargetUpdate = EntityAlreadyExists[LaunchedMultiTargetUpdate]
-  val MissingLaunchedMultiTargetUpdate = MissingEntity[LaunchedMultiTargetUpdate]
-
   val MissingDevice = RawError(ErrorCodes.MissingDevice, StatusCodes.NotFound, "The device is not found")
   val MissingEcu = MissingEntity[Ecu]
 

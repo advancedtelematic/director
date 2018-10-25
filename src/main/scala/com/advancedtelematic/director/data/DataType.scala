@@ -18,13 +18,6 @@ object FileCacheRequestStatus extends Enumeration {
   val SUCCESS, ERROR, PENDING = Value
 }
 
-
-object LaunchedMultiTargetUpdateStatus extends Enumeration {
-  type Status = Value
-
-  val Pending, InFlight, Canceled, Failed, Finished = Value
-}
-
 object DataType {
   import RoleType.RoleType
 
@@ -101,9 +94,6 @@ object DataType {
                              namespace = namespace)
       }
   }
-
-  final case class LaunchedMultiTargetUpdate(device: DeviceId, update: UpdateId, timestampVersion: Int,
-                                             status: LaunchedMultiTargetUpdateStatus.Status)
 
   final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
 }

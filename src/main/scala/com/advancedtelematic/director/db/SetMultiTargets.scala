@@ -5,7 +5,6 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.data.LaunchedMultiTargetUpdateStatus
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
@@ -15,8 +14,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport
-    with MultiTargetUpdatesRepositorySupport
-    with LaunchedMultiTargetUpdateRepositorySupport {
+    with MultiTargetUpdatesRepositorySupport {
 
   protected [db] def resolve(namespace: Namespace, device: DeviceId, mtuRows: Seq[MultiTargetUpdateRow])
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
@@ -65,7 +63,6 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     val dbAct = for {
       targets <- resolve(namespace, device, hwRows)
       new_version <- SetTargets.setDeviceTargetAction(namespace, device, Some(updateId), targets)
-      _ <- launchedMultiTargetUpdateRepository.persistAction(LaunchedMultiTargetUpdate(device, updateId, new_version, LaunchedMultiTargetUpdateStatus.Pending))
     } yield device
 
     dbAct.transactionally

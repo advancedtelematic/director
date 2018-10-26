@@ -107,4 +107,9 @@ object DataType {
 
   final case class TargetsCustom(correlationId: Option[CorrelationId])
 
+  final case class InstallationReport(
+    correlationId: CorrelationId,
+    resultCode: Int,
+    resultText: String,
+    data: Option[String])
 }

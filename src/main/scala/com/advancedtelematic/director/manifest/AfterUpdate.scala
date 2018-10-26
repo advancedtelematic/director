@@ -1,15 +1,22 @@
 package com.advancedtelematic.director.manifest
 
 import cats.implicits._
+import com.advancedtelematic.director.data.Codecs.{encoderEcuSerial, encoderInstallationReport}
+import com.advancedtelematic.director.data.DataType.CorrelationId
+import com.advancedtelematic.director.data.DeviceRequest.InstallationReport
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Event, EventType, DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceEventMessage
 import com.advancedtelematic.libtuf.data.TufDataType.OperationResult
 import com.advancedtelematic.libtuf_server.data.Messages.DeviceUpdateReport
 
+import io.circe.JsonObject
+import io.circe.syntax._
+import java.time.Instant
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
@@ -55,7 +62,48 @@ class AfterDeviceManifestUpdate()
     for {
       _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations, resultCode))
       _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
+      _ <- publishInstallationReport(
+        namespace, device,
+        InstallationReport(CorrelationId.from(updateId), resultCode, "", None))
+      _ <- publishEcuInstallationReports(namespace, device, CorrelationId.from(updateId), operations)
     } yield ()
+  }
+
+  private def publishEcuInstallationReports(
+      namespace: Namespace, device: DeviceId, correlationId: CorrelationId,
+      operations: Map[EcuSerial, OperationResult]
+    ): Future[Unit] = async {
+      await(operations.toList.traverse { case (ecuSerial, opResult) =>
+        publishEcuInstallationReport(namespace, device, ecuSerial, InstallationReport(correlationId, opResult.resultCode, opResult.resultText, None))
+      })
+  }
+
+  private def publishEcuInstallationReport(
+      namespace: Namespace, device: DeviceId,
+      ecuSerial: EcuSerial, installationReport: InstallationReport
+    ): Future[Unit] = {
+
+    messageBusPublisher.publish(
+        DeviceEventMessage(namespace, Event(
+            device,
+            java.util.UUID.randomUUID().toString(),
+            EventType("EcuInstallationReport", 0),
+            Instant.now, Instant.now,
+            payload = installationReport.asJson.deepMerge(
+              JsonObject("ecuSerial" -> ecuSerial.asJson).asJson))))
+  }
+
+  private def publishInstallationReport(
+      namespace: Namespace, device: DeviceId, installationReport: InstallationReport
+    ): Future[Unit] = {
+
+    messageBusPublisher.publish(
+        DeviceEventMessage(namespace, Event(
+            device,
+            java.util.UUID.randomUUID().toString(),
+            EventType("InstallationReport", 0),
+            Instant.now, Instant.now,
+            payload = installationReport.asJson)))
   }
 
 }

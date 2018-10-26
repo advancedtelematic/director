@@ -20,6 +20,8 @@ object Codecs {
   import DeviceRequest._
   import io.circe.generic.semiauto._
 
+  implicit val encoderEcuSerial: Encoder[EcuSerial] = Encoder[String].contramap(_.value)
+
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder
 

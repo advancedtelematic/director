@@ -3,6 +3,7 @@ package com.advancedtelematic.director.db
 import java.time.Instant
 
 import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
+import com.advancedtelematic.director.data.DataType.CorrelationId
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
@@ -131,7 +132,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
     def queueResult(updateTarget: DeviceUpdateTarget): DBIO[QueueResponse] = for {
       targets <- fetchTargetVersionAction(namespace, device, updateTarget.targetVersion)
-    } yield QueueResponse(updateTarget.updateId, targets, updateTarget.inFlight)
+    } yield QueueResponse(updateTarget.correlationId, targets, updateTarget.inFlight)
 
     val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
       .filter(_.device === device)
@@ -179,11 +180,11 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
       .failIfNone(NoTargetsScheduled)
 
-  protected [db] def fetchUpdateIdAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Option[UpdateId]] =
+  protected [db] def fetchCorrelationIdAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Option[CorrelationId]] =
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
-      .map(_.update)
+      .map(_.correlationId)
       .result
       .failIfMany
       .map(_.flatten)
@@ -253,8 +254,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     act.map(_ => ()).transactionally
   }
 
-  protected [db] def updateDeviceTargetsAction(device: DeviceId, updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
-    val target = DeviceUpdateTarget(device, updateId, version, inFlight = false)
+  protected [db] def updateDeviceTargetsAction(device: DeviceId, correlationId: Option[CorrelationId], version: Int): DBIO[DeviceUpdateTarget] = {
+    val target = DeviceUpdateTarget(device, correlationId, version, inFlight = false)
 
     (Schema.deviceTargets += target)
       .map(_ => target)
@@ -285,12 +286,12 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
-                       fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[UpdateId])]] = db.run {
+                       fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[CorrelationId])]] = db.run {
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version > fromVersion)
       .filter(_.version <= toVersion)
-      .map(x => (x.version, x.update))
+      .map(x => (x.version, x.correlationId))
       .sortBy(_._1)
       .result
   }

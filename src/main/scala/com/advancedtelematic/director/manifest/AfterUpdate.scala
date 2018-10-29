@@ -8,10 +8,9 @@ import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{Event, EventType, DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{Event, EventType, DeviceId, EcuSerial}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceEventMessage
 import com.advancedtelematic.libtuf.data.TufDataType.OperationResult
-import com.advancedtelematic.libtuf_server.data.Messages.DeviceUpdateReport
 
 import io.circe.JsonObject
 import io.circe.syntax._
@@ -30,10 +29,10 @@ class AfterDeviceManifestUpdate()
   val GENERAL_ERROR_RESULT_CODE = 19
 
   def successMultiTargetUpdate(
-      namespace: Namespace, device: DeviceId, updateId: UpdateId,
+      namespace: Namespace, device: DeviceId, correlationId: CorrelationId,
       version: Int, operations: Map[EcuSerial, OperationResult]) : Future[Unit] =
       clearMultiTargetUpdate(
-        namespace, device, updateId, version, operations,
+        namespace, device, correlationId, version, operations,
         UpdateStatus.Finished, OK_RESULT_CODE)
 
   def failedMultiTargetUpdate(
@@ -44,27 +43,26 @@ class AfterDeviceManifestUpdate()
       val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, version, lastVersion))
         .filter { case (version, up) => up.isDefined }
 
-      await(updatesToCancel.toList.traverse { case(version, updateId) =>
+      await(updatesToCancel.toList.traverse { case(version, correlationId) =>
         clearMultiTargetUpdate(
-          namespace, device, updateId.get, version, operations,
+          namespace, device, correlationId.get, version, operations,
           UpdateStatus.Failed, GENERAL_ERROR_RESULT_CODE)
       })
 
     }
 
   private def clearMultiTargetUpdate(
-      namespace: Namespace, device: DeviceId, updateId: UpdateId,
+      namespace: Namespace, device: DeviceId, correlationId: CorrelationId,
       version: Int, operations: Map[EcuSerial, OperationResult],
       updateSpecStatus: UpdateStatus.UpdateStatus,
       resultCode: Int
     ): Future[Unit] = {
     for {
-      _ <- messageBusPublisher.publish(DeviceUpdateReport(namespace, device, updateId, version, operations, resultCode))
       _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
       _ <- publishInstallationReport(
         namespace, device,
-        InstallationReport(CorrelationId.from(updateId), resultCode, "", None))
-      _ <- publishEcuInstallationReports(namespace, device, CorrelationId.from(updateId), operations)
+        InstallationReport(correlationId, resultCode, "", None))
+      _ <- publishEcuInstallationReports(namespace, device, correlationId, operations)
     } yield ()
   }
 

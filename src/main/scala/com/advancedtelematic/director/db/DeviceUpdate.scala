@@ -1,9 +1,9 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.Image
+import com.advancedtelematic.director.data.DataType.{CorrelationId, Image}
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, TargetFilename}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -13,7 +13,7 @@ object DeviceUpdateResult {
   sealed abstract class DeviceUpdateResult
 
   final case object NoChange extends DeviceUpdateResult
-  final case class UpdatedSuccessfully(timestamp: Int, updateId: Option[UpdateId]) extends DeviceUpdateResult
+  final case class UpdatedSuccessfully(timestamp: Int, updateId: Option[CorrelationId]) extends DeviceUpdateResult
   // the Option on targets is if the device have targets or not
   final case class UpdatedToWrongTarget(timestamp: Int, targets: Option[Map[EcuSerial, Image]], manifest: Map[EcuSerial, Image]) extends DeviceUpdateResult
 
@@ -37,8 +37,8 @@ object DeviceUpdate extends AdminRepositorySupport
         if (subMap(translatedTargets, translatedManifest)) {
           for {
             _ <- deviceRepository.updateDeviceVersionAction(device, next_version)
-            updateId <- adminRepository.fetchUpdateIdAction(namespace, device, next_version)
-          } yield UpdatedSuccessfully(next_version, updateId)
+            correlationId <- adminRepository.fetchCorrelationIdAction(namespace, device, next_version)
+          } yield UpdatedSuccessfully(next_version, correlationId)
         } else {
           ifNot(Some(translatedTargets))
         }

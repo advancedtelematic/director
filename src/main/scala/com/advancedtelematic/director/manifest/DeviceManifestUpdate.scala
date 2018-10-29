@@ -39,9 +39,8 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         } else {
           Future.successful(())
         }
-      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, None) => Future.successful(())
-      case DeviceUpdateResult.UpdatedSuccessfully(nextVersion, Some(updateId)) =>
-        afterUpdate.successMultiTargetUpdate(namespace, device, updateId, nextVersion, operations)
+      case DeviceUpdateResult.UpdatedSuccessfully(updateTarget) =>
+        afterUpdate.successMultiTargetUpdate(namespace, device, updateTarget, operations)
       case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, targets, manifest) =>
         if (targets.isEmpty) {
           _log.error(s"Device ${device.show} updated when no update was available")

@@ -59,11 +59,11 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
   }
 
   protected [db] def launchDeviceUpdate(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdateRow],
-                                        updateId: UpdateId, correlationId: CorrelationId)
+                                        correlationId: CorrelationId)
                                        (implicit db: Database, ec: ExecutionContext): DBIO[DeviceId] = {
     val dbAct = for {
       targets <- resolve(namespace, device, hwRows)
-      new_version <- SetTargets.setDeviceTargetAction(namespace, device, Some(updateId), targets, Some(correlationId))
+      new_version <- SetTargets.setDeviceTargetAction(namespace, device, targets, Some(correlationId))
     } yield device
 
     dbAct.transactionally
@@ -88,7 +88,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
       _ <- DBIO.sequence(toUpdate.map{ device =>
-        launchDeviceUpdate(namespace, device, hwRows, updateId, correlationId) })
+        launchDeviceUpdate(namespace, device, hwRows, correlationId) })
     } yield toUpdate
 
     db.run(dbAct.transactionally).flatMap { scheduled =>

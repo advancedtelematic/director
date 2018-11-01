@@ -1,0 +1,1 @@
+RENAME TABLE launched_multi_target_updates TO _deleted__launched_multi_target_updates;

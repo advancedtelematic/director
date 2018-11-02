@@ -96,6 +96,8 @@ object DataType {
       }
   }
 
+  final case class UpdateDevicesRequest(correlationId: CorrelationId, devices: Seq[DeviceId])
+
   final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
 
   final case class CorrelationId(value: String) extends AnyVal

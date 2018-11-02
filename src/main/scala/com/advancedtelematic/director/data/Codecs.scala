@@ -109,6 +109,9 @@ object Codecs {
   implicit val findAffectedRequestEncoder: Encoder[FindAffectedRequest] = deriveEncoder
   implicit val findAffectedRequestDecoder: Decoder[FindAffectedRequest] = deriveDecoder
 
+  implicit val updateDevicesRequestEncoder: Encoder[UpdateDevicesRequest] = deriveEncoder
+  implicit val updateDevicesRequestDecoder: Decoder[UpdateDevicesRequest] = deriveDecoder
+
   implicit val findImageCountEncoder: Encoder[FindImageCount] = deriveEncoder
   implicit val findImageCountDecoder: Decoder[FindImageCount] = deriveDecoder
 

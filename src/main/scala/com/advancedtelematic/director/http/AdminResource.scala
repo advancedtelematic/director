@@ -265,6 +265,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         }
       } ~
       path("multi_target_update" / UpdateId.Path) { updateId =>
+        // Deprecated in favor of "multi_target_updates/apply" endpoint
         put {
           setMultiUpdateTarget(ns, device, updateId, CorrelationId.from(updateId))
         }
@@ -277,6 +278,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         getMultiTargetUpdates(ns, updateId)
       } ~
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
+        // Deprecated in favor of "multi_target_updates/apply" endpoint
         setMultiTargetUpdateForDevices(ns, devices, updateId, CorrelationId.from(updateId))
       } ~
         (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>

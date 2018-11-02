@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{Image, MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
@@ -85,6 +85,12 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     Post(apiUri(s"multi_target_updates"), mtu).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
       responseAs[UpdateId]
+    }
+
+  def fetchMultiTargetUpdate(id: UpdateId)(implicit ns: NamespaceTag): Map[HardwareIdentifier, TargetUpdateRequest] =
+    Get(apiUri(s"multi_target_updates/${id.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Map[HardwareIdentifier, TargetUpdateRequest]]
     }
 
   def fetchTimestampFor(device: DeviceId)(implicit ns: NamespaceTag): SignedPayload[TimestampRole] = {

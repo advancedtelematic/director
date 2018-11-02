@@ -248,6 +248,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       (path("images") & get) {
         listInstalledImages(ns, device)
       } ~
+      // Deprecated in favor of "assignments/:deviceId" endpoint
       pathPrefix("queue") {
         get {
           queueForDevice(ns, device)
@@ -265,6 +266,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         }
       } ~
       path("multi_target_update" / UpdateId.Path) { updateId =>
+        // Deprecated in favor of "assignments" endpoint
         put {
           setMultiUpdateTarget(ns, device, updateId, MultiTargetUpdateId(updateId.uuid))
         }
@@ -274,12 +276,15 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   def multiTargetUpdatesRoute(ns: Namespace): Route =
     pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
       (pathEnd & get) {
+        // Deprecated in favor of "multi_target_updates" endpoint
         getMultiTargetUpdates(ns, updateId)
       } ~
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
+        // Deprecated in favor of "assignments" endpoint
         setMultiTargetUpdateForDevices(
           ns, devices, updateId, MultiTargetUpdateId(updateId.uuid))
       } ~
+        // Deprecated in favor of "assignments" endpoint
         (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
       }
@@ -310,6 +315,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
             findDevices(ns)
           }
         } ~
+        // Deprecated in favor of "assignments/cancel" endpoint
         (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
           val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
             Future.traverse(canceledDevices) { dev => messageBusPublisher.publish(UpdateSpec(ns, dev, UpdateStatus.Canceled))}.map(_ => canceledDevices)

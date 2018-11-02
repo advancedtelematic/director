@@ -7,10 +7,11 @@ import akka.Done
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.diff_service.client.DiffServiceClient
-import com.advancedtelematic.director.data.Codecs.encoderTargetCustom
+import com.advancedtelematic.director.data.Codecs.{encoderTargetCustom, targetsCustomEncoder}
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
+import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
@@ -46,7 +47,8 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     MetaItem(Map(checkSum.method -> checkSum.hash), file.length, version = version)
   }
 
-  private def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant): TargetsRole = {
+  private def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant,
+                          custom: Option[TargetsCustom]): TargetsRole = {
     // there can be multiple ECUs per filename
     val byFilename: Map[TargetFilename, Map[EcuSerial, TargetCustomImage]] = targets.groupBy {
       case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
@@ -63,16 +65,16 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
       ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
 
-    TargetsRole(expires, clientTargetItems, targetVersion)
+    TargetsRole(expires, clientTargetItems, targetVersion, custom.map(_.asJson))
   }
 
   private def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =
-    SnapshotRole(meta = Map(RoleType.TARGETS.toMetaPath -> metaItem(version, targetsRole)),
+    SnapshotRole(meta = Map(RoleType.TARGETS.metaPath -> metaItem(version, targetsRole)),
                  expires = expires,
                  version = version)
 
   private def timestampRole(snapshotRole: SignedPayload[SnapshotRole], version: Int, expires: Instant): TimestampRole =
-    TimestampRole(meta = Map(RoleType.SNAPSHOT.toMetaPath -> metaItem(version, snapshotRole)),
+    TimestampRole(meta = Map(RoleType.SNAPSHOT.metaPath -> metaItem(version, snapshotRole)),
                   expires = expires,
                   version = version)
 
@@ -82,11 +84,14 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     }
   }
 
-  private def generateWithCustom(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int, targets: Map[EcuSerial, TargetCustomImage]): Future[Done] = for {
+  private def generateWithCustom(namespace: Namespace, device: DeviceId,
+                                 targetVersion: Int, timestampVersion: Int,
+                                 targets: Map[EcuSerial, TargetCustomImage],
+                                 custom: Option[TargetsCustom]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
     expires = Instant.now.plus(31, ChronoUnit.DAYS)
-    targetsRole   <- signRole(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires))
+    targetsRole   <- signRole(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires, custom))
     snapshotRole  <- signRole(repo, RoleType.SNAPSHOT, snapshotRole(targetsRole, targetVersion, expires))
     timestampRole <- signRole(repo, RoleType.TIMESTAMP, timestampRole(snapshotRole, timestampVersion, expires))
 
@@ -116,14 +121,16 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     }.map(_.toMap)
   }
 
-  private def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int): Future[Done] = for {
+  private def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int,
+    correlationId: Option[CorrelationId]): Future[Done] = for {
     targets <- adminRepository.fetchCustomTargetVersion(namespace, device, targetVersion)
     currentImages <- adminRepository.findImages(namespace, device)
     customTargets <- generateCustomTargets(namespace, device, currentImages.toMap, targets)
-    _ <- generateWithCustom(namespace, device, targetVersion, timestampVersion, customTargets)
+    _ <- generateWithCustom(namespace, device, targetVersion, timestampVersion, customTargets,
+                            correlationId.map(c => TargetsCustom(Some(c))))
   } yield Done
 
   def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = for {
-    _ <- tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion)
+    _ <- tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion, fcr.correlationId)
   } yield ()
 }

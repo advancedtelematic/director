@@ -66,7 +66,8 @@ object DataType {
   final case class FileCache(role: RoleType, version: Int, device: DeviceId, expires: Instant, file: Json)
 
   final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId, updateId: Option[UpdateId],
-                                    status: FileCacheRequestStatus, timestampVersion: Int)
+                                    status: FileCacheRequestStatus, timestampVersion: Int,
+                                    correlationId: Option[CorrelationId] = None)
 
   final case class RepoName(namespace: Namespace, repoId: RepoId)
 
@@ -96,4 +97,14 @@ object DataType {
   }
 
   final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
+
+  final case class CorrelationId(value: String) extends AnyVal
+  object CorrelationId {
+    val namespace = "here-ota"
+    def make(resource: String, id: String) = CorrelationId(s"$namespace:$resource:$id")
+    def from(id: UpdateId) = make("mtus", id.uuid.toString)
+  }
+
+  final case class TargetsCustom(correlationId: Option[CorrelationId])
+
 }

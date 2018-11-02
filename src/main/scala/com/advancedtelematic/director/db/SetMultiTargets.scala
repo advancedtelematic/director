@@ -58,11 +58,12 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     }
   }
 
-  protected [db] def launchDeviceUpdate(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdateRow], updateId: UpdateId)
+  protected [db] def launchDeviceUpdate(namespace: Namespace, device: DeviceId, hwRows: Seq[MultiTargetUpdateRow],
+                                        updateId: UpdateId, correlationId: CorrelationId)
                                        (implicit db: Database, ec: ExecutionContext): DBIO[DeviceId] = {
     val dbAct = for {
       targets <- resolve(namespace, device, hwRows)
-      new_version <- SetTargets.setDeviceTargetAction(namespace, device, Some(updateId), targets)
+      new_version <- SetTargets.setDeviceTargetAction(namespace, device, Some(updateId), targets, Some(correlationId))
     } yield device
 
     dbAct.transactionally
@@ -71,19 +72,23 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
   def getMultiTargetUpdates(namespace: Namespace, updateId: UpdateId)(implicit db: Database, ec: ExecutionContext): Future[Seq[MultiTargetUpdateRow]] =
     multiTargetUpdatesRepository.fetch(updateId, namespace)
 
-  def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId)
+  def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId,
+                            correlationId: CorrelationId)
                            (implicit db: Database, ec: ExecutionContext): Future[Unit] =
-    setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId).flatMap {
+    setMultiUpdateTargetsForDevices(namespace, Seq(device), updateId, correlationId).flatMap {
       case Seq(_) => FastFuture.successful(())
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 
-  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId)
+  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId
+,
+                                      correlationId: CorrelationId)
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = {
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)
       toUpdate <- checkDevicesSupportUpdates(namespace, devices, hwRows)
-      _ <- DBIO.sequence(toUpdate.map{ device => launchDeviceUpdate(namespace, device, hwRows, updateId)})
+      _ <- DBIO.sequence(toUpdate.map{ device =>
+        launchDeviceUpdate(namespace, device, hwRows, updateId, correlationId) })
     } yield toUpdate
 
     db.run(dbAct.transactionally).flatMap { scheduled =>

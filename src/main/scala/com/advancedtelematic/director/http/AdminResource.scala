@@ -7,7 +7,7 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{CorrelationId, MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
@@ -117,13 +117,19 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def setMultiUpdateTarget(namespace: Namespace, device: DeviceId, updateId: UpdateId): Route = {
-    val f = setMultiTargets.setMultiUpdateTargets(namespace, device, updateId)
+  def setMultiUpdateTarget(namespace: Namespace,
+                           device: DeviceId,
+                           updateId: UpdateId,
+                           correlationId: CorrelationId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargets(namespace, device, updateId, correlationId)
     complete(f)
   }
 
-  def setMultiTargetUpdateForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId): Route = {
-    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId)
+  def setMultiTargetUpdateForDevices(namespace: Namespace,
+                                     devices: Seq[DeviceId],
+                                     updateId: UpdateId,
+                                     correlationId: CorrelationId): Route = {
+    val f = setMultiTargets.setMultiUpdateTargetsForDevices(namespace, devices, updateId, correlationId)
     complete(f)
   }
 
@@ -260,7 +266,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       } ~
       path("multi_target_update" / UpdateId.Path) { updateId =>
         put {
-          setMultiUpdateTarget(ns, device, updateId)
+          setMultiUpdateTarget(ns, device, updateId, CorrelationId.from(updateId))
         }
       }
     }
@@ -271,7 +277,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         getMultiTargetUpdates(ns, updateId)
       } ~
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
-        setMultiTargetUpdateForDevices(ns, devices, updateId)
+        setMultiTargetUpdateForDevices(ns, devices, updateId, CorrelationId.from(updateId))
       } ~
         (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)

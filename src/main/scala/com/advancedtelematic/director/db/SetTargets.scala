@@ -19,8 +19,8 @@ object SetTargets extends AdminRepositorySupport
                                            targets: Map[EcuSerial, CustomImage],
                                            correlationId: Option[CorrelationId] = None)
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
-    new_version <- adminRepository.updateTargetAction(namespace, device, updateId, targets)
-    fcr = FileCacheRequest(namespace, new_version, device, updateId,
+    new_version <- adminRepository.updateTargetAction(namespace, device, targets)
+    fcr = FileCacheRequest(namespace, new_version, device,
                            FileCacheRequestStatus.PENDING, new_version, correlationId)
     _ <- fileCacheRequestRepository.persistAction(fcr)
     _ <- adminRepository.updateDeviceTargetsAction(device, updateId, new_version)

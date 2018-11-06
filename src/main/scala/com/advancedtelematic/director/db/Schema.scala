@@ -155,14 +155,13 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def targetVersion = column[Int]("target_version")
     def device = column[DeviceId]("device")
-    def update = column[Option[UpdateId]]("update_uuid")
     def status = column[FileCacheRequestStatus]("status")
     def timestampVersion = column[Int]("timestamp_version")
     def correlationId = column[Option[CorrelationId]]("correlation_id")
 
     def primKey = primaryKey("file_cache_request_pk", (timestampVersion, device))
 
-    override def * = (namespace, targetVersion, device, update, status, timestampVersion, correlationId) <>
+    override def * = (namespace, targetVersion, device, status, timestampVersion, correlationId) <>
       ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
   }
   protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]

@@ -245,7 +245,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .map(_.toMap)
   }
 
-  protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
+  protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId,
                                         version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
       ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)})
@@ -261,18 +261,18 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .handleIntegrityErrors(ConflictingTarget)
   }
 
-  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
+  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
     version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
       case Success(x) => DBIO.successful(x)
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)
     }
     new_version = version + 1
-    _ <- storeTargetVersion(namespace, device, updateId, new_version, targets)
+    _ <- storeTargetVersion(namespace, device, new_version, targets)
   } yield new_version
 
-  def updateTarget(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId], targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
-    updateTargetAction(namespace, device, updateId, targets).transactionally
+  def updateTarget(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
+    updateTargetAction(namespace, device, targets).transactionally
   }
 
   def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
@@ -350,7 +350,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     db.run(persistAllAction(namespace, ecuManifests))
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
-    val fcr = FileCacheRequest(namespace, 0, device, None, FileCacheRequestStatus.PENDING, 0)
+    val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
     (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0, inFlight = false))
       .andThen(fileCacheRequestRepository.persistAction(fcr))
   }

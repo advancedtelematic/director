@@ -1,8 +1,8 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.{CorrelationId, CustomImage}
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.director.data.DataType.CustomImage
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 
 import scala.concurrent.{ExecutionContext, Future}

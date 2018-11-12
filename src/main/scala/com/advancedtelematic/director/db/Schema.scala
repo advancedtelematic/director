@@ -7,7 +7,7 @@ import cats.implicits._
 import SlickMapping._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
@@ -33,6 +33,7 @@ object Schema {
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libats.slick.db.SlickExtensions.javaInstantMapping
+  import com.advancedtelematic.libats.slick.db.SlickUrnMapper._
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings._

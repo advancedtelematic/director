@@ -4,12 +4,13 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.DataType.{CorrelationId, TargetsCustom}
+import com.advancedtelematic.director.data.DataType.TargetsCustom
 import com.advancedtelematic.director.data.Codecs.targetsCustomEncoder
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libats.data.DataType.MultiTargetUpdateId
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -92,7 +93,7 @@ trait FileCacheSpec extends DirectorSpec
   test("Files are generated with correlationId") {
     val device = DeviceId.generate
     val updateId = UpdateId.generate
-    val correlationId = CorrelationId.from(updateId)
+    val correlationId = MultiTargetUpdateId(updateId.uuid)
 
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial

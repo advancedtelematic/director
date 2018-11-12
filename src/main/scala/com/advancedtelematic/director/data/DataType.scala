@@ -2,7 +2,7 @@ package com.advancedtelematic.director.data
 
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName, TufKey}
@@ -97,13 +97,6 @@ object DataType {
   }
 
   final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
-
-  final case class CorrelationId(value: String) extends AnyVal
-  object CorrelationId {
-    val namespace = "here-ota"
-    def make(resource: String, id: String) = CorrelationId(s"$namespace:$resource:$id")
-    def from(id: UpdateId) = make("mtus", id.uuid.toString)
-  }
 
   final case class TargetsCustom(correlationId: Option[CorrelationId])
 

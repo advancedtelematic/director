@@ -6,8 +6,8 @@ import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuMan
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
-import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, SignedPayload, TufKey}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, EcuInstallationReport, InstallationResult}
+import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey, TargetFilename}
 import io.circe.Json
 import org.slf4j.LoggerFactory
 
@@ -28,19 +28,20 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
   private def ecuManifests(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Unit] = {
 
-    val operations = deviceManifestOperationResults(ecuImages)
+    val ecuResults = toEcuInstallationResults(ecuImages)
+    val failedTargets = toFailedTargets(ecuImages)
     DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).flatMap {
       case DeviceUpdateResult.NoChange =>
-        if (operations.find(!_._2.isSuccess).isDefined) {
-          _log.info(s"Device ${device.show} reports errors during install: $operations")
+        if (ecuResults.find(!_._2.result.success).isDefined) {
+          _log.info(s"Device ${device.show} reports errors during install: $ecuResults")
           deviceRepository.getCurrentVersion(device).flatMap { currentVersion =>
-            afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, operations)
+            afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, failedTargets, ecuResults)
           }
         } else {
           Future.successful(())
         }
       case DeviceUpdateResult.UpdatedSuccessfully(updateTarget) =>
-        afterUpdate.successMultiTargetUpdate(namespace, device, updateTarget, operations)
+        afterUpdate.successMultiTargetUpdate(namespace, device, updateTarget, ecuResults)
       case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, targets, manifest) =>
         if (targets.isEmpty) {
           _log.error(s"Device ${device.show} updated when no update was available")
@@ -53,18 +54,26 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
              |manifest: $manifest
            """.stripMargin
         }
-        afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, operations)
+        afterUpdate.failedMultiTargetUpdate(namespace, device, currentVersion, failedTargets, ecuResults)
     }
 
   }
 
-  private def deviceManifestOperationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, OperationResult] =
+  private def toFailedTargets(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, TargetFilename] =
     ecuManifests.par.flatMap{ ecuManifest =>
-      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map{ custom =>
+      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption)
+        .filter(_.operation_result.result_code != 0)
+        .map { _ => ecuManifest.ecu_serial -> ecuManifest.installed_image.filepath }
+    }.toMap.seq
+
+  private def toEcuInstallationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
+    ecuManifests.par.flatMap{ ecuManifest =>
+      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
         val op = custom.operation_result
-        val image = ecuManifest.installed_image
-        ecuManifest.ecu_serial -> OperationResult(image.filepath, image.fileinfo.hashes.toClientHashes, image.fileinfo.length,
-                                                  op.result_code, op.result_text)
+        ecuManifest.ecu_serial -> EcuInstallationReport(
+          InstallationResult(op.result_code == 0, op.result_code.toString, op.result_text),
+          Seq(ecuManifest.installed_image.filepath.toString),
+          None)
       }
     }.toMap.seq
 }

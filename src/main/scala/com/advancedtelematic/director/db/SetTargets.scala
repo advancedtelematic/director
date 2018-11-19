@@ -23,7 +23,7 @@ object SetTargets extends AdminRepositorySupport
     fcr = FileCacheRequest(namespace, new_version, device,
                            FileCacheRequestStatus.PENDING, new_version, correlationId)
     _ <- fileCacheRequestRepository.persistAction(fcr)
-    _ <- adminRepository.updateDeviceTargetsAction(device, updateId, new_version)
+    _ <- adminRepository.updateDeviceTargetsAction(device, correlationId, updateId, new_version)
     } yield new_version
 
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)],

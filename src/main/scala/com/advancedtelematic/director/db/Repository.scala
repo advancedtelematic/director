@@ -6,7 +6,7 @@ import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -132,7 +132,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
     def queueResult(updateTarget: DeviceUpdateTarget): DBIO[QueueResponse] = for {
       targets <- fetchTargetVersionAction(namespace, device, updateTarget.targetVersion)
-    } yield QueueResponse(updateTarget.updateId, targets, updateTarget.inFlight)
+    } yield QueueResponse(updateTarget.correlationId, targets, updateTarget.inFlight)
 
     val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
       .filter(_.device === device)
@@ -180,14 +180,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
       .failIfNone(NoTargetsScheduled)
 
-  protected [db] def fetchUpdateIdAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Option[UpdateId]] =
+  protected [db] def fetchDeviceUpdateTargetAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[DeviceUpdateTarget] =
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
-      .map(_.update)
       .result
       .failIfMany
-      .map(_.flatten)
+      .failIfNone(NoTargetsScheduled)
+
 
   // skips any targets with version > sourceVersion
   protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
@@ -254,8 +254,8 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     act.map(_ => ()).transactionally
   }
 
-  protected [db] def updateDeviceTargetsAction(device: DeviceId, updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
-    val target = DeviceUpdateTarget(device, updateId, version, inFlight = false)
+  protected [db] def updateDeviceTargetsAction(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
+    val target = DeviceUpdateTarget(device, correlationId, updateId, version, inFlight = false)
 
     (Schema.deviceTargets += target)
       .map(_ => target)
@@ -286,13 +286,12 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   def getUpdatesFromTo(namespace: Namespace, device: DeviceId,
-                       fromVersion: Int, toVersion: Int): Future[Seq[(Int, Option[UpdateId])]] = db.run {
+                       fromVersion: Int, toVersion: Int): Future[Seq[DeviceUpdateTarget]] = db.run {
     Schema.deviceTargets
       .filter(_.device === device)
       .filter(_.version > fromVersion)
       .filter(_.version <= toVersion)
-      .map(x => (x.version, x.update))
-      .sortBy(_._1)
+      .sortBy(_.version)
       .result
   }
 
@@ -352,7 +351,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
 
   protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
     val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
-    (Schema.deviceTargets += DeviceUpdateTarget(device, None, 0, inFlight = false))
+    (Schema.deviceTargets += DeviceUpdateTarget(device, None, None, 0, inFlight = false))
       .andThen(fileCacheRequestRepository.persistAction(fcr))
   }
 

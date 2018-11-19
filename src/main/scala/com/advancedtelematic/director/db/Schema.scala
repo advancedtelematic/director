@@ -121,13 +121,14 @@ object Schema {
 
   class DeviceUpdateTargetsTable(tag: Tag) extends Table[DeviceUpdateTarget](tag, "device_update_targets") {
     def device = column[DeviceId]("device")
+    def correlationId = column[Option[CorrelationId]]("correlation_id")
     def update = column[Option[UpdateId]]("update_uuid")
     def version = column[Int]("version")
     def served = column[Boolean]("served")
 
     def primKey = primaryKey("device_targets_pk", (device, version))
 
-    override def * = (device, update, version, served) <> ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
+    override def * = (device, correlationId, update, version, served) <> ((DeviceUpdateTarget.apply _).tupled, DeviceUpdateTarget.unapply)
   }
   protected [db] val deviceTargets = TableQuery[DeviceUpdateTargetsTable]
 

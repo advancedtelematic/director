@@ -21,7 +21,7 @@ class CancelUpdate(implicit db: Database, ec: ExecutionContext) extends AdminRep
         latestVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
         nextTimestampVersion = latestVersion + 1
         _ <- adminRepository.copyTargetsAction(namespace, device, current, nextTimestampVersion)
-        _ <- adminRepository.updateDeviceTargetsAction(device, None, nextTimestampVersion)
+        _ <- adminRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
         _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
       } yield Some(device)
     } yield res

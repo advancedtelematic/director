@@ -5,7 +5,7 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import slick.jdbc.MySQLProfile.api._

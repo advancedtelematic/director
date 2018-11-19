@@ -7,13 +7,13 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{CorrelationId, MultiTargetUpdateRequest, TargetUpdateRequest}
+import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -266,7 +266,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       } ~
       path("multi_target_update" / UpdateId.Path) { updateId =>
         put {
-          setMultiUpdateTarget(ns, device, updateId, CorrelationId.from(updateId))
+          setMultiUpdateTarget(ns, device, updateId, MultiTargetUpdateId(updateId.uuid))
         }
       }
     }
@@ -277,7 +277,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         getMultiTargetUpdates(ns, updateId)
       } ~
       (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
-        setMultiTargetUpdateForDevices(ns, devices, updateId, CorrelationId.from(updateId))
+        setMultiTargetUpdateForDevices(
+          ns, devices, updateId, MultiTargetUpdateId(updateId.uuid))
       } ~
         (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
         findMultiTargetUpdateAffectedDevices(ns, devices, updateId)

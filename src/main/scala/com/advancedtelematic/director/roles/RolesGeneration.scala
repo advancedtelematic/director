@@ -12,7 +12,7 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps

@@ -4,7 +4,7 @@ import com.advancedtelematic.director.data.DataType.{Image, DeviceUpdateTarget}
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
-import com.advancedtelematic.libtuf.data.TufDataType.{OperationResult, TargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.TargetFilename
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
@@ -78,9 +78,8 @@ object DeviceUpdate extends AdminRepositorySupport
       adminRepository.copyTargetsAction(namespace, device, nextTimestampVersion - 1, nextTimestampVersion, failedTargets)
     }
 
-  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, operations: Map[EcuSerial, OperationResult])
+  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuSerial, TargetFilename])
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
-    val failedTargets = operations.filterNot { case (_, v) => v.isSuccess }.mapValues(_.target)
     val dbAct = for {
       latestScheduledVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
       nextTimestampVersion = latestScheduledVersion + 1
@@ -92,8 +91,8 @@ object DeviceUpdate extends AdminRepositorySupport
     dbAct.transactionally
   }
 
-  def clearTargetsFrom(namespace: Namespace, device: DeviceId, deviceVersion: Int, operations: Map[EcuSerial, OperationResult])
+  def clearTargetsFrom(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuSerial, TargetFilename])
                       (implicit db: Database, ec: ExecutionContext): Future[Int] = db.run {
-    clearTargetsFromAction(namespace, device, deviceVersion, operations)
+    clearTargetsFromAction(namespace, device, deviceVersion, failedTargets)
   }
 }

@@ -179,9 +179,20 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
   }
 
 
+  def getAssignments(deviceId: DeviceId)(implicit ns: NamespaceTag): HttpRequest =
+    Get(apiUri(s"assignments/${deviceId.show}")).namespaced
+
+  def getAssignmentsOk(deviceId: DeviceId)(implicit ns: NamespaceTag): Seq[QueueResponse] =
+    getAssignments(deviceId) ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[QueueResponse]]
+    }
+
+  // Deprecated by getAssignments
   def deviceQueue(deviceId: DeviceId)(implicit ns: NamespaceTag): HttpRequest =
     Get(apiUri(s"admin/devices/${deviceId.show}/queue")).namespaced
 
+  // Deprecated by getAssignmentsOk
   def deviceQueueOk(deviceId: DeviceId)(implicit ns: NamespaceTag): Seq[QueueResponse] =
     deviceQueue(deviceId) ~> routes ~> check {
       status shouldBe StatusCodes.OK

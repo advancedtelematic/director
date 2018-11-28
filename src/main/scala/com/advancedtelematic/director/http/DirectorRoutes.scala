@@ -32,6 +32,7 @@ class DirectorRoutes(verifier: TufKey => Verifier,
       ErrorHandler.handleErrors {
         pathPrefix("api" / "v1") {
           new AdminResource(extractNamespace, keyserverClient).route ~
+          new AssignmentsResource(extractNamespace).route ~
           new DeviceResource(extractNamespace, verifier, keyserverClient, roles).route ~
           new MultiTargetUpdatesResource(extractNamespace).route ~
           new DiffResource(extractNamespace, diffService).route

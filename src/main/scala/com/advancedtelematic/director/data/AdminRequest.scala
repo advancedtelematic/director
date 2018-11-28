@@ -3,7 +3,7 @@ package com.advancedtelematic.director.data
 import java.security.PublicKey
 
 import com.advancedtelematic.libats.data.DataType.CorrelationId
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, TargetFilename, TufKey}
 
 object AdminRequest {
@@ -30,6 +30,12 @@ object AdminRequest {
 
   final case class EcuInfoImage(filepath: TargetFilename, size: Long, hash: Hashes)
   final case class EcuInfoResponse(id: EcuSerial, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
+
+  final case class AssignUpdateRequest(
+    correlationId: CorrelationId,
+    devices: Seq[DeviceId],
+    mtuId: UpdateId,
+    dryRun: Option[Boolean] = Some(false))
 
   final case class QueueResponse(correlationId: Option[CorrelationId], targets: Map[EcuSerial, CustomImage], inFlight: Boolean)
 

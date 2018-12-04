@@ -76,19 +76,6 @@ trait AssignmentsResourceSpec extends DeviceUpdateSpec {
     val q = getAssignmentsOk(deviceId)
     q shouldBe Seq()
   }
-
-  // Test deprecated API
-  testWithNamespace("PUT device/multi_target_update sets correlationId") { implicit ns =>
-    createRepo().futureValue
-    val device = registerNSDeviceOk(ahw -> ato)
-    generateAllPendingFiles().futureValue
-
-    val updateId = createMtu(ahw -> ((bto, false)))
-    scheduleOne(device, updateId)
-
-    val targets = fetchTargetsFor(device)
-    targets.signed.custom.get.as[TargetsCustom].right.get shouldBe TargetsCustom(Some(MultiTargetUpdateId(updateId.uuid)))
-  }
 }
 
 class RsaAssignmentsResourceSpec extends AssignmentsResourceSpec with RsaGenerators

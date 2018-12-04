@@ -117,55 +117,6 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     }
   }
 
-  testWithNamespace("device/queue (device not reported)") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-    val targets = setRandomTargets(device, ecuSerials)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets)
-  }
-
-  testWithNamespace("device/queue (device reported)") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-
-    val reportedVersions = 42
-    setCampaign(device, reportedVersions).futureValue
-    setDeviceVersion(device, reportedVersions).futureValue
-
-    val targets = setRandomTargets(device, ecuSerials)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets)
-  }
-
-  testWithNamespace("device/queue (device reported) with bigger queue") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-
-    val reportedVersions = 42
-    setCampaign(device, reportedVersions).futureValue
-    setDeviceVersion(device, reportedVersions).futureValue
-
-    val targets = setRandomTargets(device, ecuSerials)
-    val targets2 = setRandomTargets(device, ecuSerials)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets, targets2)
-  }
-
-  testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
-    createRepoOk(testKeyType)
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-    setRandomTargets(device, ecuSerials, diffFormat = None)
-
-    val q = deviceQueueOk(device)
-    q.map(_.inFlight) shouldBe Seq(false)
-
-    fetchTargetsFor(device)
-
-    val q2 = deviceQueueOk(device)
-    q2.map(_.inFlight) shouldBe Seq(true)
-  }
-
   testWithNamespace("there can be multiple ECUs per image/filename") { implicit ns =>
     import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
 
@@ -195,14 +146,6 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     createRepo
 
     fetchRootOk(1).signed shouldBe fetchRootOk.signed
-  }
-
-  testWithNamespace("multi_target_update/updateId gives all the MTUs in the namespace") { implicit ns =>
-    val newMTU = GenMultiTargetUpdateRequest.generate
-    val updateId = createMultiTargetUpdateOK(newMTU)
-
-    val foundMTU = findByUpdate(updateId)
-    foundMTU shouldBe newMTU
   }
 }
 

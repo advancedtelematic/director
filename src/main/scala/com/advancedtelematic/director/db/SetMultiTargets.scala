@@ -69,9 +69,6 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     dbAct.transactionally
   }
 
-  def getMultiTargetUpdates(namespace: Namespace, updateId: UpdateId)(implicit db: Database, ec: ExecutionContext): Future[Seq[MultiTargetUpdateRow]] =
-    multiTargetUpdatesRepository.fetch(updateId, namespace)
-
   def setMultiUpdateTargets(namespace: Namespace, device: DeviceId, updateId: UpdateId,
                             correlationId: CorrelationId)
                            (implicit db: Database, ec: ExecutionContext): Future[Unit] =

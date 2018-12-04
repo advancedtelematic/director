@@ -14,11 +14,11 @@ trait CancelUpdateSpec extends DirectorSpec
 
     setRandomTargets(device, primEcu+:ecus)
 
-    deviceQueueOk(device).length shouldBe 1
+    getAssignmentsOk(device).length shouldBe 1
 
-    cancelDeviceOk(device)
+    cancelAssignmentOk(device)
 
-    deviceQueueOk(device).length shouldBe 0
+    getAssignmentsOk(device).length shouldBe 0
   }
 
   testWithNamespace(s"can only cancel if update is not inflight") { implicit ns =>
@@ -27,15 +27,15 @@ trait CancelUpdateSpec extends DirectorSpec
 
     setRandomTargets(device, primEcu+:ecus, None)
 
-    deviceQueueOk(device).length shouldBe 1
+    getAssignmentsOk(device).length shouldBe 1
 
     //make it inflight
     val t = fetchTargetsFor(device)
     t.signed.version shouldBe 1
 
-    cancelDeviceFail(device)
+    cancelAssignmentFail(device)
 
-    deviceQueueOk(device).length shouldBe 1
+    getAssignmentsOk(device).length shouldBe 1
   }
 
   testWithNamespace("cancel several devices") { implicit ns =>
@@ -46,17 +46,17 @@ trait CancelUpdateSpec extends DirectorSpec
     setRandomTargets(device1, primEcu1+:ecus1, None)
     setRandomTargets(device2, primEcu2+:ecus2)
 
-    deviceQueueOk(device1).length shouldBe 1
-    deviceQueueOk(device2).length shouldBe 1
+    getAssignmentsOk(device1).length shouldBe 1
+    getAssignmentsOk(device2).length shouldBe 1
 
     //make device1 inflight
     val t = fetchTargetsFor(device1)
     t.signed.version shouldBe 1
 
-    cancelDevices(device1, device2) shouldBe Seq(device2)
+    cancelAssignments(device1, device2) shouldBe Seq(device2)
 
-    deviceQueueOk(device1).length shouldBe 1
-    deviceQueueOk(device2).length shouldBe 0
+    getAssignmentsOk(device1).length shouldBe 1
+    getAssignmentsOk(device2).length shouldBe 0
   }
 }
 

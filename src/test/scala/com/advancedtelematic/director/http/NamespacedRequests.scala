@@ -12,6 +12,7 @@ import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, Route
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.PaginationResult
+import com.advancedtelematic.libats.data.DataType.MultiTargetUpdateId
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -122,29 +123,35 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
 
 
-  def scheduleOne(device: DeviceId, updateId: UpdateId)(implicit ns: NamespaceTag): Unit =
-    Put(apiUri(s"admin/devices/${device.show}/multi_target_update/${updateId.show}")).namespaced ~> routes ~> check {
+  def scheduleOne(device: DeviceId, mtuId: UpdateId)(implicit ns: NamespaceTag): Unit = {
+    val correlationId = MultiTargetUpdateId(mtuId.uuid)
+    val req = AssignUpdateRequest(correlationId, Seq(device), mtuId, dryRun = Some(false))
+
+    Post(apiUri(s"assignments"), req).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+  }
 
-  def launchMtu(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =
-    Put(apiUri(s"admin/multi_target_updates/${updateId.show}"), devices).namespaced ~> routes ~> check {
+  def launchMtu(mtuId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] = {
+    val correlationId = MultiTargetUpdateId(mtuId.uuid)
+    val req = AssignUpdateRequest(correlationId, devices, mtuId, dryRun = Some(false))
+
+    Post(apiUri(s"assignments"), req).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       val affected = responseAs[Seq[DeviceId]]
       affected
     }
+  }
 
-  def findByUpdate(updateId: UpdateId)(implicit ns: NamespaceTag): MultiTargetUpdateRequest =
-    Get(apiUri(s"admin/multi_target_updates/${updateId.show}")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-      responseAs[MultiTargetUpdateRequest]
-    }
+  def findAffectedByUpdate(mtuId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] = {
+    val correlationId = MultiTargetUpdateId(mtuId.uuid)
+    val req = AssignUpdateRequest(correlationId, devices, mtuId, dryRun = Some(true))
 
-  def findAffectedByUpdate(updateId: UpdateId, devices: Seq[DeviceId])(implicit ns: NamespaceTag): Seq[DeviceId] =
-    Get(apiUri(s"admin/multi_target_updates/${updateId.show}/affected"), devices).namespaced ~> routes ~> check {
+    Post(apiUri(s"assignments"), req).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[DeviceId]]
     }
+  }
 
   def getAffectedByImage(filepath: String) (limit: Option[Long]= None, offset: Option[Long] = None)
                         (implicit ns: NamespaceTag): PaginationResult[DeviceId] = {
@@ -184,17 +191,6 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
 
   def getAssignmentsOk(deviceId: DeviceId)(implicit ns: NamespaceTag): Seq[QueueResponse] =
     getAssignments(deviceId) ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-      responseAs[Seq[QueueResponse]]
-    }
-
-  // Deprecated by getAssignments
-  def deviceQueue(deviceId: DeviceId)(implicit ns: NamespaceTag): HttpRequest =
-    Get(apiUri(s"admin/devices/${deviceId.show}/queue")).namespaced
-
-  // Deprecated by getAssignmentsOk
-  def deviceQueueOk(deviceId: DeviceId)(implicit ns: NamespaceTag): Seq[QueueResponse] =
-    deviceQueue(deviceId) ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[QueueResponse]]
     }
@@ -283,21 +279,21 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def cancelDevice(device: DeviceId)(implicit ns:NamespaceTag): HttpRequest =
-    Put(apiUri(s"admin/devices/${device.show}/queue/cancel")).namespaced
+  def cancelAssignment(device: DeviceId)(implicit ns:NamespaceTag): HttpRequest =
+    Delete(apiUri(s"assignments/${device.show}")).namespaced
 
-  def cancelDeviceOk(device: DeviceId)(implicit ns:NamespaceTag): Unit =
-    cancelDevice(device) ~> routes ~> check {
+  def cancelAssignmentOk(device: DeviceId)(implicit ns:NamespaceTag): Unit =
+    cancelAssignment(device) ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
 
-  def cancelDeviceFail(device: DeviceId)(implicit ns:NamespaceTag): Unit =
-    cancelDevice(device) ~> routes ~> check {
+  def cancelAssignmentFail(device: DeviceId)(implicit ns:NamespaceTag): Unit =
+    cancelAssignment(device) ~> routes ~> check {
       status shouldBe StatusCodes.PreconditionFailed
     }
 
-  def cancelDevices(devices: DeviceId*)(implicit ns: NamespaceTag): Seq[DeviceId] =
-    Put(apiUri(s"admin/devices/queue/cancel"), devices).namespaced ~> routes ~> check {
+  def cancelAssignments(devices: DeviceId*)(implicit ns: NamespaceTag): Seq[DeviceId] =
+    Patch(apiUri(s"assignments"), devices).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[DeviceId]]
     }

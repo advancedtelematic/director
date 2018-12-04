@@ -7,13 +7,10 @@ import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, FindImageCount, RegisterDevice, SetTarget}
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
-import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, MultiTargetUpdateId, Namespace}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.data.RefinedUtils._
@@ -30,7 +27,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.slf4j.LoggerFactory
 import slick.jdbc.MySQLProfile.api._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
@@ -106,15 +103,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       }
     }
     complete(act)
-  }
-
-  def getMultiTargetUpdates(namespace: Namespace, updateId: UpdateId): Route = {
-    val f = setMultiTargets.
-      getMultiTargetUpdates(namespace, updateId)
-      .map(_.map(mtuRow => mtuRow.hardwareId -> TargetUpdateRequest(mtuRow.fromTarget, mtuRow.toTarget, mtuRow.targetFormat, mtuRow.generateDiff)))
-      .map(_.toMap)
-      .map(MultiTargetUpdateRequest)
-    complete(f)
   }
 
   def setMultiUpdateTarget(namespace: Namespace,
@@ -248,45 +236,10 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       (path("images") & get) {
         listInstalledImages(ns, device)
       } ~
-      // Deprecated in favor of "assignments/:deviceId" endpoint
-      pathPrefix("queue") {
-        get {
-          queueForDevice(ns, device)
-        } ~
-        (path("cancel") & put) {
-          val f = cancelUpdate.one(ns, device).flatMap{ res =>
-            messageBusPublisher.publish(UpdateSpec(ns, device, UpdateStatus.Canceled)).map(_ => res)
-          }
-          complete(f)
-        }
-      } ~
       path("targets") {
         (put & entity(as[SetTarget])) { targets =>
           setTargets(ns, device, targets)
         }
-      } ~
-      path("multi_target_update" / UpdateId.Path) { updateId =>
-        // Deprecated in favor of "assignments" endpoint
-        put {
-          setMultiUpdateTarget(ns, device, updateId, MultiTargetUpdateId(updateId.uuid))
-        }
-      }
-    }
-
-  def multiTargetUpdatesRoute(ns: Namespace): Route =
-    pathPrefix("multi_target_updates" / UpdateId.Path) { updateId =>
-      (pathEnd & get) {
-        // Deprecated in favor of "multi_target_updates" endpoint
-        getMultiTargetUpdates(ns, updateId)
-      } ~
-      (pathEnd & put & entity(as[Seq[DeviceId]])) { devices =>
-        // Deprecated in favor of "assignments" endpoint
-        setMultiTargetUpdateForDevices(
-          ns, devices, updateId, MultiTargetUpdateId(updateId.uuid))
-      } ~
-        // Deprecated in favor of "assignments" endpoint
-        (path("affected") & get & entity(as[Seq[DeviceId]])) { devices =>
-        findMultiTargetUpdateAffectedDevices(ns, devices, updateId)
       }
     }
 
@@ -305,7 +258,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           countInstalledImages(ns)         // request body with get
         }
       } ~
-      multiTargetUpdatesRoute(ns) ~
       pathPrefix("devices") {
         pathEnd {
           (post & entity(as[RegisterDevice]))  { regDev =>
@@ -314,13 +266,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           get {
             findDevices(ns)
           }
-        } ~
-        // Deprecated in favor of "assignments/cancel" endpoint
-        (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
-          val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
-            Future.traverse(canceledDevices) { dev => messageBusPublisher.publish(UpdateSpec(ns, dev, UpdateStatus.Canceled))}.map(_ => canceledDevices)
-          }
-          complete(f)
         } ~
         (get & path("hardware_identifiers")) {
           findHardwareIdentifiers(ns)

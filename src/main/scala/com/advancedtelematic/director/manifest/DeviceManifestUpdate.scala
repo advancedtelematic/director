@@ -7,7 +7,7 @@ import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate,
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuInstallationReport, InstallationResult}
-import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceInstallationReport
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateCompleted
 import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
 import io.circe.Json
 import org.slf4j.LoggerFactory
@@ -88,15 +88,14 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         val op = custom.operation_result
         ecuManifest.ecu_serial -> EcuInstallationReport(
           InstallationResult(op.result_code == 0, op.result_code.toString, op.result_text),
-          Seq(ecuManifest.installed_image.filepath.toString),
-          None)
+          Seq(ecuManifest.installed_image.filepath.toString))
       }
     }.toMap.seq
 
   private def toDeviceInstallationReport(
     namespace: Namespace, deviceId: DeviceId, deviceManifest: DeviceManifest,
     correlationId: CorrelationId, enforceExplicit: Boolean = true
-  ): Option[DeviceInstallationReport] = {
+  ): Option[DeviceUpdateCompleted] = {
     val ecuImages = deviceManifest.ecu_manifests.map { ecuManifest =>
       ecuManifest.ecu_serial -> ecuManifest.installed_image.filepath
     }.toMap
@@ -106,12 +105,12 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       val ecuResults = report.items
         .filter(item => ecuImages.contains(item.ecu))
         .map { item =>
-          item.ecu -> EcuInstallationReport(item.result, Seq(ecuImages(item.ecu).toString), None)
+          item.ecu -> EcuInstallationReport(item.result, Seq(ecuImages(item.ecu).toString))
         }.toMap
 
-      val result = DeviceInstallationReport(
-        namespace, deviceId, report.correlation_id, report.result, ecuResults, None, Instant.now)
-      _log.debug(s"New DeviceInstallationReport ${result}")
+      val result = DeviceUpdateCompleted(
+        namespace, Instant.now, report.correlation_id, deviceId, report.result, ecuResults, report.raw_report)
+      _log.debug(s"New DeviceUpdateCompleted ${result}")
       result
 
     }.orElse {
@@ -127,9 +126,9 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       if (ecuResults.isEmpty && enforceExplicit) {
         None
       } else {
-        val result = Some(DeviceInstallationReport(
-          namespace, deviceId, correlationId, installationResult, ecuResults, None, Instant.now))
-        _log.debug(s"Old DeviceInstallationReport ${result}")
+        val result = Some(DeviceUpdateCompleted(
+          namespace, Instant.now, correlationId, deviceId, installationResult, ecuResults))
+        _log.debug(s"Old DeviceUpdateCompleted ${result}")
         result
       }
     }

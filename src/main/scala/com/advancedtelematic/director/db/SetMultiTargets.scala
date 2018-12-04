@@ -9,8 +9,11 @@ import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateAvailable}
 import slick.jdbc.MySQLProfile.api._
 
+import java.time.Instant
+import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
@@ -94,7 +97,15 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
 
     db.run(dbAct.transactionally).flatMap { scheduled =>
       Future.traverse(scheduled){ device =>
-        messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Pending))
+        for {
+          _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Pending))
+          deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateAvailable(
+            namespace,
+            Instant.now(),
+            correlationId,
+            device)
+          _ <- messageBusPublisher.publish(deviceUpdateEvent)
+        } yield ()
       }.map(_ => scheduled)
     }
   }

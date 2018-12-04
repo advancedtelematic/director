@@ -255,7 +255,9 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         } ~
         (path("cancel") & put) {
           val f = cancelUpdate.one(ns, device).flatMap{ res =>
-            messageBusPublisher.publish(UpdateSpec(ns, device, UpdateStatus.Canceled)).map(_ => res)
+            messageBusPublisher
+              .publish(UpdateSpec(ns, device, UpdateStatus.Canceled))
+              .map(_ => res.device)
           }
           complete(f)
         }
@@ -317,8 +319,10 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         } ~
         // Deprecated in favor of "assignments/cancel" endpoint
         (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
-          val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
-            Future.traverse(canceledDevices) { dev => messageBusPublisher.publish(UpdateSpec(ns, dev, UpdateStatus.Canceled))}.map(_ => canceledDevices)
+          val f = cancelUpdate.several(ns, devices).flatMap { canceledDeviceUpdates =>
+            Future.traverse(canceledDeviceUpdates) { deviceUpdateTarget =>
+              messageBusPublisher.publish(UpdateSpec(ns, deviceUpdateTarget.device, UpdateStatus.Canceled))
+            }.map(_ => canceledDeviceUpdates.map(_.device))
           }
           complete(f)
         } ~

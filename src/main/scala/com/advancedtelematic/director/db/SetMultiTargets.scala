@@ -3,13 +3,13 @@ package com.advancedtelematic.director.db
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import slick.jdbc.MySQLProfile.api._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DeviceUpdateStatus, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateEvent
 
+import java.time.Instant
+import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
@@ -90,7 +90,12 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
 
     db.run(dbAct.transactionally).flatMap { scheduled =>
       Future.traverse(scheduled){ device =>
-        messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Pending))
+        messageBusPublisher.publish(DeviceUpdateEvent(
+          namespace,
+          Instant.now(),
+          DeviceUpdateStatus.Available,
+          correlationId,
+          device))
       }.map(_ => scheduled)
     }
   }

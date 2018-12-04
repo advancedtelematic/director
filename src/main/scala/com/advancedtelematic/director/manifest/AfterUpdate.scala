@@ -9,6 +9,8 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, InstallationResult, EcuInstallationReport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceInstallationReport
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DeviceUpdateStatus}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateEvent
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFilename
 
 import java.time.Instant
@@ -32,7 +34,7 @@ class AfterDeviceManifestUpdate()
     if(updateTarget.updateId.isDefined) {
       clearMultiTargetUpdate(
         namespace, device, updateTarget, successInstallationResult, ecuResults,
-        UpdateStatus.Finished)
+        UpdateStatus.Finished, DeviceUpdateStatus.Finished)
     } else {
       Future.successful(())
     }
@@ -50,7 +52,7 @@ class AfterDeviceManifestUpdate()
       await(updatesToCancel.toList.traverse { case updateTarget =>
         clearMultiTargetUpdate(
           namespace, device, updateTarget, failureInstallationResult, ecuResults,
-          UpdateStatus.Failed)
+          UpdateStatus.Failed, DeviceUpdateStatus.Failed)
       })
 
     }
@@ -59,13 +61,22 @@ class AfterDeviceManifestUpdate()
       namespace: Namespace, device: DeviceId, updateTarget: DeviceUpdateTarget,
       result: InstallationResult,
       ecuResults: Map[EcuSerial, EcuInstallationReport],
-      updateSpecStatus: UpdateStatus.UpdateStatus
+      updateSpecStatus: UpdateStatus.UpdateStatus,
+      updateStatus: DeviceUpdateStatus.DeviceUpdateStatus
     ): Future[Unit] = {
     for {
       _ <- messageBusPublisher.publish(
         DeviceInstallationReport(namespace, device, updateTarget.correlationId.get,
                                  result, ecuResults, report = None, Instant.now))
+      // UpdateSpec is deprecated by DeviceUpdateEvent
       _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
+      _ <- messageBusPublisher.publish(
+        DeviceUpdateEvent(
+          namespace,
+          Instant.now,
+          updateStatus,
+          updateTarget.correlationId.get,
+          updateTarget.device))
     } yield ()
   }
 

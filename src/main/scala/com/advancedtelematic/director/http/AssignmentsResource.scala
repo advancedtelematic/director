@@ -10,10 +10,12 @@ import com.advancedtelematic.director.db.{AdminRepositorySupport, CancelUpdate, 
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import slick.jdbc.MySQLProfile.api.Database
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DeviceUpdateStatus}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateEvent
 
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import java.time.Instant
+import slick.jdbc.MySQLProfile.api.Database
 import scala.concurrent.{ExecutionContext, Future}
 
 class AssignmentsResource(extractNamespace: Directive1[Namespace])
@@ -45,8 +47,19 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
         patch {
           entity(as[Seq[DeviceId]]) { devices =>
             val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
-              Future.traverse(canceledDevices) { dev =>
-                messageBusPublisher.publish(UpdateSpec(ns, dev, UpdateStatus.Canceled))}.map(_ => canceledDevices)
+              Future.traverse(canceledDevices.filter(_.correlationId.isDefined)) { updateTarget =>
+                for {
+                  // UpdateSpec is deprecated by DeviceUpdateEvent
+                  _ <- messageBusPublisher.publish(UpdateSpec(ns, updateTarget.device, UpdateStatus.Canceled))
+                  _ <- messageBusPublisher.publish(
+                    DeviceUpdateEvent(
+                      ns,
+                      Instant.now,
+                      DeviceUpdateStatus.Canceled,
+                      updateTarget.correlationId.get,
+                      updateTarget.device))
+                } yield ()
+              }.map(_ => canceledDevices.map(_.device))
             }
             complete(f)
           }
@@ -58,8 +71,18 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
           complete(f)
         } ~
         delete {
-          val f = cancelUpdate.one(ns, deviceId).flatMap{ res =>
-            messageBusPublisher.publish(UpdateSpec(ns, deviceId, UpdateStatus.Canceled)).map(_ => res)
+          val f = cancelUpdate.one(ns, deviceId).flatMap{ updateTarget =>
+            for {
+              // UpdateSpec is deprecated by DeviceUpdateEvent
+              _ <- messageBusPublisher.publish(UpdateSpec(ns, updateTarget.device, UpdateStatus.Canceled))
+              _ <- messageBusPublisher.publish(
+                DeviceUpdateEvent(
+                  ns,
+                  Instant.now,
+                  DeviceUpdateStatus.Canceled,
+                  updateTarget.correlationId.get,
+                  updateTarget.device))
+            } yield ()
           }
           complete(f)
         }

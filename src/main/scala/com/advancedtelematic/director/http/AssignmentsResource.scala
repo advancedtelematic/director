@@ -6,7 +6,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.AdminRequest.AssignUpdateRequest
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.db.{AdminRepositorySupport, CancelUpdate, SetMultiTargets}
+import com.advancedtelematic.director.db.{EcuTargetRepositorySupport, CancelUpdate, SetMultiTargets}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
@@ -19,8 +19,8 @@ import slick.jdbc.MySQLProfile.api.Database
 import scala.concurrent.{ExecutionContext, Future}
 
 class AssignmentsResource(extractNamespace: Directive1[Namespace])
-(implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
-  extends AdminRepositorySupport {
+(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+  extends EcuTargetRepositorySupport {
 
   import Directives._
 
@@ -66,7 +66,7 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
       } ~
       pathPrefix(DeviceId.Path) { deviceId =>
         get {
-          val f = adminRepository.findQueue(ns, deviceId)
+          val f = ecuTargetRepository.fetchQueue(ns, deviceId)
           complete(f)
         } ~
         delete {

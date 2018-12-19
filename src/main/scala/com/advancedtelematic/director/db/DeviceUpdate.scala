@@ -23,6 +23,8 @@ object DeviceUpdateResult {
 
 object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
+    with DeviceTargetRepositorySupport
+    with EcuTargetRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
 
@@ -35,7 +37,7 @@ object DeviceUpdate extends AdminRepositorySupport
 
     val dbAct = deviceRepository.getCurrentVersionSetIfInitialAction(device).flatMap { currentVersion =>
       val nextVersion = currentVersion + 1
-      adminRepository.updateExistsAction(namespace, device, nextVersion).flatMap {
+      deviceTargetRepository.existsAction(namespace, device, nextVersion).flatMap {
         case true => handleUpdate(namespace, device, ecuManifests, nextVersion)
         case false => DBIO.successful(NoUpdate)
       }
@@ -47,8 +49,8 @@ object DeviceUpdate extends AdminRepositorySupport
   private def handleUpdate(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest], nextVersion: Int)
     (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] = {
 
-    adminRepository.fetchDeviceUpdateTargetAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
-      adminRepository.fetchTargetVersionAction(namespace, device, nextVersion).flatMap { ecuTargets =>
+    deviceTargetRepository.fetchAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
+      ecuTargetRepository.fetchAction(namespace, device, nextVersion).flatMap { ecuTargets =>
         val actualTargets = ecuManifests.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
         val expectedTargets = ecuTargets.mapValues(_.image)
         if (subMap(expectedTargets, actualTargets)) {
@@ -71,9 +73,9 @@ object DeviceUpdate extends AdminRepositorySupport
   private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int)
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
-      latestScheduledVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
+      latestScheduledVersion <- deviceTargetRepository.fetchLatestAction(namespace, device)
       nextTimestampVersion = latestScheduledVersion + 1
-      _ <- adminRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
+      _ <- deviceTargetRepository.persistAction(device, None, None, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
     } yield latestScheduledVersion
 

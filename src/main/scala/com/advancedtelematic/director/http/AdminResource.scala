@@ -36,6 +36,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
                    (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
+    with EcuTargetRepositorySupport
     with AutoUpdateRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
@@ -164,7 +165,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   }
 
   def queueForDevice(namespace: Namespace, device: DeviceId): Route = {
-    val f = adminRepository.findQueue(namespace, device)
+    val f = ecuTargetRepository.fetchQueue(namespace, device)
     complete(f)
   }
 

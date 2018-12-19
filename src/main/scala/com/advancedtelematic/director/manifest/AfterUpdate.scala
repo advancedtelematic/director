@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.implicits._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
+import com.advancedtelematic.director.db.{DeviceTargetRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateCompleted}
@@ -17,7 +17,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
-    extends AdminRepositorySupport
+    extends DeviceTargetRepositorySupport
     with DeviceRepositorySupport {
 
   val canceledInstallationResult = InstallationResult(false, "CANCELLED_ON_ERROR", "Cancelled update due to previous installation error")
@@ -36,7 +36,7 @@ class AfterDeviceManifestUpdate()
       // Currently there can be only one update queued per device,
       // so the following code should not be run.
       nextVersion = version + 1
-      updatesToCancel <- adminRepository.getUpdatesFromTo(report.namespace, report.deviceUuid, nextVersion, lastVersion)
+      updatesToCancel <- deviceTargetRepository.getUpdatesFromTo(report.namespace, report.deviceUuid, nextVersion, lastVersion)
       _ <- updatesToCancel.filter { _.correlationId.isDefined }.toList.traverse { case updateTarget =>
         publishReportEvent(
           DeviceUpdateCompleted(

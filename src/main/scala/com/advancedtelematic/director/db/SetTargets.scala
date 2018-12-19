@@ -10,18 +10,19 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object SetTargets extends AdminRepositorySupport
+object SetTargets extends DeviceTargetRepositorySupport
+    with EcuTargetRepositorySupport
     with FileCacheRequestRepositorySupport {
 
   protected [db] def setDeviceTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
                                            targets: Map[EcuIdentifier, CustomImage],
                                            correlationId: Option[CorrelationId] = None)
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
-    new_version <- adminRepository.updateTargetAction(namespace, device, targets)
+    new_version <- ecuTargetRepository.persistAction(namespace, device, targets)
     fcr = FileCacheRequest(namespace, new_version, device,
                            FileCacheRequestStatus.PENDING, new_version, correlationId)
     _ <- fileCacheRequestRepository.persistAction(fcr)
-    _ <- adminRepository.updateDeviceTargetsAction(device, correlationId, updateId, new_version)
+    _ <- deviceTargetRepository.persistAction(device, correlationId, updateId, new_version)
     } yield new_version
 
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)],

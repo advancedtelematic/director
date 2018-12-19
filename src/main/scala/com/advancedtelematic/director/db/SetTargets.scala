@@ -12,18 +12,18 @@ import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
 
-object SetTargets extends AdminRepositorySupport
+object SetTargets extends UpdateTargetRepositorySupport
     with FileCacheRequestRepositorySupport {
 
   protected [db] def setDeviceTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
                                            targets: Map[EcuSerial, CustomImage],
                                            correlationId: Option[CorrelationId] = None)
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
-    new_version <- adminRepository.updateTargetAction(namespace, device, targets)
+    new_version <- updateTargetRepository.updateTargetAction(namespace, device, targets)
     fcr = FileCacheRequest(namespace, new_version, device,
                            FileCacheRequestStatus.PENDING, new_version, correlationId)
     _ <- fileCacheRequestRepository.persistAction(fcr)
-    _ <- adminRepository.updateDeviceTargetsAction(device, correlationId, updateId, new_version)
+    _ <- updateTargetRepository.updateDeviceTargetsAction(device, correlationId, updateId, new_version)
     } yield new_version
 
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)],

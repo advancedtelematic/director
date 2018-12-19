@@ -119,6 +119,30 @@ object Schema {
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
+  class EcuUpdateTargetTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_update_targets") {
+    def namespace  = column[Namespace]("namespace")
+    def deviceId = column[DeviceId]("device_id")
+    def ecuId = column[EcuSerial]("ecu_id")
+    def version = column[Int]("version")
+    def filepath = column[TargetFilename]("filepath")
+    def length = column[Long]("length")
+    def checksum = column[Checksum]("checksum")
+    def uri = column[Uri]("uri")
+    def diffFormat = column[Option[TargetFormat]]("diff_format")
+
+    def fileInfo = (checksum, length) <>
+      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
+      )
+
+    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
+
+    def customImage = (image, uri, diffFormat) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
+
+    override def * = (namespace, version, ecuId, customImage) <> ((EcuTarget.apply _).tupled, EcuTarget.unapply)
+  }
+  protected [db] val ecuUpdateTarget = TableQuery[EcuUpdateTargetTable]
+
   class DeviceUpdateTargetsTable(tag: Tag) extends Table[DeviceUpdateTarget](tag, "device_update_targets") {
     def device = column[DeviceId]("device")
     def correlationId = column[Option[CorrelationId]]("correlation_id")

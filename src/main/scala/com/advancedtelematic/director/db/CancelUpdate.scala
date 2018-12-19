@@ -8,7 +8,7 @@ import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
-class CancelUpdate(implicit db: Database, ec: ExecutionContext) extends AdminRepositorySupport
+class CancelUpdate(implicit db: Database, ec: ExecutionContext) extends UpdateTargetRepositorySupport
     with DeviceRepositorySupport {
   private def act(namespace: Namespace, device: DeviceId): DBIO[Option[DeviceUpdateTarget]] = {
     for {
@@ -19,11 +19,11 @@ class CancelUpdate(implicit db: Database, ec: ExecutionContext) extends AdminRep
       res <- if (cantCancel) {
         DBIO.successful(None)
       } else for {
-        latestVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
-        updateTarget <- adminRepository.fetchDeviceUpdateTargetAction(namespace, device, latestVersion)
+        latestVersion <- updateTargetRepository.getLatestScheduledVersion(namespace, device)
+        updateTarget <- updateTargetRepository.fetchDeviceUpdateTargetAction(namespace, device, latestVersion)
         nextTimestampVersion = latestVersion + 1
-        _ <- adminRepository.copyTargetsAction(namespace, device, current, nextTimestampVersion)
-        _ <- adminRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
+        _ <- updateTargetRepository.copyTargetsAction(namespace, device, current, nextTimestampVersion)
+        _ <- updateTargetRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
         _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
       } yield Some(updateTarget)
     } yield res

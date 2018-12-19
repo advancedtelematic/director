@@ -67,7 +67,7 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
       } ~
       pathPrefix(DeviceId.Path) { deviceId =>
         get {
-          val f = ecuTargetRepository.findQueue(ns, deviceId)
+          val f = ecuTargetRepository.fetchQueue(ns, deviceId)
           complete(f)
         } ~
         delete {

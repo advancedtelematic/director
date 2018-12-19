@@ -21,11 +21,11 @@ class CancelUpdate(implicit val db: Database, implicit val ec: ExecutionContext)
       res <- if (cantCancel) {
         DBIO.successful(None)
       } else for {
-        latestVersion <- deviceTargetRepository.getLatestScheduledVersion(namespace, device)
-        updateTarget <- deviceTargetRepository.fetchDeviceUpdateTargetAction(namespace, device, latestVersion)
+        latestVersion <- deviceTargetRepository.fetchLatestAction(namespace, device)
+        updateTarget <- deviceTargetRepository.fetchAction(namespace, device, latestVersion)
         nextTimestampVersion = latestVersion + 1
-        _ <- ecuTargetRepository.copyTargetsAction(namespace, device, current, nextTimestampVersion)
-        _ <- deviceTargetRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
+        _ <- ecuTargetRepository.copyAction(namespace, device, current, nextTimestampVersion)
+        _ <- deviceTargetRepository.persistAction(device, None, None, nextTimestampVersion)
         _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
       } yield Some(updateTarget)
     } yield res

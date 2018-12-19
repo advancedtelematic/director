@@ -153,7 +153,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   }
 
   def queueForDevice(namespace: Namespace, device: DeviceId): Route = {
-    val f = ecuTargetRepository.findQueue(namespace, device)
+    val f = ecuTargetRepository.fetchQueue(namespace, device)
     complete(f)
   }
 

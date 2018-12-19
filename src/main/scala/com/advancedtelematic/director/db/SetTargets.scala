@@ -20,11 +20,11 @@ object SetTargets extends DeviceTargetRepositorySupport
                                            targets: Map[EcuSerial, CustomImage],
                                            correlationId: Option[CorrelationId] = None)
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
-    new_version <- ecuTargetRepository.updateTargetAction(namespace, device, targets)
+    new_version <- ecuTargetRepository.persistAction(namespace, device, targets)
     fcr = FileCacheRequest(namespace, new_version, device,
                            FileCacheRequestStatus.PENDING, new_version, correlationId)
     _ <- fileCacheRequestRepository.persistAction(fcr)
-    _ <- deviceTargetRepository.updateDeviceTargetsAction(device, correlationId, updateId, new_version)
+    _ <- deviceTargetRepository.persistAction(device, correlationId, updateId, new_version)
     } yield new_version
 
   def setTargets(namespace: Namespace, devTargets: Seq[(DeviceId, SetTarget)],

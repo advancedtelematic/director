@@ -23,7 +23,17 @@ trait DeviceTargetRepositorySupport {
 protected class DeviceTargetRepository()(implicit db: Database, ec: ExecutionContext) {
   import Schema.deviceTargets
 
-  protected [db] def updateDeviceTargetsAction(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
+  def exists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] =
+    db.run(existsAction(namespace, device, version))
+
+  protected [db] def existsAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Boolean] =
+    deviceTargets
+      .filter(_.device === device)
+      .filter(_.version === version)
+      .exists
+      .result
+
+  protected [db] def persistAction(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], version: Int): DBIO[DeviceUpdateTarget] = {
     val target = DeviceUpdateTarget(device, correlationId, updateId, version, inFlight = false)
 
     (deviceTargets += target)
@@ -31,17 +41,7 @@ protected class DeviceTargetRepository()(implicit db: Database, ec: ExecutionCon
       .handleIntegrityErrors(ConflictingTarget)
   }
 
-  protected [db] def updateExistsAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Boolean] =
-    deviceTargets
-      .filter(_.device === device)
-      .filter(_.version === version)
-      .exists
-      .result
-
-  def updateExists(namespace: Namespace, device: DeviceId, version: Int): Future[Boolean] =
-    db.run(updateExistsAction(namespace, device, version))
-
-  protected [db] def getLatestScheduledVersion(namespace: Namespace, deviceId: DeviceId): DBIO[Int] =
+  protected [db] def fetchLatestAction(namespace: Namespace, deviceId: DeviceId): DBIO[Int] =
     deviceTargets
       .filter(_.device === deviceId)
       .map(_.version)
@@ -50,7 +50,7 @@ protected class DeviceTargetRepository()(implicit db: Database, ec: ExecutionCon
       .result
       .failIfNone(NoTargetsScheduled)
 
-  protected [db] def fetchDeviceUpdateTargetAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[DeviceUpdateTarget] =
+  protected [db] def fetchAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[DeviceUpdateTarget] =
     deviceTargets
       .filter(_.device === device)
       .filter(_.version === version)
@@ -59,7 +59,7 @@ protected class DeviceTargetRepository()(implicit db: Database, ec: ExecutionCon
       .failIfNone(NoTargetsScheduled)
 
 
-  protected [db] def allUpdatesScheduledAfter(deviceId: DeviceId, fromVersion: Int): DBIO[Seq[DeviceUpdateTarget]] =
+  protected [db] def fetchAllAfterAction(deviceId: DeviceId, fromVersion: Int): DBIO[Seq[DeviceUpdateTarget]] =
     deviceTargets
       .filter(_.device === deviceId)
       .filter(_.version > fromVersion)
@@ -76,7 +76,7 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
 
   import Schema.ecuUpdateTarget
 
-  private [this] def storeTargetVersion(
+  private [this] def persistAction(
     namespace: Namespace, deviceId: DeviceId, version: Int, targets: Map[EcuSerial, CustomImage]
   ): DBIO[Unit] = {
 
@@ -87,18 +87,20 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
     act.map(_ => ()).transactionally
   }
 
-  protected [db] def updateTargetAction(namespace: Namespace, deviceId: DeviceId, targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
-    version <- deviceTargetRepository.getLatestScheduledVersion(namespace, deviceId).asTry.flatMap {
+  protected [db] def persistAction(
+    namespace: Namespace, deviceId: DeviceId, targets: Map[EcuSerial, CustomImage])
+  : DBIO[Int] = for {
+    version <- deviceTargetRepository.fetchLatestAction(namespace, deviceId).asTry.flatMap {
       case Success(x) => DBIO.successful(x)
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)
     }
     new_version = version + 1
-    _ <- storeTargetVersion(namespace, deviceId, new_version, targets)
+    _ <- persistAction(namespace, deviceId, new_version, targets)
   } yield new_version
 
   // skips any targets with version > sourceVersion
-  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
+  protected [db] def copyAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
     ecuUpdateTarget
       .filter(_.namespace === namespace)
       .filter(_.deviceId === device)
@@ -113,7 +115,7 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
     }.reduce(_ || _)
 
   // skips any targets in "failed"
-  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int,
+  protected [db] def copyAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int,
                                        failed: Map[EcuSerial, TargetFilename]): DBIO[Unit] =
     ecuUpdateTarget
       .filter(_.namespace === namespace)
@@ -127,7 +129,7 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
         Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
       }.map(_ => ())
 
-  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
+  protected [db] def fetchAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
     ecuUpdateTarget
       .filter(_.namespace === namespace)
       .filter(_.deviceId === device)
@@ -135,12 +137,12 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
       .result
       .map(_.toMap)
 
-  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
-    db.run(fetchTargetVersionAction(namespace, device, version))
+  def fetch(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
+    db.run(fetchAction(namespace, device, version))
 
-  def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
+  def fetchQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
     def queueResult(updateTarget: DeviceUpdateTarget): DBIO[QueueResponse] = for {
-      targets <- fetchTargetVersionAction(namespace, device, updateTarget.targetVersion)
+      targets <- fetchAction(namespace, device, updateTarget.targetVersion)
     } yield QueueResponse(updateTarget.correlationId, targets, updateTarget.inFlight)
 
     val versionOfDevice: DBIO[Int] = Schema.deviceCurrentTarget
@@ -152,7 +154,7 @@ protected class EcuTargetRepository()(implicit val db: Database, val ec: Executi
 
     for {
       currentVersion <- versionOfDevice
-      updates <- deviceTargetRepository.allUpdatesScheduledAfter(device, currentVersion)
+      updates <- deviceTargetRepository.fetchAllAfterAction(device, currentVersion)
       queue <- DBIO.sequence(updates.map(queueResult))
     } yield queue
   }

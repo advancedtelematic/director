@@ -36,7 +36,7 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private def nextVersionToFetch(ns: Namespace, device: DeviceId, currentVersion: Int): Future[Int] = {
     val timestampVersion = currentVersion + 1
-    deviceTargetRepository.updateExists(ns, device, timestampVersion).flatMap {
+    deviceTargetRepository.exists(ns, device, timestampVersion).flatMap {
       case true  => fileCacheRepository.versionIsCached(device, timestampVersion).flatMap {
         case true => FastFuture.successful(timestampVersion)
         case false =>

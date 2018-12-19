@@ -21,7 +21,8 @@ object DeviceUpdateResult {
 
 object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
-    with UpdateTargetRepositorySupport
+    with DeviceTargetRepositorySupport
+    with EcuTargetRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
 
@@ -32,13 +33,13 @@ object DeviceUpdate extends AdminRepositorySupport
   private def isEqualToUpdate(namespace: Namespace, device: DeviceId, next_version: Int, translatedManifest: Map[EcuSerial, Image])
                              (ifNot : Option[Map[EcuSerial, Image]] => DBIO[DeviceUpdateResult])
                              (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] =
-    updateTargetRepository.updateExistsAction(namespace, device, next_version).flatMap {
-      case true => updateTargetRepository.fetchTargetVersionAction(namespace, device, next_version).flatMap { targets =>
+    deviceTargetRepository.updateExistsAction(namespace, device, next_version).flatMap {
+      case true => ecuTargetRepository.fetchTargetVersionAction(namespace, device, next_version).flatMap { targets =>
         val translatedTargets = targets.mapValues(_.image)
         if (subMap(translatedTargets, translatedManifest)) {
           for {
             _ <- deviceRepository.updateDeviceVersionAction(device, next_version)
-            deviceUpdateTarget <- updateTargetRepository.fetchDeviceUpdateTargetAction(namespace, device, next_version)
+            deviceUpdateTarget <- deviceTargetRepository.fetchDeviceUpdateTargetAction(namespace, device, next_version)
           } yield UpdatedSuccessfully(deviceUpdateTarget)
         } else {
           ifNot(Some(translatedTargets))
@@ -74,18 +75,18 @@ object DeviceUpdate extends AdminRepositorySupport
   private def copyTargetsAction(namespace: Namespace, device: DeviceId, failedTargets: Map[EcuSerial, TargetFilename],
                                 deviceVersion: Int, nextTimestampVersion: Int)(implicit db: Database, ec: ExecutionContext) =
     if (failedTargets.isEmpty) {
-      updateTargetRepository.copyTargetsAction(namespace, device, deviceVersion, nextTimestampVersion)
+      ecuTargetRepository.copyTargetsAction(namespace, device, deviceVersion, nextTimestampVersion)
     } else {
-      updateTargetRepository.copyTargetsAction(namespace, device, nextTimestampVersion - 1, nextTimestampVersion, failedTargets)
+      ecuTargetRepository.copyTargetsAction(namespace, device, nextTimestampVersion - 1, nextTimestampVersion, failedTargets)
     }
 
   private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuSerial, TargetFilename])
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
-      latestScheduledVersion <- updateTargetRepository.getLatestScheduledVersion(namespace, device)
+      latestScheduledVersion <- deviceTargetRepository.getLatestScheduledVersion(namespace, device)
       nextTimestampVersion = latestScheduledVersion + 1
       _ <- copyTargetsAction(namespace, device, failedTargets, deviceVersion, nextTimestampVersion)
-      _ <- updateTargetRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
+      _ <- deviceTargetRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
     } yield latestScheduledVersion
 

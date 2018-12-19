@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.implicits._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
+import com.advancedtelematic.director.db.{DeviceUpdateAssignmentRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
 import com.advancedtelematic.libats.data.DataType.{ResultCode, ResultDescription}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
@@ -18,7 +18,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
-    extends AdminRepositorySupport
+    extends DeviceUpdateAssignmentRepositorySupport
     with DeviceRepositorySupport {
 
   val canceledInstallationResult = InstallationResult(
@@ -41,13 +41,13 @@ class AfterDeviceManifestUpdate()
       // Currently there can be only one update queued per device,
       // so the following code should not be run.
       nextVersion = version + 1
-      updatesToCancel <- adminRepository.getUpdatesFromTo(report.namespace, report.deviceUuid, nextVersion, lastVersion)
-      _ <- updatesToCancel.filter { _.correlationId.isDefined }.toList.traverse { case updateTarget =>
+      updatesToCancel <- deviceUpdateAssignmentRepository.getUpdatesFromTo(report.namespace, report.deviceUuid, nextVersion, lastVersion)
+      _ <- updatesToCancel.filter { _.correlationId.isDefined }.toList.traverse { case assignment =>
         publishReportEvent(
           DeviceUpdateCompleted(
             report.namespace,
             Instant.now,
-            updateTarget.correlationId.get,
+            assignment.correlationId.get,
             report.deviceUuid,
             canceledInstallationResult,
             Map()))

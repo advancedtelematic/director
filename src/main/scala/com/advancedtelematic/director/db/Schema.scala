@@ -78,6 +78,7 @@ object Schema {
   }
   protected [db] val repoNames = TableQuery[RepoNameTable]
 
+  @deprecated("Use EcuUpdateAssignmentTable", "0.8.0")
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
@@ -105,6 +106,47 @@ object Schema {
   }
   protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
 
+  class EcuUpdateAssignmentTable(tag: Tag) extends Table[EcuUpdateAssignment](tag, "ecu_update_assignments") {
+    def namespace = column[Namespace]("namespace")
+    def deviceId = column[DeviceId]("device_id")
+    def ecuId = column[EcuIdentifier]("ecu_id")
+    def version = column[Int]("version")
+    def filepath = column[TargetFilename]("filepath")
+    def length = column[Long]("length")
+    def checksum = column[Checksum]("checksum")
+    def uri = column[Option[Uri]]("uri")
+    def diffFormat = column[Option[TargetFormat]]("diff_format")
+
+    def primKey = primaryKey("ecu_update_assignment_pk", (namespace, deviceId, ecuId, version))
+
+    def fileInfo = (checksum, length) <>
+      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
+        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
+      )
+
+    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
+
+    def customImage = (image, uri, diffFormat) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
+
+    override def * = (namespace, deviceId, ecuId, version, customImage) <> ((EcuUpdateAssignment.apply _).tupled, EcuUpdateAssignment.unapply)
+  }
+  protected [db] val ecuUpdateAssignments = TableQuery[EcuUpdateAssignmentTable]
+
+  class DeviceUpdateAssignmentTable(tag: Tag) extends Table[DeviceUpdateAssignment](tag, "device_update_assignments") {
+    def namespace = column[Namespace]("namespace")
+    def deviceId = column[DeviceId]("device_id")
+    def correlationId = column[Option[CorrelationId]]("correlation_id")
+    def updateId = column[Option[UpdateId]]("update_uuid")
+    def version = column[Int]("version")
+    def served = column[Boolean]("served")
+
+    def primKey = primaryKey("device_update_assignment_pk", (namespace, deviceId, version))
+
+    override def * = (namespace, deviceId, correlationId, updateId, version, served) <> ((DeviceUpdateAssignment.apply _).tupled, DeviceUpdateAssignment.unapply)
+  }
+  protected [db] val deviceUpdateAssignments = TableQuery[DeviceUpdateAssignmentTable]
+
+  @deprecated("Use DeviceUpdateAssignmentTable", "0.8.0")
   class DeviceUpdateTargetsTable(tag: Tag) extends Table[DeviceUpdateTarget](tag, "device_update_targets") {
     def device = column[DeviceId]("device")
     def correlationId = column[Option[CorrelationId]]("correlation_id")

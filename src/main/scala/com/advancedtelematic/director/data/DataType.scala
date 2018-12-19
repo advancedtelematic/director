@@ -59,6 +59,20 @@ object DataType {
 
   final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuIdentifier, customImage: CustomImage)
 
+  final case class EcuUpdateAssignment(namespace: Namespace,
+                                   deviceId: DeviceId,
+                                   ecuIdentifier: EcuIdentifier,
+                                   version: Int,
+                                   customImage: CustomImage)
+
+  final case class DeviceUpdateAssignment(
+    namespace: Namespace,
+    deviceId: DeviceId,
+    correlationId: Option[CorrelationId],
+    updateId: Option[UpdateId],
+    version: Int,
+    served: Boolean)
+
   final case class DeviceUpdateTarget(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], targetVersion: Int, inFlight: Boolean)
 
   final case class DeviceCurrentTarget(device: DeviceId, targetVersion: Int)

@@ -4,7 +4,7 @@ import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, SetMultiTargets}
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdateAssignmentRepositorySupport, EcuUpdateAssignmentRepositorySupport, SetMultiTargets}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.data.DataType.MultiTargetUpdateId
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -13,6 +13,8 @@ trait SetMultiTargetSpec extends DirectorSpec
     with KeyGenerators
     with AdminRepositorySupport
     with DeviceRepositorySupport
+    with DeviceUpdateAssignmentRepositorySupport
+    with EcuUpdateAssignmentRepositorySupport
     with DefaultPatience
     with RouteResourceSpec
     with Requests {
@@ -34,7 +36,7 @@ trait SetMultiTargetSpec extends DirectorSpec
     val mtuId = createMultiTargetUpdateOK(mtu)
 
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, MultiTargetUpdateId(mtuId.uuid)).futureValue
-    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    val update = ecuUpdateAssignmentRepository.fetch(defaultNs, device, 1).futureValue
 
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
   }
@@ -63,10 +65,10 @@ trait SetMultiTargetSpec extends DirectorSpec
 
     affected.toSet shouldBe Set(device0, device1)
 
-    val update0 = adminRepository.fetchTargetVersion(defaultNs, device0, 1).futureValue
+    val update0 = ecuUpdateAssignmentRepository.fetch(defaultNs, device0, 1).futureValue
     update0 shouldBe Map(primEcu0 -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
 
-    val update1 = adminRepository.fetchTargetVersion(defaultNs, device1, 1).futureValue
+    val update1 = ecuUpdateAssignmentRepository.fetch(defaultNs, device1, 1).futureValue
     update1 shouldBe Map(primEcu1 -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
   }
 
@@ -93,7 +95,7 @@ trait SetMultiTargetSpec extends DirectorSpec
     }.toMap
 
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
-    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    val update = ecuUpdateAssignmentRepository.fetch(defaultNs, device, 1).futureValue
     update shouldBe expected
   }
 
@@ -121,7 +123,7 @@ trait SetMultiTargetSpec extends DirectorSpec
       }.toMap
 
       setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
-      val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+      val update = ecuUpdateAssignmentRepository.fetch(defaultNs, device, 1).futureValue
       update shouldBe expected
     }
 
@@ -135,7 +137,7 @@ trait SetMultiTargetSpec extends DirectorSpec
       }.toMap
 
       setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
-      val update = adminRepository.fetchTargetVersion(defaultNs, device, 2).futureValue
+      val update = ecuUpdateAssignmentRepository.fetch(defaultNs, device, 2).futureValue
       update shouldBe expected
     }
   }
@@ -159,7 +161,7 @@ trait SetMultiTargetSpec extends DirectorSpec
     val mtuId = createMultiTargetUpdateOK(mtu)
 
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, MultiTargetUpdateId(mtuId.uuid)).futureValue
-    val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
+    val update = ecuUpdateAssignmentRepository.fetch(defaultNs, device, 1).futureValue
     update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
 
     val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, targetUpdate.to.image).generate)

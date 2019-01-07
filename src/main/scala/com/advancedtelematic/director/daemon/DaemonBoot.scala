@@ -13,6 +13,7 @@ import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.MetricsSupport
+import com.advancedtelematic.libats.http.tracing.NullRequestTracing
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
@@ -40,7 +41,7 @@ object DaemonBoot extends BootApp
 
   implicit val msgPublisher = MessageBus.publisher(system, config)
 
-  val tuf = KeyserverHttpClient(tufUri)
+  val tuf = KeyserverHttpClient(tufUri)(system, materializer, new NullRequestTracing)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
   val rolesGeneration = new RolesGeneration(tuf, diffService)
 

@@ -14,8 +14,8 @@ libraryDependencies ++= {
   val akkaHttpV = "10.0.11"
   val scalaTestV = "3.0.0"
   val bouncyCastleV = "1.57"
-  val tufV = "0.5.0-4-gdd4744f"
-  val libatsV = "0.1.3-3-gc641236"
+  val tufV = "0.5.0-24-g1f23fad"
+  val libatsV = "0.1.3-11-g56c5530"
   val circeConfigV = "0.0.2"
 
   Seq(
@@ -35,6 +35,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-messaging-datatype" % libatsV,
     "com.advancedtelematic" %% "libats-metrics-akka" % libatsV,
     "com.advancedtelematic" %% "libats-metrics-prometheus" % libatsV,
+    "com.advancedtelematic" %% "libats-http-tracing" % libatsV,
     "com.advancedtelematic" %% "libats-slick" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,

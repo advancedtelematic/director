@@ -2,8 +2,8 @@ package com.advancedtelematic.director
 
 
 import java.security.Security
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
@@ -15,6 +15,8 @@ import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHealthCheck}
+import com.advancedtelematic.libats.http.tracing.Tracing
+import com.advancedtelematic.libats.http.tracing.Tracing.RequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.db.DatabaseConfig
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
@@ -22,8 +24,8 @@ import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, InfluxdbMetricsReporterSupport}
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
-
 import com.typesafe.config.{Config, ConfigFactory}
+
 import scala.util.Try
 
 object Util {
@@ -77,20 +79,19 @@ object Boot extends BootApp
 
   log.info(s"Starting $version on http://$host:$port")
 
-  val tuf = KeyserverHttpClient(tufUri)
+  lazy val tracing = Tracing.fromConfig(config, projectName)
+
+  def keyserverClient(implicit tracing: RequestTracing) = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
-
-  val rolesGeneration = new RolesGeneration(tuf, diffService)
-  val roles = new Roles(rolesGeneration)
 
   Security.addProvider(new BouncyCastleProvider())
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
+    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing: RequestTracing =>
       prometheusMetricsRoutes ~
-      new DirectorRoutes(SignatureVerification.verify, tuf, roles, diffService).routes
+        new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient, diffService)), diffService).routes
     }
 
   Http().bindAndHandle(routes, host, port)

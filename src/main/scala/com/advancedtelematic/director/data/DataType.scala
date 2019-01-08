@@ -50,10 +50,7 @@ object DataType {
                                 ecuIdentifiers: Map[EcuSerial, TargetCustomUri])
 
   final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
-                       hardwareId: HardwareIdentifier, tufKey: TufKey) {
-    def keyType = tufKey.keytype
-    def publicKey = tufKey.keyval
-  }
+                       hardwareId: HardwareIdentifier, tufKey: TufKey)
 
   final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
 

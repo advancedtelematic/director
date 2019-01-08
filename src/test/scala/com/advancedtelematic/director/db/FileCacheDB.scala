@@ -9,7 +9,6 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
-
 import SlickMapping._
 
 trait FileCacheDB {

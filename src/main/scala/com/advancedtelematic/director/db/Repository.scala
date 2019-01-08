@@ -4,28 +4,23 @@ import java.time.Instant
 
 import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, EcuTarget, FileCacheRequest, MultiTargetUpdateRow}
-import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.director.data.DataType
+import com.advancedtelematic.director.data.{DataType, FileCacheRequestStatus}
+import com.advancedtelematic.director.db.Errors._
+import com.advancedtelematic.director.db.SlickMapping._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
-import com.advancedtelematic.libats.slick.db.SlickUrnMapper._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
-
-import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-
-import SlickMapping._
-import Errors._
 
 trait AdminRepositorySupport {
   def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
@@ -33,9 +28,8 @@ trait AdminRepositorySupport {
 
 protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
     with FileCacheRequestRepositorySupport {
-  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, RegisterEcu, QueueResponse}
+  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, QueueResponse, RegisterEcu}
   import com.advancedtelematic.director.data.DataType.{CustomImage, DeviceUpdateTarget, Hashes, Image}
-  import com.advancedtelematic.libtuf_server.data.TufSlickMappings.{keyTypeMapper, publicKeyMapper}
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
     def devTargets = Schema.deviceTargets
@@ -123,10 +117,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.namespace === namespace)
       .filter(_.device === device)
       .filter(_.ecuSerial === ecu_serial)
-      .map(x => (x.keyType, x.publicKey))
+      .map(_.publicKey)
       .result
       .failIfNotSingle(MissingEcu)
-      .map{case (typ, key) => TufCrypto.convert(typ, key)}
   }
 
   def findQueue(namespace: Namespace, device: DeviceId): Future[Seq[QueueResponse]] = db.run {
@@ -330,9 +323,9 @@ trait DeviceRepositorySupport {
 }
 
 protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) extends FileCacheRequestRepositorySupport {
+  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateTarget}
   import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
   import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
-  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateTarget}
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -422,6 +415,7 @@ trait FileCacheRepositorySupport {
 }
 
 protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
+  import DataType.FileCache
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libtuf.data.ClientCodecs._
   import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
@@ -429,7 +423,6 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
   import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings.roleTypeMapper
   import io.circe.syntax._
-  import DataType.FileCache
 
   private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int): Future[Json] = db.run {
     Schema.fileCache
@@ -526,9 +519,9 @@ trait RepoNameRepositorySupport {
 }
 
 protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
+  import DataType.RepoName
   import akka.NotUsed
   import akka.stream.scaladsl.Source
-  import DataType.RepoName
 
   def getRepo(ns: Namespace): Future[RepoId] = db.run {
     Schema.repoNames

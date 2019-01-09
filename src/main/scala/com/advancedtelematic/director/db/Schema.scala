@@ -1,32 +1,27 @@
 package com.advancedtelematic.director.db
 
+import java.io.StringWriter
 import java.security.PublicKey
 
 import akka.http.scaladsl.model.Uri
 import cats.implicits._
-import SlickMapping._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, KeyType, RepoId, TargetFilename, TargetName}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
 
+import com.advancedtelematic.director.data.FileCacheRequestStatus
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter
 import slick.jdbc.MySQLProfile.api._
 
-object Mappers {
-  import com.advancedtelematic.libats.slick.codecs.SlickEnumMapper
-  import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
-
-  implicit val hashMethodColumn = MappedColumnType.base[HashMethod, String](_.toString, HashMethod.withName)
-  implicit val targetFormatMapper = SlickEnumMapper.enumMapper(TargetFormat)
-}
 
 object Schema {
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -38,7 +33,7 @@ object Schema {
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 
-  import Mappers._
+  import SlickMapping._
 
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def ecuSerial = column[EcuSerial]("ecu_serial")
@@ -46,17 +41,13 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def keyType = column[KeyType]("cryptographic_method")
-    def publicKey = column[PublicKey]("public_key")
+    def publicKey = column[TufKey]("public_key")
 
     def createdAt = column[Instant]("created_at")
 
     def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
 
-    override def * = (ecuSerial, device, namespace, primary, hardwareId, keyType, publicKey) <>
-      ({case (ecuSerial, device, namespace, primary, hardwareId, keyType, publicKey)
-                      => Ecu(ecuSerial, device, namespace, primary, hardwareId, TufCrypto.convert(keyType, publicKey))},
-        (ecu: Ecu) => Some((ecu.ecuSerial, ecu.device, ecu.namespace, ecu.primary, ecu.hardwareId, ecu.tufKey.keytype, ecu.tufKey.keyval)))
+    override def * = (ecuSerial, device, namespace, primary, hardwareId, publicKey) <> ((Ecu.apply _).tupled, Ecu.unapply)
   }
   protected [db] val ecu = TableQuery[EcusTable]
 

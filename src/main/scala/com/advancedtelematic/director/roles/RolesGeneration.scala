@@ -65,7 +65,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
       ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
 
-    TargetsRole(expires, clientTargetItems, targetVersion, custom.map(_.asJson))
+    TargetsRole(expires, clientTargetItems, targetVersion, custom = custom.map(_.asJson))
   }
 
   private def snapshotRole(targetsRole: SignedPayload[TargetsRole], version: Int, expires: Instant): SnapshotRole =

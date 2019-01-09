@@ -17,7 +17,7 @@ object SignatureVerification {
     }
 
     Try {
-      TufCrypto.isValid(sig, clientKey.keyval, data)
+      TufCrypto.isValid(sig, clientKey, data)
     }.recover {
       case x: SignatureException => false
       case TufCrypto.SignatureMethodMismatch(from, to) => false

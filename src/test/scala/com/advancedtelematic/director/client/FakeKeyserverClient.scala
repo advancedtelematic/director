@@ -7,7 +7,6 @@ import java.util.concurrent.ConcurrentHashMap
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.crypt.TufCrypto.PublicKeyOps
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -49,7 +48,7 @@ class FakeKeyserverClient extends KeyserverClient with Generators {
     }
 
     val clientKeys = keys.get(repoId).map { case (_, keyPair) =>
-      keyPair.pubkey.keyval.id -> keyPair.pubkey
+      keyPair.pubkey.id -> keyPair.pubkey
     }
 
     RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)

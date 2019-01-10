@@ -51,14 +51,14 @@ object Codecs {
                        })
   }
 
-  implicit val decoderDeviceManifest: Decoder[DeviceManifest] = Decoder.instance { cursor =>
+  implicit val decoderDeviceManifestEcuSigned: Decoder[DeviceManifestEcuSigned] = Decoder.instance { cursor =>
     cursor.downField("primary_ecu_serial").as[EcuSerial].flatMap { primEcu =>
       cursor.downField("ecu_version_manifests").as[Option[Map[EcuSerial, Json]]].flatMap {
-        case Some(map) => Right(DeviceManifest(primEcu, map))
+        case Some(map) => Right(DeviceManifestEcuSigned(primEcu, map))
         // the legacy format
         case None => cursor.downField("ecu_version_manifest").as[Seq[Json]].flatMap { signedEcus =>
           signedEcus.toList.traverse(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
-            .map(ecus => DeviceManifest(primEcu, ecus.toMap))
+            .map(ecus => DeviceManifestEcuSigned(primEcu, ecus.toMap))
         }
       }
     }

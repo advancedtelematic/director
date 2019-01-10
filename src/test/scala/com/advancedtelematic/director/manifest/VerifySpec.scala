@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit
 
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Ecu
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifestEcuSigned, EcuManifest}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
@@ -61,12 +61,12 @@ abstract class VerifySpec
     val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
     val sEcu = sign(keys, ecuMan)
 
-    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
+    val devMan = DeviceManifestEcuSigned(primEcu, Map( primEcu -> sEcu.asJson))
     val sdevMan = sign(keys, devMan.asJson)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
-    vEcus shouldBe Seq(ecuMan)
+    vEcus.ecu_manifests shouldBe Seq(ecuMan)
   }
 
   test("correctly verifies correct signature for legacy device manifest") {
@@ -78,20 +78,20 @@ abstract class VerifySpec
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
-    vEcus shouldBe Seq(ecuMan)
+    vEcus.ecu_manifests shouldBe Seq(ecuMan)
   }
 
   test("can still verify device-manifest with extra fields") {
     val (keys, ecu, primEcu, ecuMan) = generateKeyAndEcuManifest
     val sEcu = sign(keys, ecuMan)
 
-    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
+    val devMan = DeviceManifestEcuSigned(primEcu, Map( primEcu -> sEcu.asJson))
     val jsonToSend = devMan.asJson.mapObject(_.add("extra-field", Json.fromString("extra content here")))
     val sdevMan = sign(keys, jsonToSend)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
-    vEcus shouldBe Seq(ecuMan)
+    vEcus.ecu_manifests shouldBe Seq(ecuMan)
   }
 
   test("can still verify with ecu-manifest with extra fields") {
@@ -100,12 +100,12 @@ abstract class VerifySpec
       .withFocus(_.mapObject(_.add("sha512", Json.fromString("sha512 comes here")))).top.get
     val sEcu = sign(keys, jsonEcuMan)
 
-    val devMan = DeviceManifest(primEcu, Map( primEcu -> sEcu.asJson))
+    val devMan = DeviceManifestEcuSigned(primEcu, Map( primEcu -> sEcu.asJson))
     val sdevMan = sign(keys, devMan.asJson)
 
     val vEcus = Verify.deviceManifest(Seq(ecu), SignatureVerification.verify, sdevMan).get
 
-    vEcus shouldBe Seq(ecuMan)
+    vEcus.ecu_manifests shouldBe Seq(ecuMan)
   }
 }
 

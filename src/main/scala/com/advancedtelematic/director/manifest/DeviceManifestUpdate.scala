@@ -2,7 +2,7 @@ package com.advancedtelematic.director.manifest
 
 import cats.syntax.show._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, EcuManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -22,15 +22,15 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
     ecus <- deviceRepository.findEcus(namespace, device)
-    ecuManifests <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
-    _ <- processManifest(namespace, device, ecuManifests)
+    deviceManifest <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
+    _ <- processManifest(namespace, device, deviceManifest)
   } yield ()
 
-  private def processManifest(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest]): Future[Unit] = {
+  private def processManifest(namespace: Namespace, device: DeviceId, deviceManifest: DeviceManifest): Future[Unit] = {
 
-    val ecuResults = toEcuInstallationReports(ecuManifests)
-    val failedTargets = toFailedTargets(ecuManifests)
-    DeviceUpdate.checkAgainstTarget(namespace, device, ecuManifests).flatMap {
+    val ecuResults = toEcuInstallationReports(deviceManifest.ecu_manifests)
+    val failedTargets = toFailedTargets(deviceManifest.ecu_manifests)
+    DeviceUpdate.checkAgainstTarget(namespace, device, deviceManifest.ecu_manifests).flatMap {
       case DeviceUpdateResult.NoChange =>
         if (ecuResults.find(!_._2.result.success).isDefined) {
           _log.info(s"Device ${device.show} reports errors during install: $ecuResults")
@@ -67,17 +67,6 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     }.toMap.seq
 
   private def toEcuInstallationReports(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
-    ecuManifests.par.flatMap{ ecuManifest =>
-      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
-        val op = custom.operation_result
-        ecuManifest.ecu_serial -> EcuInstallationReport(
-          InstallationResult(op.result_code == 0, op.result_code.toString, op.result_text),
-          Seq(ecuManifest.installed_image.filepath.toString),
-          None)
-      }
-    }.toMap.seq
-
-  private def toInstallationReport(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
     ecuManifests.par.flatMap{ ecuManifest =>
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
         val op = custom.operation_result

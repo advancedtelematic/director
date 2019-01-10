@@ -22,15 +22,15 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
     ecus <- deviceRepository.findEcus(namespace, device)
-    ecuImages <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
-    _ <- ecuManifests(namespace, device, ecuImages)
+    ecuManifests <- Future.fromTry(Verify.deviceManifest(ecus, verifier, signedDevMan))
+    _ <- processManifest(namespace, device, ecuManifests)
   } yield ()
 
-  private def ecuManifests(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest]): Future[Unit] = {
+  private def processManifest(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest]): Future[Unit] = {
 
-    val ecuResults = toEcuInstallationResults(ecuImages)
-    val failedTargets = toFailedTargets(ecuImages)
-    DeviceUpdate.checkAgainstTarget(namespace, device, ecuImages).flatMap {
+    val ecuResults = toEcuInstallationReports(ecuManifests)
+    val failedTargets = toFailedTargets(ecuManifests)
+    DeviceUpdate.checkAgainstTarget(namespace, device, ecuManifests).flatMap {
       case DeviceUpdateResult.NoChange =>
         if (ecuResults.find(!_._2.result.success).isDefined) {
           _log.info(s"Device ${device.show} reports errors during install: $ecuResults")
@@ -66,7 +66,18 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         .map { _ => ecuManifest.ecu_serial -> ecuManifest.installed_image.filepath }
     }.toMap.seq
 
-  private def toEcuInstallationResults(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
+  private def toEcuInstallationReports(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
+    ecuManifests.par.flatMap{ ecuManifest =>
+      ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
+        val op = custom.operation_result
+        ecuManifest.ecu_serial -> EcuInstallationReport(
+          InstallationResult(op.result_code == 0, op.result_code.toString, op.result_text),
+          Seq(ecuManifest.installed_image.filepath.toString),
+          None)
+      }
+    }.toMap.seq
+
+  private def toInstallationReport(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
     ecuManifests.par.flatMap{ ecuManifest =>
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
         val op = custom.operation_result

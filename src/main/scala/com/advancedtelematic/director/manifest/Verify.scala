@@ -78,6 +78,6 @@ object Verify {
         findEcu(ecuSerial)().flatMap(checkEcuManifest(verifier, _, ecuSerial, jsonBlob))
       }.toSeq.toList
       tryOfManifests <- Traverse[List].sequence(verifiedManifests)
-    } yield DeviceManifest(devMan.primary_ecu_serial, tryOfManifests)
+    } yield DeviceManifest(devMan.primary_ecu_serial, tryOfManifests, devMan.installation_report)
   }
 }

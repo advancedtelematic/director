@@ -139,7 +139,8 @@ trait FileCacheSpec extends DirectorSpec
     val targetImage = GenCustomImage.generate.copy(diffFormat = None)
     val target = SetTarget(Map(primEcu -> targetImage))
 
-    SetTargets.setTargets(defaultNs, Seq(device -> target)).futureValue
+    val correlationId = MultiTargetUpdateId(java.util.UUID.randomUUID())
+    SetTargets.setTargets(defaultNs, Seq(device -> target), Some(correlationId)).futureValue
 
     val ecuManifest2 = Seq(GenSignedEcuManifest(primEcu).generate)
     val devManifest2 = GenSignedDeviceManifest(primEcu, ecuManifest2).generate

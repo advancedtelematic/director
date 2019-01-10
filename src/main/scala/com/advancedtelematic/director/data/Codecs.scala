@@ -13,7 +13,7 @@ import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
 import io.circe.syntax._
-import io.circe.{Decoder, Encoder, Json, JsonObject}
+import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 
 object Codecs {
   import AdminRequest._
@@ -51,18 +51,33 @@ object Codecs {
                        })
   }
 
+
   implicit val decoderDeviceManifestEcuSigned: Decoder[DeviceManifestEcuSigned] = Decoder.instance { cursor =>
-    cursor.downField("primary_ecu_serial").as[EcuSerial].flatMap { primEcu =>
+    for {
+      primaryEcu <- cursor.downField("primary_ecu_serial").as[EcuSerial]
+      installationReport <- cursor.downField("installation_report").as[Option[InstallationReportEntity]]
+      ecuManifests <- decodeEcuManifests(cursor)
+    } yield DeviceManifestEcuSigned(primaryEcu, ecuManifests, installationReport)
+  }
+
+  private def decodeEcuManifests(cursor: HCursor): Decoder.Result[Map[EcuSerial, Json]] =
       cursor.downField("ecu_version_manifests").as[Option[Map[EcuSerial, Json]]].flatMap {
-        case Some(map) => Right(DeviceManifestEcuSigned(primEcu, map))
+        case Some(map) => Right(map)
         // the legacy format
         case None => cursor.downField("ecu_version_manifest").as[Seq[Json]].flatMap { signedEcus =>
           signedEcus.toList.traverse(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
-            .map(ecus => DeviceManifestEcuSigned(primEcu, ecus.toMap))
+            .map(ecus => ecus.toMap)
         }
       }
-    }
-  }
+
+  implicit val decoderInstallationItem: Decoder[InstallationItem] = deriveDecoder
+  implicit val encoderInstallationItem: Encoder[InstallationItem] = deriveEncoder
+
+  implicit val decoderInstallationReport: Decoder[InstallationReport] = deriveDecoder
+  implicit val encoderInstallationReport: Encoder[InstallationReport] = deriveEncoder
+
+  implicit val decoderInstallationReportEntity: Decoder[InstallationReportEntity] = deriveDecoder
+  implicit val encoderInstallationReportEntity: Encoder[InstallationReportEntity] = deriveEncoder
 
   implicit val decoderDeviceRegistration: Decoder[DeviceRegistration] = deriveDecoder
   implicit val encoderDeviceRegistration: Encoder[DeviceRegistration] = deriveEncoder

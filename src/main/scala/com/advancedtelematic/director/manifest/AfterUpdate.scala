@@ -1,18 +1,16 @@
 package com.advancedtelematic.director.manifest
 
 import cats.implicits._
-import com.advancedtelematic.director.data.DataType.DeviceUpdateTarget
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceUpdate}
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
+import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, InstallationResult, EcuInstallationReport}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceInstallationReport
-import com.advancedtelematic.libtuf.data.TufDataType.TargetFilename
+import com.advancedtelematic.libtuf.data.TufDataType.{TargetFilename, ValidTargetFilename}
 
 import java.time.Instant
-import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
@@ -20,52 +18,51 @@ import slick.driver.MySQLDriver.api._
 class AfterDeviceManifestUpdate()
                                (implicit db: Database, ec: ExecutionContext,
                                 messageBusPublisher: MessageBusPublisher)
-    extends AdminRepositorySupport {
+    extends AdminRepositorySupport
+    with DeviceRepositorySupport {
 
-  val successInstallationResult = InstallationResult(true, "0", "All targeted ECUs were successfully updated")
-  val failureInstallationResult = InstallationResult(false, "19", "One or more targeted ECUs failed to update")
+  val canceledInstallationResult = InstallationResult(false, "CANCELLED_ON_ERROR", "Cancelled update due to previous installation error")
 
-  def successMultiTargetUpdate(
-      namespace: Namespace, device: DeviceId,
-      updateTarget: DeviceUpdateTarget,
-      ecuResults: Map[EcuSerial, EcuInstallationReport]) : Future[Unit] =
-    if(updateTarget.updateId.isDefined) {
-      clearMultiTargetUpdate(
-        namespace, device, updateTarget, successInstallationResult, ecuResults,
-        UpdateStatus.Finished)
-    } else {
-      Future.successful(())
-    }
-
-  def failedMultiTargetUpdate(
-      namespace: Namespace, device: DeviceId,
-      version: Int,
-      failedTargets: Map[EcuSerial, TargetFilename],
-      ecuResults: Map[EcuSerial, EcuInstallationReport]) : Future[Unit] = async {
-
-      val lastVersion = await(DeviceUpdate.clearTargetsFrom(namespace, device, version, failedTargets))
-      val updatesToCancel = await(adminRepository.getUpdatesFromTo(namespace, device, version, lastVersion))
-        .filter { _.updateId.isDefined }
-
-      await(updatesToCancel.toList.traverse { case updateTarget =>
-        clearMultiTargetUpdate(
-          namespace, device, updateTarget, failureInstallationResult, ecuResults,
-          UpdateStatus.Failed)
-      })
-
-    }
-
-  private def clearMultiTargetUpdate(
-      namespace: Namespace, device: DeviceId, updateTarget: DeviceUpdateTarget,
-      result: InstallationResult,
-      ecuResults: Map[EcuSerial, EcuInstallationReport],
-      updateSpecStatus: UpdateStatus.UpdateStatus
-    ): Future[Unit] = {
+  def clearUpdate(report: DeviceInstallationReport): Future[Unit] =
     for {
-      _ <- messageBusPublisher.publish(
-        DeviceInstallationReport(namespace, device, updateTarget.correlationId.get,
-                                 result, ecuResults, report = None, Instant.now))
-      _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, updateSpecStatus))
+      _ <- publishReport(report)
+      _ <- if (!report.result.success) clearFailedUpdate(report) else Future.successful(())
+    } yield ()
+
+  private def clearFailedUpdate(report: DeviceInstallationReport) =
+    for {
+      version <- deviceRepository.getCurrentVersion(report.device)
+      failedTargets = toFailedTargets(report)
+      lastVersion <- DeviceUpdate.clearTargetsFrom(report.namespace, report.device, version, failedTargets)
+      // TODO: Properly implement multiple updates queued per device.
+      // Currently there can be only one update queued per device,
+      // so the following code should not be run.
+      updatesToCancel <- adminRepository.getUpdatesFromTo(report.namespace, report.device, version, lastVersion)
+      _ <- updatesToCancel.filter { _.correlationId.isDefined }.toList.traverse { case updateTarget =>
+        publishReport(
+          DeviceInstallationReport(
+            report.namespace,
+            report.device,
+            updateTarget.correlationId.get,
+            canceledInstallationResult,
+            Map(), None, Instant.now))
+      }
+    } yield ()
+
+  private def toFailedTargets(report: DeviceInstallationReport) : Map[EcuSerial, TargetFilename] = {
+    report.ecuReports
+      .filterNot(_._2.result.success)
+      .mapValues { report => report.target.head.refineTry[ValidTargetFilename].get }
+  }
+
+  private def publishReport(report: DeviceInstallationReport) = {
+    for {
+      _ <- messageBusPublisher.publish(report)
+      // Support legacy UpdateSpec message
+      _ <- messageBusPublisher.publish(UpdateSpec(
+          report.namespace,
+          report.device,
+          if(report.result.success) UpdateStatus.Finished else UpdateStatus.Failed))
     } yield ()
   }
 

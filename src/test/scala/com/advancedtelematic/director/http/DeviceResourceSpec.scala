@@ -5,27 +5,27 @@ import java.security.{KeyPairGenerator, PublicKey}
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.Uri
-import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
-import com.advancedtelematic.director.data.Codecs.{encoderCustomManifest, encoderEcuManifest}
+import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.data.DataType.{CampaignId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
-import io.circe.syntax._
 import org.scalatest.Inspectors
 
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
     with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors {
 
+  val correlationId = CampaignId(java.util.UUID.randomUUID())
+
   def schedule(device: DeviceId, targets: SetTarget)(implicit ns: NamespaceTag): Unit = {
-    SetTargets.setTargets(ns.get, Seq(device -> targets)).futureValue
+    SetTargets.setTargets(ns.get, Seq(device -> targets), Some(correlationId)).futureValue
     pretendToGenerate().futureValue
   }
 

@@ -379,6 +379,13 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .failIfNone(MissingCurrentTarget)
   }
 
+  def getCurrentVersionSetIfInitialAction(device: DeviceId): DBIO[Int] = {
+    getCurrentVersionAction(device).flatMap {
+      case None => updateDeviceVersionAction(device, 0).map { _ => 0 }
+      case Some(current_version) => DBIO.successful(current_version)
+    }
+  }
+
   protected [db] def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
     Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
       .map(_ => ())

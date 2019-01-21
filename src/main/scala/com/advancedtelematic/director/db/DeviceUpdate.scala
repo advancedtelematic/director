@@ -12,10 +12,12 @@ import slick.jdbc.MySQLProfile.api._
 object DeviceUpdateResult {
   sealed abstract class DeviceUpdateResult
 
-  final case object NoChange extends DeviceUpdateResult
-  final case class UpdatedSuccessfully(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
-  // the Option on targets is if the device have targets or not
-  final case class UpdatedToWrongTarget(timestamp: Int, targets: Option[Map[EcuSerial, Image]], manifest: Map[EcuSerial, Image]) extends DeviceUpdateResult
+  final case object NoUpdate extends DeviceUpdateResult
+  final case class UpdateNotCompleted(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
+  final case class UpdateSuccessful(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
+  final case class UpdateUnexpectedTarget(
+    updateTarget: DeviceUpdateTarget, expectedTargets: Map[EcuSerial, Image], actualTargets: Map[EcuSerial, Image]
+  ) extends DeviceUpdateResult
 
 }
 
@@ -24,50 +26,46 @@ object DeviceUpdate extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
 
-  def subMap[K, V](xs: Map[K,V], ys: Map[K,V]): Boolean = xs.forall {
+  private def subMap[K, V](xs: Map[K,V], ys: Map[K,V]): Boolean = xs.forall {
     case (k,v) => ys.get(k).contains(v)
   }
 
-  private def isEqualToUpdate(namespace: Namespace, device: DeviceId, next_version: Int, translatedManifest: Map[EcuSerial, Image])
-                             (ifNot : Option[Map[EcuSerial, Image]] => DBIO[DeviceUpdateResult])
-                             (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] =
-    adminRepository.updateExistsAction(namespace, device, next_version).flatMap {
-      case true => adminRepository.fetchTargetVersionAction(namespace, device, next_version).flatMap { targets =>
-        val translatedTargets = targets.mapValues(_.image)
-        if (subMap(translatedTargets, translatedManifest)) {
-          for {
-            _ <- deviceRepository.updateDeviceVersionAction(device, next_version)
-            deviceUpdateTarget <- adminRepository.fetchDeviceUpdateTargetAction(namespace, device, next_version)
-          } yield UpdatedSuccessfully(deviceUpdateTarget)
-        } else {
-          ifNot(Some(translatedTargets))
-        }
-      }
-      case false => ifNot(None)
-    }
-
-  def checkAgainstTarget(namespace: Namespace, device: DeviceId, ecuImages: Seq[EcuManifest])
+  def checkAgainstTarget(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest])
                         (implicit db: Database, ec: ExecutionContext): Future[DeviceUpdateResult] = {
-    val translatedManifest = ecuImages.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
 
-    val dbAct = deviceRepository.getCurrentVersionAction(device).flatMap {
-      case None => isEqualToUpdate(namespace, device, 1, translatedManifest) { _ =>
-        deviceRepository.updateDeviceVersionAction(device, 0).map(_ => NoChange)
+    val dbAct = deviceRepository.getCurrentVersionSetIfInitialAction(device).flatMap { currentVersion =>
+      val nextVersion = currentVersion + 1
+      adminRepository.updateExistsAction(namespace, device, nextVersion).flatMap {
+        case true => handleUpdate(namespace, device, ecuManifests, nextVersion)
+        case false => DBIO.successful(NoUpdate)
       }
-      case Some(current_version) =>
-        val next_version = current_version + 1
-        isEqualToUpdate(namespace, device, next_version, translatedManifest) { translatedTargets =>
+    }.flatMap(x => deviceRepository.persistAllAction(namespace, ecuManifests).map(_ => x))
+
+    db.run(dbAct.transactionally)
+  }
+
+  private def handleUpdate(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest], nextVersion: Int)
+    (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] = {
+
+    adminRepository.fetchDeviceUpdateTargetAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
+      adminRepository.fetchTargetVersionAction(namespace, device, nextVersion).flatMap { ecuTargets =>
+        val actualTargets = ecuManifests.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
+        val expectedTargets = ecuTargets.mapValues(_.image)
+        if (subMap(expectedTargets, actualTargets)) {
+          deviceRepository.updateDeviceVersionAction(device, nextVersion).map { _ =>
+            UpdateSuccessful(deviceUpdateTarget)
+          }
+        } else {
           adminRepository.findImagesAction(namespace, device).map { currentStored =>
-            if (currentStored.toMap == translatedManifest) {
-              NoChange
+            if (currentStored.toMap == actualTargets) {
+              UpdateNotCompleted(deviceUpdateTarget)
             } else {
-              UpdatedToWrongTarget(current_version, translatedTargets, translatedManifest)
+              UpdateUnexpectedTarget(deviceUpdateTarget, expectedTargets, actualTargets)
             }
           }
         }
-    }.flatMap(x => deviceRepository.persistAllAction(namespace, ecuImages).map(_ => x))
-
-    db.run(dbAct.transactionally)
+      }
+    }
   }
 
   private def copyTargetsAction(namespace: Namespace, device: DeviceId, failedTargets: Map[EcuSerial, TargetFilename],

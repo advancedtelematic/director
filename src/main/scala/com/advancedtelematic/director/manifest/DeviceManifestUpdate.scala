@@ -31,7 +31,8 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     val ecuResults = toEcuInstallationReports(deviceManifest.ecu_manifests)
     val failedTargets = toFailedTargets(deviceManifest.ecu_manifests)
     DeviceUpdate.checkAgainstTarget(namespace, device, deviceManifest.ecu_manifests).flatMap {
-      case DeviceUpdateResult.NoChange =>
+      case DeviceUpdateResult.NoUpdate => Future.successful(())
+      case DeviceUpdateResult.UpdateNotCompleted(updateTarget) =>
         if (ecuResults.find(!_._2.result.success).isDefined) {
           _log.info(s"Device ${device.show} reports errors during install: $ecuResults")
           deviceRepository.getCurrentVersion(device).flatMap { currentVersion =>
@@ -40,9 +41,10 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         } else {
           Future.successful(())
         }
-      case DeviceUpdateResult.UpdatedSuccessfully(updateTarget) =>
+      case DeviceUpdateResult.UpdateSuccessful(updateTarget) =>
         afterUpdate.successMultiTargetUpdate(namespace, device, updateTarget, ecuResults)
-      case DeviceUpdateResult.UpdatedToWrongTarget(currentVersion, targets, manifest) =>
+      case DeviceUpdateResult.UpdateUnexpectedTarget(updateTarget, targets, manifest) =>
+        val currentVersion = updateTarget.targetVersion - 1
         if (targets.isEmpty) {
           _log.error(s"Device ${device.show} updated when no update was available")
         } else {

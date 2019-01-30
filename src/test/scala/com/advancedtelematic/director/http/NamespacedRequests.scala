@@ -11,8 +11,8 @@ import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -75,10 +75,10 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
   def getInstalledImages(device: DeviceId)(implicit ns: NamespaceTag): HttpRequest =
     Get(apiUri(s"admin/devices/${device.show}/images")).namespaced
 
-  def getInstalledImagesOkWith(device: DeviceId, withRoutes: Route)(implicit ns: NamespaceTag): Seq[(EcuSerial, Image)] =
+  def getInstalledImagesOkWith(device: DeviceId, withRoutes: Route)(implicit ns: NamespaceTag): Seq[(EcuIdentifier, Image)] =
     getInstalledImages(device) ~> withRoutes ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[Seq[(EcuSerial, Image)]]
+      responseAs[Seq[(EcuIdentifier, Image)]]
     }
 
   def createMultiTargetUpdateOK(mtu: MultiTargetUpdateRequest)(implicit ns: NamespaceTag): UpdateId =
@@ -206,9 +206,9 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def findPublicKeyOk(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): TufKey = {
+  def findPublicKeyOk(device: DeviceId, ecuId: EcuIdentifier)(implicit ns: NamespaceTag): TufKey = {
     Get(Uri(apiUri(s"admin/devices/${device.show}/ecus/public_key"))
-          .withQuery(Uri.Query("ecu_serial" -> ecuSerial.value))).namespaced ~> routes ~> check {
+          .withQuery(Uri.Query("ecu_serial" -> ecuId.value))).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[TufKey]
     }
@@ -260,25 +260,25 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def findAutoUpdate(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): Seq[TargetName] =
-    Get(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update")).namespaced ~> routes ~> check {
+  def findAutoUpdate(device: DeviceId, ecuId: EcuIdentifier)(implicit ns: NamespaceTag): Seq[TargetName] =
+    Get(apiUri(s"admin/devices/${device.show}/ecus/${ecuId.value}/auto_update")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[TargetName]]
     }
 
-  def deleteAllAutoUpdate(device: DeviceId, ecuSerial: EcuSerial)(implicit ns: NamespaceTag): Unit =
-    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update")).namespaced ~> routes ~> check {
+  def deleteAllAutoUpdate(device: DeviceId, ecuId: EcuIdentifier)(implicit ns: NamespaceTag): Unit =
+    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuId.value}/auto_update")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
 
-  def setAutoUpdate(device: DeviceId, ecuSerial: EcuSerial, target: TargetName)(implicit ns: NamespaceTag): Unit = {
-    Put(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
+  def setAutoUpdate(device: DeviceId, ecuId: EcuIdentifier, target: TargetName)(implicit ns: NamespaceTag): Unit = {
+    Put(apiUri(s"admin/devices/${device.show}/ecus/${ecuId.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
   }
 
-  def deleteAutoUpdate(device: DeviceId, ecuSerial: EcuSerial, target: TargetName)(implicit ns: NamespaceTag): Unit = {
-    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuSerial.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
+  def deleteAutoUpdate(device: DeviceId, ecuId: EcuIdentifier, target: TargetName)(implicit ns: NamespaceTag): Unit = {
+    Delete(apiUri(s"admin/devices/${device.show}/ecus/${ecuId.value}/auto_update/${target.value}")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
   }

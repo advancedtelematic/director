@@ -1,18 +1,20 @@
 package com.advancedtelematic.director.manifest
 
+import java.time.Instant
+
 import cats.implicits._
-import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
+import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, InstallationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceInstallationReport
 import com.advancedtelematic.libtuf.data.TufDataType.{TargetFilename, ValidTargetFilename}
-
-import java.time.Instant
-import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
+
+import scala.concurrent.{ExecutionContext, Future}
 
 
 class AfterDeviceManifestUpdate()
@@ -49,7 +51,7 @@ class AfterDeviceManifestUpdate()
       }
     } yield ()
 
-  private def toFailedTargets(report: DeviceInstallationReport) : Map[EcuSerial, TargetFilename] = {
+  private def toFailedTargets(report: DeviceInstallationReport) : Map[EcuIdentifier, TargetFilename] = {
     report.ecuReports
       .filterNot(_._2.result.success)
       .mapValues { report => report.target.head.refineTry[ValidTargetFilename].get }

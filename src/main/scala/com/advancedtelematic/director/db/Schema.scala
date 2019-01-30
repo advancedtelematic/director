@@ -1,42 +1,37 @@
 package com.advancedtelematic.director.db
 
-import java.io.StringWriter
-import java.security.PublicKey
+import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
 import cats.implicits._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, TargetFilename, TargetName, TufKey}
 import eu.timepit.refined.api.Refined
 import io.circe.Json
-import java.time.Instant
-
-import com.advancedtelematic.director.data.FileCacheRequestStatus
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter
 import slick.jdbc.MySQLProfile.api._
 
 
 object Schema {
+  import SlickMapping._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
   import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libats.slick.db.SlickExtensions.javaInstantMapping
-  import com.advancedtelematic.libats.slick.db.SlickUrnMapper._
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
   import com.advancedtelematic.libats.slick.db.SlickUriMapper._
+  import com.advancedtelematic.libats.slick.db.SlickUrnMapper._
+  import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 
-  import SlickMapping._
-
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
-    def ecuSerial = column[EcuSerial]("ecu_serial")
+    def ecuSerial = column[EcuIdentifier]("ecu_serial")
     def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
     def primary = column[Boolean]("primary")
@@ -51,10 +46,10 @@ object Schema {
   }
   protected [db] val ecu = TableQuery[EcusTable]
 
-  type CurrentImageRow = (Namespace, EcuSerial, TargetFilename, Long, Checksum, String)
+  type CurrentImageRow = (Namespace, EcuIdentifier, TargetFilename, Long, Checksum, String)
   class CurrentImagesTable(tag: Tag) extends Table[CurrentImage](tag, "current_images") {
     def namespace = column[Namespace]("namespace")
-    def id = column[EcuSerial]("ecu_serial")
+    def id = column[EcuIdentifier]("ecu_serial")
     def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
@@ -86,7 +81,7 @@ object Schema {
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def namespace  = column[Namespace]("namespace")
     def version = column[Int]("version")
-    def id = column[EcuSerial]("ecu_serial")
+    def id = column[EcuIdentifier]("ecu_serial")
     def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
@@ -201,7 +196,7 @@ object Schema {
   class AutoUpdates(tag: Tag) extends Table[AutoUpdate](tag, "auto_updates") {
     def namespace = column[Namespace]("namespace")
     def device = column[DeviceId]("device")
-    def ecuSerial = column[EcuSerial]("ecu_serial")
+    def ecuSerial = column[EcuIdentifier]("ecu_serial")
     def targetName = column[TargetName]("target_name")
 
     override def * = (namespace, device, ecuSerial, targetName) <>

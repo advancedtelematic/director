@@ -6,8 +6,9 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -17,7 +18,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     with MultiTargetUpdatesRepositorySupport {
 
   protected [db] def resolve(namespace: Namespace, device: DeviceId, mtuRows: Seq[MultiTargetUpdateRow])
-                            (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuSerial, CustomImage]] = {
+                            (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuIdentifier, CustomImage]] = {
     val hwTargets = mtuRows.map{ mtu =>
       val diffFormat = if (mtu.generateDiff) Some(mtu.targetFormat) else None
       mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat)))

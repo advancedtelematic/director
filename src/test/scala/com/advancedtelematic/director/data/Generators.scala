@@ -9,7 +9,6 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Legacy._
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.data.TufDataType.ValidTargetFilename
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType._
@@ -18,6 +17,7 @@ import io.circe.Encoder
 import io.circe.syntax._
 import java.time.Instant
 
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libtuf.data.TufDataType.SignatureMethod.SignatureMethod
 import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
@@ -25,8 +25,8 @@ import org.scalacheck.Gen
 trait Generators {
   lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
 
-  lazy val GenEcuSerial: Gen[EcuSerial] =
-    Gen.choose(10, 64).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
+  lazy val GenEcuIdentifier: Gen[EcuIdentifier] =
+    Gen.choose(10, 64).flatMap(GenStringByCharN(_, Gen.alphaChar)).map(EcuIdentifier(_).right.get)
 
   lazy val GenHardwareIdentifier: Gen[HardwareIdentifier] =
     Gen.choose(10, 200).flatMap(GenRefinedStringByCharN(_, Gen.alphaChar))
@@ -75,14 +75,14 @@ trait Generators {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
   } yield Checksum(HashMethod.SHA256, hash)
 
-  def GenEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest]): Gen[EcuManifest] = for {
+  def GenEcuManifestWithImage(ecuId: EcuIdentifier, image: Image, custom: Option[CustomManifest]): Gen[EcuManifest] = for {
     time <- Gen.const(Instant.now)
     ptime <- Gen.const(Instant.now)
     attacks <- Gen.alphaStr
-  } yield EcuManifest(time, image, ptime, ecuSerial, attacks, custom = custom.map(_.asJson))
+  } yield EcuManifest(time, image, ptime, ecuId, attacks, custom = custom.map(_.asJson))
 
-  def GenEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[EcuManifest] =
-    GenImage.flatMap(GenEcuManifestWithImage(ecuSerial, _, custom))
+  def GenEcuManifest(ecuId: EcuIdentifier, custom: Option[CustomManifest] = None): Gen[EcuManifest] =
+    GenImage.flatMap(GenEcuManifestWithImage(ecuId, _, custom))
 
   def genIdentifier(maxLen: Int): Gen[String] = for {
     //use a minimum length of 10 to reduce possibility of naming conflicts
@@ -129,7 +129,7 @@ trait KeyGenerators extends Generators {
   } yield keyPair.pubkey
 
   lazy val GenRegisterEcu: Gen[RegisterEcu] = for {
-    ecu <- GenEcuSerial
+    ecu <- GenEcuIdentifier
     hwId <- GenHardwareIdentifier
     crypto <- GenTufKey
   } yield RegisterEcu(ecu, hwId, crypto)
@@ -148,19 +148,19 @@ trait KeyGenerators extends Generators {
   def GenSigned[T : Encoder](genT: Gen[T]): Gen[SignedPayload[T]] =
     genT.flatMap(t => GenSignedValue(t))
 
-  def GenSignedEcuManifestWithImage(ecuSerial: EcuSerial, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
-    GenSigned(GenEcuManifestWithImage(ecuSerial, image, custom))
+  def GenSignedEcuManifestWithImage(ecuId: EcuIdentifier, image: Image, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
+    GenSigned(GenEcuManifestWithImage(ecuId, image, custom))
 
-  def GenSignedEcuManifest(ecuSerial: EcuSerial, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
-    GenSigned(GenEcuManifest(ecuSerial, custom))
+  def GenSignedEcuManifest(ecuId: EcuIdentifier, custom: Option[CustomManifest] = None): Gen[SignedPayload[EcuManifest]] =
+    GenSigned(GenEcuManifest(ecuId, custom))
 
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
+  def GenSignedDeviceManifest(primeEcu: EcuIdentifier, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
     GenSignedValue(DeviceManifestEcuSigned(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap).asJson)
 
-  def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
+  def GenSignedDeviceManifest(primeEcu: EcuIdentifier, ecusManifests: Map[EcuIdentifier, SignedPayload[EcuManifest]]) =
     GenSignedValue(DeviceManifestEcuSigned(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}).asJson)
 
-  def GenSignedLegacyDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
+  def GenSignedLegacyDeviceManifest(primeEcu: EcuIdentifier, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
     GenSignedValue(LegacyDeviceManifest(primeEcu, ecusManifests))
 }
 

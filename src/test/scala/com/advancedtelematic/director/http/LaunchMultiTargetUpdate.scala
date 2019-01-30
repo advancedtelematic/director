@@ -9,7 +9,8 @@ import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGene
 import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat._
 import eu.timepit.refined.api.Refined
@@ -26,7 +27,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
   val chw: HardwareIdentifier = Refined.unsafeApply("c")
   val dhw: HardwareIdentifier = Refined.unsafeApply("d")
 
-  def sendManifest(device: DeviceId, primEcu: EcuSerial)(hwimages: (EcuSerial, TargetUpdate)*)(implicit ns: NamespaceTag): Unit = {
+  def sendManifest(device: DeviceId, primEcu: EcuIdentifier)(hwimages: (EcuIdentifier, TargetUpdate)*)(implicit ns: NamespaceTag): Unit = {
     val ecuManifest = hwimages.map {case (ecu, target) =>
       val sig = GenSignedEcuManifest(ecu).generate
       sig.updated(signed = sig.signed.copy(installed_image = target.image))
@@ -35,7 +36,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
     updateManifestOk(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate)
   }
 
-  def sendManifestCustom(device: DeviceId, primEcu: EcuSerial, target: TargetUpdate, custom: CustomManifest)(implicit ns: NamespaceTag): Unit = {
+  def sendManifestCustom(device: DeviceId, primEcu: EcuIdentifier, target: TargetUpdate, custom: CustomManifest)(implicit ns: NamespaceTag): Unit = {
     val ecuManifest = Seq {
       val sig = GenSignedEcuManifest(primEcu).generate
       sig.updated(signed = sig.signed.copy(installed_image = target.image, custom = Some(custom.asJson)))
@@ -44,7 +45,7 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
     updateManifestOk(device, GenSignedDeviceManifest(primEcu, ecuManifest).generate)
   }
 
-  def registerDevice(hardwares : HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
+  def registerDevice(hardwares : HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuIdentifier, Seq[EcuIdentifier]) = {
     val device = DeviceId.generate
 
     val regEcus = hardwares.map { hw =>

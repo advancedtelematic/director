@@ -8,12 +8,13 @@ import com.advancedtelematic.director.data.{DataType, FileCacheRequestStatus}
 import com.advancedtelematic.director.db.Errors._
 import com.advancedtelematic.director.db.SlickMapping._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
-import com.advancedtelematic.libats.data.PaginationResult
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
+import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
@@ -59,7 +60,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .filter(_.namespace === namespace)
       .filter(_.device === device)
 
-  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuSerial, (HardwareIdentifier, Option[Image])]] =
+  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuIdentifier, (HardwareIdentifier, Option[Image])]] =
     byDevice(namespace, device)
       .joinLeft(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
       .map{case (x,y) => (x.ecuSerial, x.hardwareId, y)}
@@ -67,14 +68,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfEmpty(DeviceMissing)
       .map(_.map{case (id, hw, img) => id -> ((hw, img.map(_.image)))}.toMap)
 
-  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuSerial, Image)]] =
+  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuIdentifier, Image)]] =
     byDevice(namespace, device)
       .join(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
       .map(_._2)
       .result
       .map(_.map(cim => cim.ecuSerial -> cim.image))
 
-  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuSerial, Image)]] = db.run {
+  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuIdentifier, Image)]] = db.run {
     findImagesAction(namespace, device)
   }
 
@@ -112,7 +113,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .map(_.map(_._1))
   }
 
-  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuSerial): Future[TufKey] = db.run {
+  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuIdentifier): Future[TufKey] = db.run {
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -148,7 +149,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     } yield queue
   }
 
-  def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
+  def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[Unit] = {
     val toClean = byDevice(namespace, device)
     val clean = Schema.currentImage
       .filter(_.namespace === namespace)
@@ -194,14 +195,14 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
         Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
       }.map(_ => ())
 
-  private def contains(map: Map[EcuSerial, TargetFilename], pair: (Rep[EcuSerial], Rep[TargetFilename])) =
+  private def contains(map: Map[EcuIdentifier, TargetFilename], pair: (Rep[EcuIdentifier], Rep[TargetFilename])) =
     map.map { case (key, value) =>
       pair._1 === key && pair._2 === value
     }.reduce(_ || _)
 
   // skips any targets in "failed"
   protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int,
-                                       failed: Map[EcuSerial, TargetFilename]): DBIO[Unit] =
+                                       failed: Map[EcuIdentifier, TargetFilename]): DBIO[Unit] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -216,7 +217,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
         Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
       }.map(_ => ())
 
-  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuSerial, CustomImage]] =
+  protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuIdentifier, CustomImage]] =
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -226,10 +227,10 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .result
       .map(_.toMap)
 
-  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, CustomImage]] =
+  def fetchTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuIdentifier, CustomImage]] =
     db.run(fetchTargetVersionAction(namespace, device, version))
 
-  def fetchCustomTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuSerial, (HardwareIdentifier, CustomImage)]] = db.run {
+  def fetchCustomTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuIdentifier, (HardwareIdentifier, CustomImage)]] = db.run {
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
@@ -240,9 +241,9 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   }
 
   protected [db] def storeTargetVersion(namespace: Namespace, device: DeviceId,
-                                        version: Int, targets: Map[EcuSerial, CustomImage]): DBIO[Unit] = {
+                                        version: Int, targets: Map[EcuIdentifier, CustomImage]): DBIO[Unit] = {
     val act = (Schema.ecuTargets
-      ++= targets.map{ case (ecuSerial, customImage) => EcuTarget(namespace, version, ecuSerial, customImage)})
+      ++= targets.map{ case (ecuId, customImage) => EcuTarget(namespace, version, ecuId, customImage)})
 
     act.map(_ => ()).transactionally
   }
@@ -255,7 +256,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .handleIntegrityErrors(ConflictingTarget)
   }
 
-  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, CustomImage]): DBIO[Int] = for {
+  protected [db] def updateTargetAction(namespace: Namespace, device: DeviceId, targets: Map[EcuIdentifier, CustomImage]): DBIO[Int] = for {
     version <- getLatestScheduledVersion(namespace, device).asTry.flatMap {
       case Success(x) => DBIO.successful(x)
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
@@ -265,11 +266,11 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     _ <- storeTargetVersion(namespace, device, new_version, targets)
   } yield new_version
 
-  def updateTarget(namespace: Namespace, device: DeviceId, targets: Map[EcuSerial, CustomImage]): Future[Int] = db.run {
+  def updateTarget(namespace: Namespace, device: DeviceId, targets: Map[EcuIdentifier, CustomImage]): Future[Int] = db.run {
     updateTargetAction(namespace, device, targets).transactionally
   }
 
-  def getPrimaryEcuForDevice(device: DeviceId): Future[EcuSerial] = db.run {
+  def getPrimaryEcuForDevice(device: DeviceId): Future[EcuIdentifier] = db.run {
     Schema.ecu
       .filter(_.device === device)
       .filter(_.primary)
@@ -348,7 +349,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
       .andThen(fileCacheRequestRepository.persistAction(fcr))
   }
 
-  def create(namespace: Namespace, device: DeviceId, primEcu: EcuSerial, ecus: Seq[RegisterEcu]): Future[Unit] = {
+  def create(namespace: Namespace, device: DeviceId, primEcu: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[Unit] = {
     def register(reg: RegisterEcu) =
       (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
         .handleIntegrityErrors(EcuAlreadyRegistered)
@@ -364,7 +365,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
   def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
     db.run(byDevice(namespace, device).result)
 
-  def findEcuSerials(namespace: Namespace, device: DeviceId): Future[Set[EcuSerial]] =
+  def findEcuIdentifiers(namespace: Namespace, device: DeviceId): Future[Set[EcuIdentifier]] =
     db.run(byDevice(namespace, device).map(_.ecuSerial).to[Set].result)
 
   protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Option[Int]] =
@@ -592,25 +593,25 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
   import com.advancedtelematic.director.data.DataType.{AutoUpdate, TargetUpdate}
   import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 
-  def persist(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[AutoUpdate] = db.run {
-    val autoUpdate = AutoUpdate(namespace, device, ecuSerial, targetName)
+  def persist(namespace: Namespace, device: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[AutoUpdate] = db.run {
+    val autoUpdate = AutoUpdate(namespace, device, ecuId, targetName)
     (Schema.autoUpdates += autoUpdate)
       .handleIntegrityErrors(ConflictingAutoUpdate)
       .map(_ => autoUpdate)
   }
 
-  def remove(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName): Future[Boolean] = db.run {
+  def remove(namespace: Namespace, device: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[Boolean] = db.run {
     Schema
       .autoUpdates
       .filter(_.namespace === namespace)
       .filter(_.device === device)
-      .filter(_.ecuSerial === ecuSerial)
+      .filter(_.ecuSerial === ecuId)
       .filter(_.targetName === targetName)
       .delete
       .map(_ > 0)
   }
 
-  def removeAll(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Future[Unit] = db.run {
+  def removeAll(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier): Future[Unit] = db.run {
     Schema
       .autoUpdates
       .filter(_.namespace === namespace)
@@ -620,7 +621,7 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
       .map(_ => ())
   }
 
-  def findOnDevice(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Future[Seq[TargetName]] = db.run {
+  def findOnDevice(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier): Future[Seq[TargetName]] = db.run {
     Schema
       .autoUpdates
       .filter(_.namespace === namespace)

@@ -15,11 +15,11 @@ import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.data.ErrorCodes.InvalidEntity
-import com.advancedtelematic.libats.data.ErrorRepresentation
+import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorRepresentation}
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -49,7 +49,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   val setMultiTargets = new SetMultiTargets()
   val cancelUpdate = new CancelUpdate
   val KeyIdPath = Segment.flatMap(_.refineTry[ValidKeyId].toOption)
-  val EcuSerialPath = Segment.flatMap(_.refineTry[ValidEcuSerial].toOption)
+  val EcuIdPath = Segment.flatMap(EcuIdentifier(_).toOption)
   val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
   val paginationParameters = (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)).tmap { case (mLimit, mOffset) =>
@@ -98,7 +98,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   }
 
   def setTargets(namespace: Namespace, device: DeviceId, targets: SetTarget): Route = {
-    val act = deviceRepository.findEcuSerials(namespace, device).flatMap { ecus =>
+    val act = deviceRepository.findEcuIdentifiers(namespace, device).flatMap { ecus =>
       if (!targets.updates.keys.toSet.subsetOf(ecus)) {
         FastFuture.failed(Errors.TargetsNotSubSetOfDevice)
       } else {
@@ -158,8 +158,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def getPublicKey(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route = {
-    val f = adminRepository.findPublicKey(namespace, device, ecuSerial)
+  def getPublicKey(namespace: Namespace, device: DeviceId, ecuId: EcuIdentifier): Route = {
+    val f = adminRepository.findPublicKey(namespace, device, ecuId)
     complete(f)
   }
 
@@ -168,22 +168,22 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     complete(f)
   }
 
-  def autoUpdateRoute(ns: Namespace, device: DeviceId, ecuSerial: EcuSerial): Route =
+  def autoUpdateRoute(ns: Namespace, device: DeviceId, ecuId: EcuIdentifier): Route =
     pathPrefix("auto_update") {
       pathEnd {
         get {
-          complete { autoUpdateRepository.findOnDevice(ns, device, ecuSerial) }
+          complete { autoUpdateRepository.findOnDevice(ns, device, ecuId) }
         } ~
         delete {
-          complete { autoUpdateRepository.removeAll(ns, device, ecuSerial) }
+          complete { autoUpdateRepository.removeAll(ns, device, ecuId) }
         }
       } ~
       path(TargetNamePath) { targetName =>
         put {
-          complete { autoUpdateRepository.persist(ns, device, ecuSerial, targetName) }
+          complete { autoUpdateRepository.persist(ns, device, ecuId, targetName) }
         } ~
         delete {
-          complete { autoUpdateRepository.remove(ns, device, ecuSerial, targetName) }
+          complete { autoUpdateRepository.remove(ns, device, ecuId, targetName) }
         }
       }
     }
@@ -228,14 +228,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   def ecusPath(ns: Namespace, device: DeviceId): Route =
     pathPrefix("ecus") {
-      pathPrefix(EcuSerialPath) { ecuSerial =>
-        autoUpdateRoute(ns, device, ecuSerial) ~
+      pathPrefix(EcuIdPath) { ecuId =>
+        autoUpdateRoute(ns, device, ecuId) ~
         (path("public_key") & get) {
-          getPublicKey(ns, device, ecuSerial)
+          getPublicKey(ns, device, ecuId)
         }
       } ~
-      (path("public_key") & parameters('ecu_serial.as[EcuSerial])) { ecuSerial =>
-        getPublicKey(ns, device, ecuSerial)
+      (path("public_key") & parameters('ecu_serial.as[EcuIdentifier])) { ecuId =>
+        getPublicKey(ns, device, ecuId)
       }
     }
 

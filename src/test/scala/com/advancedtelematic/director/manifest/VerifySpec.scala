@@ -7,17 +7,18 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifestEcuSigned, EcuManifest}
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.data.Legacy.LegacyDeviceManifest
 import com.advancedtelematic.director.data.TestCodecs._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, KeyType, RsaKeyType, SignedPayload, TufKeyPair}
-import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
+import io.circe.{Decoder, Encoder, Json}
 
 abstract class VerifySpec
     extends DirectorSpec
@@ -41,11 +42,11 @@ abstract class VerifySpec
 
   val namespace = Namespace("verify-spec")
 
-  def generateKeyAndEcuManifest: (TufKeyPair, Ecu, EcuSerial, EcuManifest) = {
+  def generateKeyAndEcuManifest: (TufKeyPair, Ecu, EcuIdentifier, EcuManifest) = {
     val deviceId = DeviceId.generate
     val keys = generateKey
 
-    val primEcu = GenEcuSerial.generate
+    val primEcu = GenEcuIdentifier.generate
 
     val ecu = Ecu(primEcu, deviceId, namespace, true, GenHardwareIdentifier.generate, keys.pubkey)
 

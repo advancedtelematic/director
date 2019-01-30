@@ -2,14 +2,16 @@ package com.advancedtelematic.director.data
 
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace, ValidChecksum}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
+import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import java.time.Instant
+
+import com.advancedtelematic.libats.data.EcuIdentifier
 
 
 object FileCacheRequestStatus extends Enumeration {
@@ -44,17 +46,17 @@ object DataType {
   final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
 
   final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
-  final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuSerial,
+  final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuIdentifier,
                                 hardwareId: HardwareIdentifier,
                                 uri: Uri, diff: Option[DiffInfo],
-                                ecuIdentifiers: Map[EcuSerial, TargetCustomUri])
+                                ecuIdentifiers: Map[EcuIdentifier, TargetCustomUri])
 
-  final case class Ecu(ecuSerial: EcuSerial, device: DeviceId, namespace: Namespace, primary: Boolean,
+  final case class Ecu(ecuSerial: EcuIdentifier, device: DeviceId, namespace: Namespace, primary: Boolean,
                        hardwareId: HardwareIdentifier, tufKey: TufKey)
 
-  final case class CurrentImage (namespace: Namespace, ecuSerial: EcuSerial, image: Image, attacksDetected: String)
+  final case class CurrentImage (namespace: Namespace, ecuSerial: EcuIdentifier, image: Image, attacksDetected: String)
 
-  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuSerial, customImage: CustomImage)
+  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuIdentifier, customImage: CustomImage)
 
   final case class DeviceUpdateTarget(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], targetVersion: Int, inFlight: Boolean)
 
@@ -93,7 +95,7 @@ object DataType {
       }
   }
 
-  final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuSerial, targetName: TargetName)
+  final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier, targetName: TargetName)
 
   final case class TargetsCustom(correlationId: Option[CorrelationId])
 

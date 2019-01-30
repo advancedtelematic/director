@@ -347,8 +347,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     // currently device-current-target and device-update-target are both at 2
     // sending empty device manifest should not update device-current-target to 3
     updateManifestOk(device, deviceManifest2)
-    deviceVersion(device) shouldBe Some(3)
-    deviceScheduledVersion(device) shouldBe 3
+    deviceVersion(device) shouldBe Some(2)
+    deviceScheduledVersion(device) shouldBe 2
   }
 
   testWithNamespace("Device can get versioned root.json") { implicit ns =>

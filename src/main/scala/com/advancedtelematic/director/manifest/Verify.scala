@@ -4,7 +4,7 @@ import cats.Traverse
 import cats.instances.try_._
 import cats.instances.list._
 import com.advancedtelematic.director.data.DataType.Ecu
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceManifestEcuSigned, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
@@ -59,7 +59,7 @@ object Verify {
     () <- Either.cond(ecuManifest.ecu_serial == ecuSerial, (), Errors.WrongEcuSerialInEcuManifest).toTry
   } yield ecuManifest
 
-  def deviceManifest(ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[Json]): Try[Seq[EcuManifest]] = {
+  def deviceManifest(ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[Json]): Try[DeviceManifest] = {
     val ecuMap = ecusForDevice.map(x => x.ecuSerial -> x).toMap
 
     def findEcu(ecuSerial: EcuSerial)(handler: PartialFunction[Ecu, Throwable] = PartialFunction.empty): Try[Ecu] =
@@ -69,7 +69,7 @@ object Verify {
       }
 
     for {
-      devMan <- signedDevMan.signed.as[DeviceManifest].toTry
+      devMan <- signedDevMan.signed.as[DeviceManifestEcuSigned].toTry
       primaryEcu <- findEcu(devMan.primary_ecu_serial) {
         case ecu if !ecu.primary => Errors.EcuNotPrimary
       }
@@ -78,6 +78,6 @@ object Verify {
         findEcu(ecuSerial)().flatMap(checkEcuManifest(verifier, _, ecuSerial, jsonBlob))
       }.toSeq.toList
       tryOfManifests <- Traverse[List].sequence(verifiedManifests)
-    } yield tryOfManifests
+    } yield DeviceManifest(devMan.primary_ecu_serial, tryOfManifests)
   }
 }

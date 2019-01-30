@@ -3,7 +3,7 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{FileInfo, Hashes, Image, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, DeviceRegistration, EcuManifest, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifestEcuSigned, DeviceRegistration, EcuManifest, OperationResult}
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
@@ -231,7 +231,7 @@ class CodecsSpec extends DirectorSpec {
     val both_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}, "ecu_version_manifest": [$ecu_manifest_sample]}"""
 
 
-    val device_manifest_parsed: DeviceManifest = DeviceManifest(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson))
+    val device_manifest_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson))
 
     val wrapped_device_manifest_parsed: SignedPayload[Json] = wrapSigned(device_manifest_parsed.asJson)
 

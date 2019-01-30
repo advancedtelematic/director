@@ -15,8 +15,11 @@ object DeviceRequest {
                                attacks_detected: String,
                                custom: Option[Json] = None)
 
-  final case class DeviceManifest(primary_ecu_serial: EcuSerial,
+  final case class DeviceManifestEcuSigned(primary_ecu_serial: EcuSerial,
                                   ecu_version_manifests: Map[EcuSerial, Json])
+
+  final case class DeviceManifest(primary_ecu_serial: EcuSerial,
+                                  ecu_manifests: Seq[EcuManifest])
 
   final case class DeviceRegistration(primary_ecu_serial: EcuSerial,
                                       ecus: Seq[AdminRequest.RegisterEcu])

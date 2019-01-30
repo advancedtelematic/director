@@ -155,10 +155,10 @@ trait KeyGenerators extends Generators {
     GenSigned(GenEcuManifest(ecuSerial, custom))
 
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap).asJson)
+    GenSignedValue(DeviceManifestEcuSigned(primeEcu, ecusManifests.map{ secuMan => secuMan.signed.ecu_serial -> secuMan.asJson}.toMap).asJson)
 
   def GenSignedDeviceManifest(primeEcu: EcuSerial, ecusManifests: Map[EcuSerial, SignedPayload[EcuManifest]]) =
-    GenSignedValue(DeviceManifest(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}).asJson)
+    GenSignedValue(DeviceManifestEcuSigned(primeEcu, ecusManifests.map{case (k, v) => k -> v.asJson}).asJson)
 
   def GenSignedLegacyDeviceManifest(primeEcu: EcuSerial, ecusManifests: Seq[SignedPayload[EcuManifest]]) =
     GenSignedValue(LegacyDeviceManifest(primeEcu, ecusManifests))

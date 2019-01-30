@@ -6,7 +6,8 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.KeyGenerators
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import eu.timepit.refined.api.Refined
@@ -18,21 +19,21 @@ trait DeviceRegistrationUtils extends DirectorSpec
     with NamespacedRequests
     with RouteResourceSpec {
 
-  def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
+  def registerDeviceOk(ecus: Int)(implicit ns: NamespaceTag): (DeviceId, EcuIdentifier, Seq[EcuIdentifier]) = {
     val device = DeviceId.generate
 
-    val ecuSerials = GenEcuSerial.listBetween(ecus, ecus).generate
-    val primEcu = ecuSerials.head
+    val ecuIds = GenEcuIdentifier.listBetween(ecus, ecus).generate
+    val primEcu = ecuIds.head
 
-    val regEcus = ecuSerials.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
+    val regEcus = ecuIds.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
     val regDev = RegisterDevice(device, primEcu, regEcus)
 
     registerDeviceOk(regDev)
 
-    (device, primEcu, ecuSerials)
+    (device, primEcu, ecuIds)
   }
 
-  def updateTheManifest(device: DeviceId, primEcu: EcuSerial, ecus: Map[EcuSerial, TargetFilename])
+  def updateTheManifest(device: DeviceId, primEcu: EcuIdentifier, ecus: Map[EcuIdentifier, TargetFilename])
                        (implicit ns: NamespaceTag): Unit = {
     val ecuManifests = ecus.keys.toSeq.map { ecu =>
       val sig = GenSignedEcuManifest(ecu).generate
@@ -45,13 +46,13 @@ trait DeviceRegistrationUtils extends DirectorSpec
     updateManifestOk(device, devManifest)
   }
 
-  def createDeviceWithImages(images: TargetFilename*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
-    val (device, primEcu, ecuSerials) = registerDeviceOk(images.length)
-    val ecus = ecuSerials.zip(images).toMap
+  def createDeviceWithImages(images: TargetFilename*)(implicit ns: NamespaceTag): (DeviceId, EcuIdentifier, Seq[EcuIdentifier]) = {
+    val (device, primEcu, ecuIds) = registerDeviceOk(images.length)
+    val ecus = ecuIds.zip(images).toMap
 
     updateTheManifest(device, primEcu, ecus)
 
-    (device, primEcu, ecuSerials)
+    (device, primEcu, ecuIds)
   }
 
   def registerNSDeviceOk(images: TargetFilename*)(implicit ns: NamespaceTag): DeviceId = createDeviceWithImages(images : _*)._1
@@ -71,10 +72,10 @@ trait DeviceRegistrationUtils extends DirectorSpec
     device
   }
 
-  def setRandomTargets(device: DeviceId, ecuSerials: Seq[EcuSerial],
+  def setRandomTargets(device: DeviceId, ecuIds: Seq[EcuIdentifier],
                        diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
-                      (implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
-    val targets = ecuSerials.map{ ecu =>
+                      (implicit ns: NamespaceTag): Map[EcuIdentifier, CustomImage] = {
+    val targets = ecuIds.map{ ecu =>
       ecu -> GenCustomImage.generate.copy(diffFormat = diffFormat)
     }.toMap
 
@@ -82,11 +83,11 @@ trait DeviceRegistrationUtils extends DirectorSpec
     targets
   }
 
-  def setRandomTargetsToSameImage(device: DeviceId, ecuSerials: Seq[EcuSerial],
+  def setRandomTargetsToSameImage(device: DeviceId, ecuIds: Seq[EcuIdentifier],
                                   diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
-                                 (implicit ns: NamespaceTag): Map[EcuSerial, CustomImage] = {
+                                 (implicit ns: NamespaceTag): Map[EcuIdentifier, CustomImage] = {
     val image = GenCustomImage.generate.copy(diffFormat = diffFormat)
-    val targets = ecuSerials.map { ecu =>
+    val targets = ecuIds.map { ecu =>
       ecu -> image
     }.toMap
 

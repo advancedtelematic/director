@@ -12,9 +12,10 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, Checksum, HashMethod, Namespace}
+import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace}
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.crypt.CanonicalJson.ToCanonicalJsonOps
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, MetaItem, RoleTypeOps, SnapshotRole, TargetsRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -47,10 +48,10 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     MetaItem(Map(checkSum.method -> checkSum.hash), file.length, version = version)
   }
 
-  private def targetsRole(targets: Map[EcuSerial, TargetCustomImage], targetVersion: Int, expires: Instant,
+  private def targetsRole(targets: Map[EcuIdentifier, TargetCustomImage], targetVersion: Int, expires: Instant,
                           custom: Option[TargetsCustom]): TargetsRole = {
     // there can be multiple ECUs per filename
-    val byFilename: Map[TargetFilename, Map[EcuSerial, TargetCustomImage]] = targets.groupBy {
+    val byFilename: Map[TargetFilename, Map[EcuIdentifier, TargetCustomImage]] = targets.groupBy {
       case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
     }
 
@@ -86,7 +87,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
 
   private def generateWithCustom(namespace: Namespace, device: DeviceId,
                                  targetVersion: Int, timestampVersion: Int,
-                                 targets: Map[EcuSerial, TargetCustomImage],
+                                 targets: Map[EcuIdentifier, TargetCustomImage],
                                  custom: Option[TargetsCustom]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
@@ -105,9 +106,9 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
 
   // doesn't compile with the more concrete type Map instead of TraversableOnce, related to "-Ypartial-unification".
   // another  workaround might be to use parTraverse from cats
-  private def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuSerial, Image],
-                            targets: TraversableOnce[(EcuSerial, (HardwareIdentifier, CustomImage))]): Future[Map[EcuSerial, TargetCustomImage]] = {
-    Future.traverse(targets.toTraversable) { case (ecu: EcuSerial, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
+  private def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuIdentifier, Image],
+                                    targets: TraversableOnce[(EcuIdentifier, (HardwareIdentifier, CustomImage))]): Future[Map[EcuIdentifier, TargetCustomImage]] = {
+    Future.traverse(targets.toTraversable) { case (ecu: EcuIdentifier, (hw: HardwareIdentifier, CustomImage(image: Image, uri: Uri, doDiff: Option[TargetFormat]))) =>
       doDiff match {
         case None => FastFuture.successful(ecu -> TargetCustomImage(image, hw, uri, None))
         case Some(targetFormat) =>

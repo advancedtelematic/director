@@ -1,25 +1,25 @@
 package com.advancedtelematic.director.data
 
-import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
-import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.{FileInfo, Hashes, Image, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifestEcuSigned, DeviceRegistration, EcuManifest, InstallationReportEntity, InstallationReport, InstallationItem, OperationResult}
-import com.advancedtelematic.director.data.TestCodecs._
-import com.advancedtelematic.director.util.DirectorSpec
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, Namespace, ValidChecksum}
-import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, InstallationResult, UpdateId, ValidEcuSerial}
-import com.advancedtelematic.libtuf.crypt.TufCrypto
-import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{
-  ClientSignature, SignatureMethod, SignedPayload, TargetFormat, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
-import io.circe.{Decoder, Encoder, Json}
-import io.circe.parser._
-import io.circe.syntax._
 import java.time.Instant
 import java.util.UUID
 
+import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
+import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest._
+import com.advancedtelematic.director.data.TestCodecs._
+import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult, UpdateId}
+import com.advancedtelematic.libtuf.crypt.TufCrypto
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, SignatureMethod, SignedPayload, TargetFormat, ValidHardwareIdentifier, ValidKeyId, ValidSignature}
 import eu.timepit.refined.api.Refined
+import io.circe.parser._
+import io.circe.syntax._
+import io.circe.{Decoder, Encoder, Json}
 
 import scala.reflect.ClassTag
 
@@ -73,7 +73,7 @@ class CodecsSpec extends DirectorSpec {
           hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
           length = 21)),
       previous_timeserver_time = Instant.ofEpochSecond(1476461163),
-      ecu_serial = "ecu11111".refineTry[ValidEcuSerial].get,
+      ecu_serial = EcuIdentifier("ecu11111").right.get,
       attacks_detected = "")
 
     val ecu_manifest_sample_parsed: SignedPayload[EcuManifest]
@@ -108,7 +108,7 @@ class CodecsSpec extends DirectorSpec {
 
     val sample = s"""{"primary_ecu_serial": "$ecu_serial", "ecus": [$ecus]}"""
 
-    val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
+    val p_ecu_serial = EcuIdentifier(ecu_serial).right.get
     val p_tufKey = TufCrypto.parsePublic(RsaKeyType, pubKey).get
     val parsed = DeviceRegistration(p_ecu_serial, Seq(RegisterEcu(p_ecu_serial, hardwareId.refineTry[ValidHardwareIdentifier].get, p_tufKey)))
 
@@ -132,7 +132,7 @@ class CodecsSpec extends DirectorSpec {
     val clientKey = s"""{"keytype": "RSA", "keyval": {"public": "${pubKey.replace("\n","\\n")}"}}"""
     val sample = s"""{"ecu_serial": "$ecu_serial", "clientKey": $clientKey}"""
 
-    val p_ecu_serial = ecu_serial.refineTry[ValidEcuSerial].get
+    val p_ecu_serial = EcuIdentifier(ecu_serial).right.get
     val p_tufKey = TufCrypto.parsePublic(RsaKeyType, pubKey).get
     val parsed = RegisterEcu(p_ecu_serial, None, p_tufKey)
 
@@ -160,7 +160,7 @@ class CodecsSpec extends DirectorSpec {
           hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
           length = 21)),
       previous_timeserver_time = Instant.ofEpochSecond(1476461163),
-      ecu_serial = "ecu11111".refineTry[ValidEcuSerial].get,
+      ecu_serial = EcuIdentifier("ecu11111").right.get,
       attacks_detected = "",
       custom = Some(CustomManifest(OperationResult(
                                      "some-id",
@@ -172,10 +172,11 @@ class CodecsSpec extends DirectorSpec {
   }
 
   {
-    import com.advancedtelematic.director.data.Messages.UpdateSpec
+    import java.time.format.DateTimeFormatter
+
     import com.advancedtelematic.director.data.MessageCodecs._
     import com.advancedtelematic.director.data.MessageDataType.{SOTA_Instant, UpdateStatus}
-    import java.time.format.DateTimeFormatter
+    import com.advancedtelematic.director.data.Messages.UpdateSpec
 
     val sample: String = """{"namespace":"the updateSpec namespace","device":"61d89c4f-b238-4fff-ad7a-b2f0a196230a","packageUuid":"32eb10cc-7431-4945-9b4b-145abb26f69e","status":"Finished","timestamp":"2017-07-03T12:35:32.353Z"}"""
 
@@ -189,8 +190,8 @@ class CodecsSpec extends DirectorSpec {
   }
 
   {
-    import com.advancedtelematic.director.data.Messages.UpdateSpec
     import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
+    import com.advancedtelematic.director.data.Messages.UpdateSpec
 
     val sample: String = "\"00000000-0000-0000-0000-000000000000\""
     val parsed: UpdateId = UpdateSpec(Namespace("the updateSpec namespace"), DeviceId.generate, UpdateStatus.Failed).packageUuid
@@ -211,7 +212,7 @@ class CodecsSpec extends DirectorSpec {
         signed = t,
         json = t.asJson)
 
-    val ecuSerial: EcuSerial = "ecu11111".refineTry[ValidEcuSerial].get
+    val ecuId: EcuIdentifier = EcuIdentifier("ecu11111").right.get
     val ecu_manifest_sample_parsed: SignedPayload[EcuManifest]
       = wrapSigned(EcuManifest(timeserver_time = Instant.ofEpochSecond(1476461163),
                                installed_image = Image(
@@ -220,7 +221,7 @@ class CodecsSpec extends DirectorSpec {
                                    hashes = Hashes("3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
                                    length = 21)),
                                previous_timeserver_time = Instant.ofEpochSecond(1476461163),
-                               ecu_serial = ecuSerial,
+                               ecu_serial = ecuId,
                                attacks_detected = ""))
 
     // notice that legacy spelled it `ecu_version_manifest` rather than `ecu_version_manifests`, and did not use a Map
@@ -234,15 +235,15 @@ class CodecsSpec extends DirectorSpec {
       InstallationReport(
         MultiTargetUpdateId(UUID.fromString("388a2227-6d56-466c-8154-5c283e696728")),
         InstallationResult(true, "OK", "Installation was successful"),
-        Seq(InstallationItem(ecuSerial, InstallationResult(true, "OK", "ECU installation was successful"))),
+        Seq(InstallationItem(ecuId, InstallationResult(true, "OK", "ECU installation was successful"))),
         Some("")))
 
     val wrapped_device_manifest_sample: String = wrapSample(device_manifest_with_report_sample)
     val both_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}, "ecu_version_manifest": [$ecu_manifest_sample]}"""
 
 
-    val device_manifest_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson))
-    val device_manifest_installation_report_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson), Some(installation_report_parsed))
+    val device_manifest_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuId, Map(ecuId -> ecu_manifest_sample_parsed.asJson))
+    val device_manifest_installation_report_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuId, Map(ecuId -> ecu_manifest_sample_parsed.asJson), Some(installation_report_parsed))
 
     val wrapped_device_manifest_parsed: SignedPayload[Json] = wrapSigned(device_manifest_installation_report_parsed.asJson)
 

@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{Image, DeviceUpdateTarget}
+import com.advancedtelematic.director.data.DataType.{DeviceUpdateTarget, Image}
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFilename
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -16,7 +17,7 @@ object DeviceUpdateResult {
   final case class UpdateNotCompleted(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
   final case class UpdateSuccessful(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
   final case class UpdateUnexpectedTarget(
-    updateTarget: DeviceUpdateTarget, expectedTargets: Map[EcuSerial, Image], actualTargets: Map[EcuSerial, Image]
+                                           updateTarget: DeviceUpdateTarget, expectedTargets: Map[EcuIdentifier, Image], actualTargets: Map[EcuIdentifier, Image]
   ) extends DeviceUpdateResult
 
 }
@@ -68,7 +69,7 @@ object DeviceUpdate extends AdminRepositorySupport
     }
   }
 
-  private def copyTargetsAction(namespace: Namespace, device: DeviceId, failedTargets: Map[EcuSerial, TargetFilename],
+  private def copyTargetsAction(namespace: Namespace, device: DeviceId, failedTargets: Map[EcuIdentifier, TargetFilename],
                                 deviceVersion: Int, nextTimestampVersion: Int)(implicit db: Database, ec: ExecutionContext) =
     if (failedTargets.isEmpty) {
       adminRepository.copyTargetsAction(namespace, device, deviceVersion, nextTimestampVersion)
@@ -76,7 +77,7 @@ object DeviceUpdate extends AdminRepositorySupport
       adminRepository.copyTargetsAction(namespace, device, nextTimestampVersion - 1, nextTimestampVersion, failedTargets)
     }
 
-  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuSerial, TargetFilename])
+  private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuIdentifier, TargetFilename])
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
       latestScheduledVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
@@ -89,7 +90,7 @@ object DeviceUpdate extends AdminRepositorySupport
     dbAct.transactionally
   }
 
-  def clearTargetsFrom(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuSerial, TargetFilename])
+  def clearTargetsFrom(namespace: Namespace, device: DeviceId, deviceVersion: Int, failedTargets: Map[EcuIdentifier, TargetFilename])
                       (implicit db: Database, ec: ExecutionContext): Future[Int] = db.run {
     clearTargetsFromAction(namespace, device, deviceVersion, failedTargets)
   }

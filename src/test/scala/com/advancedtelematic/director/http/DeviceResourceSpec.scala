@@ -1,20 +1,19 @@
 package com.advancedtelematic.director.http
 
-import java.util.concurrent.ConcurrentHashMap
 import java.security.{KeyPairGenerator, PublicKey}
+import java.util.concurrent.ConcurrentHashMap
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import com.advancedtelematic.director.data.AdminRequest._
+import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
-import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
-import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.libats.data.DataType.{CampaignId}
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.libats.data.DataType.CampaignId
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
 import org.scalatest.Inspectors
@@ -50,7 +49,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
   testWithNamespace("Can't register device with primary ECU not in `ecus`") { implicit ns =>
     val device = DeviceId.generate()
-    val primEcu = GenEcuSerial.generate
+    val primEcu = GenEcuIdentifier.generate
     val ecus = GenRegisterEcu.atMost(5).generate.filter(_.ecu_serial != primEcu)
 
     val regDev = RegisterDevice(device, primEcu, ecus)
@@ -115,7 +114,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
-    val fakePrimEcu = GenEcuSerial.generate
+    val fakePrimEcu = GenEcuIdentifier.generate
     val ecus = GenRegisterEcu.atMost(5).generate ++
       (primEcuReg :: GenRegisterEcu.atMost(5).generate)
 
@@ -166,7 +165,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
     val ecusWork = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-    val ecusFail = GenEcuSerial.nonEmptyAtMost(5).generate.map{ecu =>
+    val ecusFail = GenEcuIdentifier.nonEmptyAtMost(5).generate.map{ ecu =>
       val regEcu = GenRegisterEcu.generate
       taintedKeys.put(regEcu.clientKey.keyval, Unit)
       regEcu
@@ -369,10 +368,10 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 class RsaDeviceResourceSpec extends DeviceResourceSpec with RsaGenerators {
   testWithNamespace("Device can't register with a public RSA key which is too small") { implicit ns =>
     val device = DeviceId.generate
-    val ecuSerials = GenEcuSerial.listBetween(5,5).generate
-    val primEcu = ecuSerials.head
+    val ecuIds = GenEcuIdentifier.listBetween(5,5).generate
+    val primEcu = ecuIds.head
 
-    val regEcusPrev = ecuSerials.zipWithIndex.map { case (ecu, i) =>
+    val regEcusPrev = ecuIds.zipWithIndex.map { case (ecu, i) =>
       val reg = GenRegisterEcu.generate.copy(ecu_serial = ecu)
       if (i == 3) {
         // we can't use TufCrypto.generateKeyPair to generate the key since it will

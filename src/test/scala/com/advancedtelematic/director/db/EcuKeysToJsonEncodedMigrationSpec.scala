@@ -3,11 +3,10 @@ package com.advancedtelematic.director.db
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.testkit.TestKitBase
-import com.advancedtelematic.libats.data.DataType
-import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, ValidEcuSerial}
+import com.advancedtelematic.libats.data.{DataType, EcuIdentifier}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.test.{DatabaseSpec, LongTest}
-import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, ValidKeyId}
+import com.advancedtelematic.libtuf.data.TufDataType.RSATufKey
 import org.scalatest.concurrent.{PatienceConfiguration, ScalaFutures}
 import org.scalatest.{FunSuite, Matchers}
 import slick.jdbc.MySQLProfile.api._
@@ -28,7 +27,7 @@ class EcuKeysToJsonEncodedMigrationSpec extends FunSuite with TestKitBase with D
 
   test("updates a key from old encoding to new encoding") {
     val device = DeviceId.generate()
-    val serial = "cxJvjrQeNqwcct".refineTry[ValidEcuSerial].get
+    val serial = EcuIdentifier("cxJvjrQeNqwcct").right.get
 
     val sql =
       sqlu"""insert into `ecus` (ecu_serial, device, namespace, `primary`, public_key, hardware_identifier) VALUES (
@@ -50,7 +49,7 @@ class EcuKeysToJsonEncodedMigrationSpec extends FunSuite with TestKitBase with D
   test("migrations run with multiple keys") {
     val device = DeviceId.generate()
 
-    val serial0 = "oneserial".refineTry[ValidEcuSerial].get
+    val serial0 = EcuIdentifier("oneserial").right.get
 
     val sql0 =
       sqlu"""insert into `ecus` (ecu_serial, device, namespace, `primary`, public_key, hardware_identifier) VALUES (
@@ -62,7 +61,7 @@ class EcuKeysToJsonEncodedMigrationSpec extends FunSuite with TestKitBase with D
             'somehwid'
             );"""
 
-    val serial1 = "anotherserial".refineTry[ValidEcuSerial].get
+    val serial1 = EcuIdentifier("anotherserial").right.get
 
     val sql1 =
       sqlu"""insert into `ecus` (ecu_serial, device, namespace, `primary`, public_key, hardware_identifier) VALUES (

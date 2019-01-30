@@ -1,22 +1,20 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.AdminRequest.SetTarget
-import com.advancedtelematic.director.data.DataType.CustomImage
+import com.advancedtelematic.director.data.DataType.{CustomImage, FileCacheRequest}
+import com.advancedtelematic.director.data.FileCacheRequestStatus
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId}
-
-import scala.concurrent.{ExecutionContext, Future}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import slick.jdbc.MySQLProfile.api._
 
-
-import com.advancedtelematic.director.data.DataType.FileCacheRequest
-import com.advancedtelematic.director.data.FileCacheRequestStatus
+import scala.concurrent.{ExecutionContext, Future}
 
 object SetTargets extends AdminRepositorySupport
     with FileCacheRequestRepositorySupport {
 
   protected [db] def setDeviceTargetAction(namespace: Namespace, device: DeviceId, updateId: Option[UpdateId],
-                                           targets: Map[EcuSerial, CustomImage],
+                                           targets: Map[EcuIdentifier, CustomImage],
                                            correlationId: Option[CorrelationId] = None)
                                           (implicit db: Database, ec: ExecutionContext): DBIO[Int] = for {
     new_version <- adminRepository.updateTargetAction(namespace, device, targets)

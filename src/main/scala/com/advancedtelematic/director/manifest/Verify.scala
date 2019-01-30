@@ -6,7 +6,7 @@ import cats.instances.list._
 import com.advancedtelematic.director.data.DataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, DeviceManifestEcuSigned, EcuManifest}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.libats.messaging_datatype.DataType.EcuSerial
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{ClientSignature, Signature, SignedPayload, TufKey}
@@ -52,18 +52,18 @@ object Verify {
     }
   }
 
-  private def checkEcuManifest(verifier: TufKey => Verifier, ecu: Ecu, ecuSerial: EcuSerial, jsonBlob: Json): Try[EcuManifest] = for {
+  private def checkEcuManifest(verifier: TufKey => Verifier, ecu: Ecu, ecuId: EcuIdentifier, jsonBlob: Json): Try[EcuManifest] = for {
     signedBlob <- jsonBlob.as[SignedPayload[Json]].toTry
     manifestBlob <- checkSigned(signedBlob, verifier(ecu.tufKey))
     ecuManifest <- manifestBlob.as[EcuManifest].toTry
-    () <- Either.cond(ecuManifest.ecu_serial == ecuSerial, (), Errors.WrongEcuSerialInEcuManifest).toTry
+    () <- Either.cond(ecuManifest.ecu_serial == ecuId, (), Errors.WrongEcuSerialInEcuManifest).toTry
   } yield ecuManifest
 
   def deviceManifest(ecusForDevice: Seq[Ecu], verifier: TufKey => Verifier, signedDevMan: SignedPayload[Json]): Try[DeviceManifest] = {
     val ecuMap = ecusForDevice.map(x => x.ecuSerial -> x).toMap
 
-    def findEcu(ecuSerial: EcuSerial)(handler: PartialFunction[Ecu, Throwable] = PartialFunction.empty): Try[Ecu] =
-      ecuMap.get(ecuSerial) match {
+    def findEcu(ecuId: EcuIdentifier)(handler: PartialFunction[Ecu, Throwable] = PartialFunction.empty): Try[Ecu] =
+      ecuMap.get(ecuId) match {
         case None => Failure(Errors.EcuNotFound)
         case Some(ecu) => if (handler.isDefinedAt(ecu)) Failure(handler(ecu)) else Success(ecu)
       }
@@ -74,8 +74,8 @@ object Verify {
         case ecu if !ecu.primary => Errors.EcuNotPrimary
       }
       _ <- checkSigned(signedDevMan, verifier(primaryEcu.tufKey))
-      verifiedManifests = devMan.ecu_version_manifests.map { case (ecuSerial, jsonBlob) =>
-        findEcu(ecuSerial)().flatMap(checkEcuManifest(verifier, _, ecuSerial, jsonBlob))
+      verifiedManifests = devMan.ecu_version_manifests.map { case (ecuId, jsonBlob) =>
+        findEcu(ecuId)().flatMap(checkEcuManifest(verifier, _, ecuId, jsonBlob))
       }.toSeq.toList
       tryOfManifests <- Traverse[List].sequence(verifiedManifests)
     } yield DeviceManifest(devMan.primary_ecu_serial, tryOfManifests, devMan.installation_report)

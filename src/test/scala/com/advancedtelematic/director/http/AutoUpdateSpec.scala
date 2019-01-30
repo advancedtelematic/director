@@ -8,8 +8,9 @@ import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGene
 import com.advancedtelematic.director.db.{FileCacheDB, SetMultiTargets}
 import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientDataType.TargetCustom
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetName, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
@@ -17,7 +18,7 @@ import eu.timepit.refined.api.Refined
 
 trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB with NamespacedRequests with RouteResourceSpec {
 
-  def regDevice(primEcuHw: HardwareIdentifier, otherEcuHw: HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuSerial, Seq[EcuSerial]) = {
+  def regDevice(primEcuHw: HardwareIdentifier, otherEcuHw: HardwareIdentifier*)(implicit ns: NamespaceTag): (DeviceId, EcuIdentifier, Seq[EcuIdentifier]) = {
     val device = DeviceId.generate
     val regEcus = (primEcuHw :: otherEcuHw.toList).map { hw =>
       GenRegisterEcu.generate.copy(hardware_identifier = Some(hw))
@@ -57,9 +58,9 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
 
   testWithNamespace("fetching non-existent autoupdate yield empty") { implicit ns =>
     val device = DeviceId.generate
-    val ecuSerial= GenEcuSerial.generate
+    val ecuId = GenEcuIdentifier.generate
 
-    findAutoUpdate(device, ecuSerial) shouldBe Seq()
+    findAutoUpdate(device, ecuId) shouldBe Seq()
   }
 
   testWithNamespace("setting/unsetting targetName shows up") { implicit ns =>
@@ -132,7 +133,7 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
     tufTargetWorker.action(tufTargetAdded).futureValue
     pretendToGenerate().futureValue
 
-    def checkQueue(device: DeviceId, primEcu: EcuSerial): Unit = {
+    def checkQueue(device: DeviceId, primEcu: EcuIdentifier): Unit = {
       val queue = deviceQueueOk(device)
 
       queue.length shouldBe 1

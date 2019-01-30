@@ -5,9 +5,8 @@ import cats.instances.either._
 import cats.syntax.traverse._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
-import com.advancedtelematic.libats.data.RefinedUtils._
+import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.http.HttpCodecs._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{EcuSerial, ValidEcuSerial}
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -54,18 +53,18 @@ object Codecs {
 
   implicit val decoderDeviceManifestEcuSigned: Decoder[DeviceManifestEcuSigned] = Decoder.instance { cursor =>
     for {
-      primaryEcu <- cursor.downField("primary_ecu_serial").as[EcuSerial]
+      primaryEcu <- cursor.downField("primary_ecu_serial").as[EcuIdentifier]
       installationReport <- cursor.downField("installation_report").as[Option[InstallationReportEntity]]
       ecuManifests <- decodeEcuManifests(cursor)
     } yield DeviceManifestEcuSigned(primaryEcu, ecuManifests, installationReport)
   }
 
-  private def decodeEcuManifests(cursor: HCursor): Decoder.Result[Map[EcuSerial, Json]] =
-      cursor.downField("ecu_version_manifests").as[Option[Map[EcuSerial, Json]]].flatMap {
+  private def decodeEcuManifests(cursor: HCursor): Decoder.Result[Map[EcuIdentifier, Json]] =
+      cursor.downField("ecu_version_manifests").as[Option[Map[EcuIdentifier, Json]]].flatMap {
         case Some(map) => Right(map)
         // the legacy format
         case None => cursor.downField("ecu_version_manifest").as[Seq[Json]].flatMap { signedEcus =>
-          signedEcus.toList.traverse(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuSerial].map(_ -> sEcu))
+          signedEcus.toList.traverse(sEcu => sEcu.hcursor.downField("signed").downField("ecu_serial").as[EcuIdentifier].map(_ -> sEcu))
             .map(ecus => ecus.toMap)
         }
       }
@@ -150,6 +149,6 @@ object AkkaHttpUnmarshallingSupport {
   import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
   import akka.http.scaladsl.util.FastFuture
 
-  implicit val ecuSerial: FromStringUnmarshaller[EcuSerial] =
-    Unmarshaller{ec => x => FastFuture(x.refineTry[ValidEcuSerial])}
+  implicit val ecuIdUnmarshaller: FromStringUnmarshaller[EcuIdentifier] =
+    Unmarshaller { _ => x => FastFuture(EcuIdentifier(x).toTry) }
 }

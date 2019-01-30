@@ -89,10 +89,10 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   testWithNamespace("devices/id/ecus/public_key can get public key") { implicit ns =>
     val device = DeviceId.generate
 
-    val ecuSerials = GenEcuSerial.listBetween(2, 5).generate
-    val primEcu = ecuSerials.head
+    val ecuIds = GenEcuIdentifier.listBetween(2, 5).generate
+    val primEcu = ecuIds.head
 
-    val regEcus = ecuSerials.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
+    val regEcus = ecuIds.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
     val regDev = RegisterDevice(device, primEcu, regEcus)
 
     registerDeviceOk(regDev)
@@ -118,35 +118,35 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   }
 
   testWithNamespace("device/queue (device not reported)") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-    val targets = setRandomTargets(device, ecuSerials)
+    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
+    val targets = setRandomTargets(device, ecuIds)
 
     val q = deviceQueueOk(device)
     q.map(_.targets) shouldBe Seq(targets)
   }
 
   testWithNamespace("device/queue (device reported)") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
 
     val reportedVersions = 42
     setCampaign(device, reportedVersions).futureValue
     setDeviceVersion(device, reportedVersions).futureValue
 
-    val targets = setRandomTargets(device, ecuSerials)
+    val targets = setRandomTargets(device, ecuIds)
 
     val q = deviceQueueOk(device)
     q.map(_.targets) shouldBe Seq(targets)
   }
 
   testWithNamespace("device/queue (device reported) with bigger queue") { implicit ns =>
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
+    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
 
     val reportedVersions = 42
     setCampaign(device, reportedVersions).futureValue
     setDeviceVersion(device, reportedVersions).futureValue
 
-    val targets = setRandomTargets(device, ecuSerials)
-    val targets2 = setRandomTargets(device, ecuSerials)
+    val targets = setRandomTargets(device, ecuIds)
+    val targets2 = setRandomTargets(device, ecuIds)
 
     val q = deviceQueueOk(device)
     q.map(_.targets) shouldBe Seq(targets, targets2)
@@ -154,8 +154,8 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
 
   testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
     createRepoOk(testKeyType)
-    val (device, _, ecuSerials) = createDeviceWithImages(afn, bfn)
-    setRandomTargets(device, ecuSerials, diffFormat = None)
+    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
+    setRandomTargets(device, ecuIds, diffFormat = None)
 
     val q = deviceQueueOk(device)
     q.map(_.inFlight) shouldBe Seq(false)
@@ -170,14 +170,14 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
 
     createRepoOk(testKeyType)
-    val (device, primEcuSerial, ecuSerials) = createDeviceWithImages(afn, bfn)
-    setRandomTargetsToSameImage(device, ecuSerials, diffFormat = None)
+    val (device, primaryEcuId, ecuIds) = createDeviceWithImages(afn, bfn)
+    setRandomTargetsToSameImage(device, ecuIds, diffFormat = None)
 
     val targets = fetchTargetsFor(device)
     val targetEcus = targets.signed.targets.head._2.customParsed.get.ecuIdentifiers
     // sanity check to see we are testing the right thing:
     targetEcus.size shouldBe >= (2)
-    targetEcus.keySet shouldBe ecuSerials.toSet
+    targetEcus.keySet shouldBe ecuIds.toSet
   }
 
   testWithNamespace("devices gives all devices in the namespace") { implicit ns =>

@@ -6,14 +6,15 @@ import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, Device
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{
-  DeviceId, EcuSerial, EcuInstallationReport, InstallationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuInstallationReport, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceInstallationReport
 import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
 import io.circe.Json
 import org.slf4j.LoggerFactory
-
 import java.time.Instant
+
+import com.advancedtelematic.libats.data.EcuIdentifier
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api._
 
@@ -81,7 +82,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     }
   }
 
-  private def toEcuInstallationReports(ecuManifests: Seq[EcuManifest]): Map[EcuSerial, EcuInstallationReport] =
+  private def toEcuInstallationReports(ecuManifests: Seq[EcuManifest]): Map[EcuIdentifier, EcuInstallationReport] =
     ecuManifests.par.flatMap{ ecuManifest =>
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
         val op = custom.operation_result
@@ -105,7 +106,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       val ecuResults = report.items
         .filter(item => ecuImages.contains(item.ecu))
         .map { item =>
-          item.ecu -> EcuInstallationReport(item.result, Seq(ecuImages.get(item.ecu).get.toString), None)
+          item.ecu -> EcuInstallationReport(item.result, Seq(ecuImages(item.ecu).toString), None)
         }.toMap
 
       val result = DeviceInstallationReport(

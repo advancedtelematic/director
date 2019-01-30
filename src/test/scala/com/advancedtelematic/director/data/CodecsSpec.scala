@@ -3,12 +3,12 @@ package com.advancedtelematic.director.data
 import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{FileInfo, Hashes, Image, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifestEcuSigned, DeviceRegistration, EcuManifest, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifestEcuSigned, DeviceRegistration, EcuManifest, InstallationReportEntity, InstallationReport, InstallationItem, OperationResult}
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.DirectorSpec
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.RefinedUtils._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, UpdateId, ValidEcuSerial}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuSerial, InstallationResult, UpdateId, ValidEcuSerial}
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{
@@ -226,14 +226,25 @@ class CodecsSpec extends DirectorSpec {
     // notice that legacy spelled it `ecu_version_manifest` rather than `ecu_version_manifests`, and did not use a Map
     // but only had a sequence of signed ecu_manifests
     val legacy_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifest": [$ecu_manifest_sample]}"""
-    val device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}}"""
-    val wrapped_device_manifest_sample: String = wrapSample(device_manifest_sample)
+    val device_manifest_sample: String = s"""{"ecu_version_manifests": {"ecu11111": $ecu_manifest_sample},"primary_ecu_serial": "ecu11111"}"""
+    val device_manifest_with_report_sample: String = s"""{"ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}, "installation_report":{"content_type":"application/vnd.com.here.otac.installationReport.v1","report":{"correlation_id":"urn:here-ota:mtu:388a2227-6d56-466c-8154-5c283e696728","items":[{"ecu":"ecu11111","result":{"code":"OK","description":"ECU installation was successful","success":true}}],"raw_report":"","result":{"code":"OK","description":"Installation was successful","success":true}}},"primary_ecu_serial": "ecu11111"}"""
+
+    val installation_report_parsed = InstallationReportEntity(
+      "application/vnd.com.here.otac.installationReport.v1",
+      InstallationReport(
+        MultiTargetUpdateId(UUID.fromString("388a2227-6d56-466c-8154-5c283e696728")),
+        InstallationResult(true, "OK", "Installation was successful"),
+        Seq(InstallationItem(ecuSerial, InstallationResult(true, "OK", "ECU installation was successful"))),
+        Some("")))
+
+    val wrapped_device_manifest_sample: String = wrapSample(device_manifest_with_report_sample)
     val both_device_manifest_sample: String = s"""{"primary_ecu_serial": "ecu11111", "ecu_version_manifests": {"ecu11111": $ecu_manifest_sample}, "ecu_version_manifest": [$ecu_manifest_sample]}"""
 
 
     val device_manifest_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson))
+    val device_manifest_installation_report_parsed: DeviceManifestEcuSigned = DeviceManifestEcuSigned(ecuSerial, Map(ecuSerial -> ecu_manifest_sample_parsed.asJson), Some(installation_report_parsed))
 
-    val wrapped_device_manifest_parsed: SignedPayload[Json] = wrapSigned(device_manifest_parsed.asJson)
+    val wrapped_device_manifest_parsed: SignedPayload[Json] = wrapSigned(device_manifest_installation_report_parsed.asJson)
 
 
     exampleDecode(device_manifest_sample, device_manifest_parsed, "normal")

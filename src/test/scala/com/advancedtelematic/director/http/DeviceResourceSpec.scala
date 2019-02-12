@@ -126,7 +126,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
 
-    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
+    updateManifestExpect(device, deviceManifest, StatusCodes.NotFound)
   }
 
   testWithNamespace("Device need to have the correct primary") { implicit ns =>

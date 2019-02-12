@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive0, Directive1}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.DeviceRegistration
@@ -21,7 +20,6 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success}
 import slick.jdbc.MySQLProfile.api._
 
 class DeviceResource(extractNamespace: Directive1[Namespace],
@@ -63,10 +61,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       put {
         path("manifest") {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
-            onComplete(deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)) {
-              case Success(v) => complete(v)
-              case Failure(ex) => complete((StatusCodes.BadRequest, s"An error occurred: ${ex.getMessage}"))
-            }
+            val f = deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)
+            complete(f)
           }
         }
       } ~

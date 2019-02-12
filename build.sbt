@@ -10,19 +10,20 @@ resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/
 resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.9"
-  val akkaHttpV = "10.0.11"
-  val scalaTestV = "3.0.0"
+  val akkaV = "2.5.20"
+  val akkaHttpV = "10.1.7"
+  val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.5.0-24-g1f23fad"
-  val libatsV = "0.1.3-16-gb38d167"
+  val tufV = "0.6.0-1-g2f23c85"
+  val libatsV = "0.2.0-3-g6394413"
   val circeConfigV = "0.0.2"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
     "com.typesafe.akka" %% "akka-stream" % akkaV,
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % "test",
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV,
+    "com.typesafe.akka" %% "akka-stream-testkit" % akkaV,
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "org.scalatest"     %% "scalatest" % scalaTestV % "test",
 

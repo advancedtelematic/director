@@ -183,40 +183,6 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .failIfNone(NoTargetsScheduled)
 
 
-  // skips any targets with version > sourceVersion
-  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int): DBIO[Unit] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .join(Schema.ecuTargets.filter(_.version === sourceVersion)).on(_.ecuSerial === _.id)
-      .map(_._2)
-      .result
-      .flatMap { ecuTargets =>
-        Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
-      }.map(_ => ())
-
-  private def contains(map: Map[EcuIdentifier, TargetFilename], pair: (Rep[EcuIdentifier], Rep[TargetFilename])) =
-    map.map { case (key, value) =>
-      pair._1 === key && pair._2 === value
-    }.reduce(_ || _)
-
-  // skips any targets in "failed"
-  protected [db] def copyTargetsAction(namespace: Namespace, device: DeviceId, sourceVersion: Int, targetVersion: Int,
-                                       failed: Map[EcuIdentifier, TargetFilename]): DBIO[Unit] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .join(Schema.ecuTargets.filter(_.version === sourceVersion)).on(_.ecuSerial === _.id)
-      .map(_._2)
-      // remove the failed ecuTargets
-      .filterNot { ecuTarget =>
-        contains(failed, ecuTarget.id -> ecuTarget.filepath)
-      }
-      .result
-      .flatMap { ecuTargets =>
-        Schema.ecuTargets ++= ecuTargets.map(_.copy(version = targetVersion))
-      }.map(_ => ())
-
   protected [db] def fetchTargetVersionAction(namespace: Namespace, device: DeviceId, version: Int): DBIO[Map[EcuIdentifier, CustomImage]] =
     Schema.ecu
       .filter(_.namespace === namespace)

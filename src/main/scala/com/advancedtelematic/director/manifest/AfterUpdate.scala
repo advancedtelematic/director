@@ -35,7 +35,8 @@ class AfterDeviceManifestUpdate()
       // TODO: Properly implement multiple updates queued per device.
       // Currently there can be only one update queued per device,
       // so the following code should not be run.
-      updatesToCancel <- adminRepository.getUpdatesFromTo(report.namespace, report.device, version, lastVersion)
+      nextVersion = version + 1
+      updatesToCancel <- adminRepository.getUpdatesFromTo(report.namespace, report.device, nextVersion, lastVersion)
       _ <- updatesToCancel.filter { _.correlationId.isDefined }.toList.traverse { case updateTarget =>
         publishReport(
           DeviceInstallationReport(

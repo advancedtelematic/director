@@ -38,6 +38,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-metrics-prometheus" % libatsV,
     "com.advancedtelematic" %% "libats-http-tracing" % libatsV,
     "com.advancedtelematic" %% "libats-slick" % libatsV,
+    "com.advancedtelematic" %% "libats-logging" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,
     "com.advancedtelematic" %% "circe-config" % circeConfigV,

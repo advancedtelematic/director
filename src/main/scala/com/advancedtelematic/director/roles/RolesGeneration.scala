@@ -6,11 +6,9 @@ import java.time.temporal.ChronoUnit
 import akka.Done
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.diff_service.client.DiffServiceClient
 import com.advancedtelematic.director.data.Codecs.{encoderTargetCustom, targetsCustomEncoder}
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.db.{AdminRepositorySupport, FileCacheRepositorySupport, MultiTargetUpdatesRepositorySupport, RepoNameRepositorySupport}
-import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -35,7 +33,7 @@ object RolesGeneration {
   case object MtuDiffDataMissing extends Throwable
 }
 
-class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
+class RolesGeneration(tuf: KeyserverClient)
                      (implicit val db: Database, ec: ExecutionContext) extends AdminRepositorySupport
     with FileCacheRepositorySupport
     with MultiTargetUpdatesRepositorySupport
@@ -52,16 +50,16 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                           custom: Option[TargetsCustom]): TargetsRole = {
     // there can be multiple ECUs per filename
     val byFilename: Map[TargetFilename, Map[EcuIdentifier, TargetCustomImage]] = targets.groupBy {
-      case (_, TargetCustomImage(image, _, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
+      case (_, TargetCustomImage(image, _, _)) => image.filepath.value.refineTry[ValidTargetFilename].get
     }
 
     val clientTargetItems = byFilename.mapValues { ecuImageMap =>
       val targetCustomUris = ecuImageMap.mapValues {
-        case TargetCustomImage(_, hardwareId, uri, diff) => TargetCustomUri(hardwareId, uri, diff)
+        case TargetCustomImage(_, hardwareId, uri) => TargetCustomUri(hardwareId, uri)
       }
 
-      val (ecu_serial, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1, diff1)) = ecuImageMap.head
-      val targetCustom = TargetCustom(ecu_serial, hardwareId1, uri1, diff1, targetCustomUris)
+      val (_, TargetCustomImage(Image(_, fileInfo), hardwareId1, uri1)) = ecuImageMap.head
+      val targetCustom = TargetCustom(hardwareId1, uri1, targetCustomUris)
 
       ClientTargetItem(fileInfo.hashes.toClientHashes, fileInfo.length, Some(targetCustom.asJson))
     }
@@ -99,26 +97,12 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
     _ <- fileCacheRepository.storeJson(device, timestampVersion, expires, targetsRole, snapshotRole, timestampRole)
   } yield Done
 
-  private def fromImage(image: Image, uri: Option[Uri]): TargetUpdate = {
-    val checksum = Checksum(HashMethod.SHA256, image.fileinfo.hashes.sha256)
-    TargetUpdate(image.filepath, checksum, image.fileinfo.length, uri)
-  }
-
   // doesn't compile with the more concrete type Map instead of TraversableOnce, related to "-Ypartial-unification".
   // another  workaround might be to use parTraverse from cats
   private def generateCustomTargets(ns: Namespace, device: DeviceId, currentImages: Map[EcuIdentifier, Image],
                                     targets: TraversableOnce[(EcuIdentifier, (HardwareIdentifier, CustomImage))]): Future[Map[EcuIdentifier, TargetCustomImage]] = {
     Future.traverse(targets.toTraversable) { case (ecu: EcuIdentifier, (hw: HardwareIdentifier, CustomImage(image: Image, imgUri: Option[Uri], doDiff: Option[TargetFormat]))) =>
-      doDiff match {
-        case None => FastFuture.successful(ecu -> TargetCustomImage(image, hw, imgUri, None))
-        case Some(targetFormat) =>
-          val from = fromImage(currentImages(ecu), uri = None)
-          val to = fromImage(image, imgUri)
-          diffService.findDiffInfo(ns, targetFormat, from, to).flatMap {
-            case None => FastFuture.failed(MtuDiffDataMissing)
-            case Some(diffInfo) => FastFuture.successful(ecu -> TargetCustomImage(image, hw, imgUri, Some(diffInfo)))
-          }
-      }
+      FastFuture.successful(ecu -> TargetCustomImage(image, hw, imgUri))
     }.map(_.toMap)
   }
 

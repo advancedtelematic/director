@@ -42,14 +42,13 @@ object DataType {
   }
 
   final case class CustomImage(image: Image, uri: Option[Uri], diffFormat: Option[TargetFormat])
-  final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
+  final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Option[Uri])
 
   final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
 
-  final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
-  final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuIdentifier,
-                                hardwareId: HardwareIdentifier,
-                                uri: Option[Uri], diff: Option[DiffInfo],
+  final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Option[Uri])
+  final case class TargetCustom(hardwareId: HardwareIdentifier,
+                                uri: Option[Uri],
                                 ecuIdentifiers: Map[EcuIdentifier, TargetCustomUri])
 
   final case class Ecu(ecuSerial: EcuIdentifier, device: DeviceId, namespace: Namespace, primary: Boolean,

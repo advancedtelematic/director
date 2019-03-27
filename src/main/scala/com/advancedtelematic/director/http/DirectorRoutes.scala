@@ -1,8 +1,6 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.{Directives, _}
-import com.advancedtelematic.diff_service.client.DiffServiceClient
-import com.advancedtelematic.diff_service.http.DiffResource
 import com.advancedtelematic.director.VersionInfo
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.roles.Roles
@@ -18,8 +16,7 @@ import scala.concurrent.ExecutionContext
 
 class DirectorRoutes(verifier: TufKey => Verifier,
                      keyserverClient: KeyserverClient,
-                     roles: Roles,
-                     diffService: DiffServiceClient)
+                     roles: Roles)
                     (implicit val db: Database,
                      ec: ExecutionContext,
                      messageBusPublisher: MessageBusPublisher) extends VersionInfo {
@@ -34,8 +31,7 @@ class DirectorRoutes(verifier: TufKey => Verifier,
           new AdminResource(extractNamespace, keyserverClient).route ~
           new AssignmentsResource(extractNamespace).route ~
           new DeviceResource(extractNamespace, verifier, keyserverClient, roles).route ~
-          new MultiTargetUpdatesResource(extractNamespace).route ~
-          new DiffResource(extractNamespace, diffService).route
+          new MultiTargetUpdatesResource(extractNamespace).route
         }
       }
     }

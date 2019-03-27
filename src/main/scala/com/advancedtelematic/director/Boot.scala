@@ -7,7 +7,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
-import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.director.manifest.SignatureVerification
 import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
@@ -83,7 +82,6 @@ object Boot extends BootApp
 
   def keyserverClient(implicit tracing: RequestTracing) = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
-  val diffService = new DiffServiceDirectorClient(tufBinaryUri)
 
   Security.addProvider(new BouncyCastleProvider())
 
@@ -91,7 +89,7 @@ object Boot extends BootApp
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
     (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing: RequestTracing =>
       prometheusMetricsRoutes ~
-        new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient, diffService)), diffService).routes
+        new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient))).routes
     }
 
   Http().bindAndHandle(routes, host, port)

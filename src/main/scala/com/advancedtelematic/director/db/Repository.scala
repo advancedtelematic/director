@@ -606,7 +606,7 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
       .map{case ((auto, ecu), current) =>
         (auto.device, ecu.hardwareId, current.filepath, current.checksum, current.length)}
       .result
-      .map(_.map{case (device, hw, filepath, checksum, length) => (device, hw, TargetUpdate(filepath, checksum, length))})
+      .map(_.map{case (device, hw, filepath, checksum, length) => (device, hw, TargetUpdate(filepath, checksum, length, None))})
   }
 
   def findByTargetName(namespace: Namespace, targetName: TargetName): Future[Map[DeviceId, Seq[(HardwareIdentifier, TargetUpdate)]]] = db.run {

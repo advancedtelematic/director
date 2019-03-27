@@ -21,6 +21,7 @@ import com.advancedtelematic.libtuf_server.data.Requests.CreateRepositoryRequest
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import io.circe.syntax._
+import org.scalactic.source.Position
 
 trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteResourceSpec {
 
@@ -94,7 +95,7 @@ trait NamespacedRequests extends DirectorSpec with DefaultPatience with RouteRes
     }
   }
 
-  def fetchTargetsFor(device: DeviceId)(implicit ns: NamespaceTag): SignedPayload[TargetsRole] = {
+  def fetchTargetsFor(device: DeviceId)(implicit ns: NamespaceTag, pos: Position): SignedPayload[TargetsRole] = {
     Get(apiUri(s"device/${device.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[SignedPayload[TargetsRole]]

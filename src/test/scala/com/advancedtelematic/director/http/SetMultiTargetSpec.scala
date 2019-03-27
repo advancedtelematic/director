@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.AdminRequest.RegisterDevice
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -37,7 +36,7 @@ trait SetMultiTargetSpec extends DirectorSpec
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, MultiTargetUpdateId(mtuId.uuid)).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
 
-    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri(), None))
+    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
   }
 
   test("can schedule a multi-target update for several devices") {
@@ -65,10 +64,10 @@ trait SetMultiTargetSpec extends DirectorSpec
     affected.toSet shouldBe Set(device0, device1)
 
     val update0 = adminRepository.fetchTargetVersion(defaultNs, device0, 1).futureValue
-    update0 shouldBe Map(primEcu0 -> CustomImage(targetUpdate.to.image, Uri(), None))
+    update0 shouldBe Map(primEcu0 -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
 
     val update1 = adminRepository.fetchTargetVersion(defaultNs, device1, 1).futureValue
-    update1 shouldBe Map(primEcu1 -> CustomImage(targetUpdate.to.image, Uri(), None))
+    update1 shouldBe Map(primEcu1 -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
   }
 
   test("only ecus that match the hardwareId will be scheduled") {
@@ -90,7 +89,7 @@ trait SetMultiTargetSpec extends DirectorSpec
     val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
 
     val expected = ecusThatWillUpdate.zip(mtus).map { case (ecu, (hw, mtu)) =>
-      ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
+      ecu.ecu_serial -> CustomImage(mtu.to.image, mtu.to.uri, None)
     }.toMap
 
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
@@ -118,7 +117,7 @@ trait SetMultiTargetSpec extends DirectorSpec
       val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
 
       val expected = ecusFirst.zip(mtus).map { case (ecu, (hw, mtu)) =>
-        ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
+        ecu.ecu_serial -> CustomImage(mtu.to.image, mtu.to.uri, None)
       }.toMap
 
       setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
@@ -132,7 +131,7 @@ trait SetMultiTargetSpec extends DirectorSpec
       }
       val updateId = createMultiTargetUpdateOK(MultiTargetUpdateRequest(mtus.toMap))
       val expected = ecusSecond.zip(mtus).map { case (ecu, (hw, mtu)) =>
-        ecu.ecu_serial -> CustomImage(mtu.to.image, Uri(), None)
+        ecu.ecu_serial -> CustomImage(mtu.to.image, mtu.to.uri, None)
       }.toMap
 
       setMultiTargets.setMultiUpdateTargets(defaultNs, device, updateId, MultiTargetUpdateId(updateId.uuid)).futureValue
@@ -161,7 +160,7 @@ trait SetMultiTargetSpec extends DirectorSpec
 
     setMultiTargets.setMultiUpdateTargets(defaultNs, device, mtuId, MultiTargetUpdateId(mtuId.uuid)).futureValue
     val update = adminRepository.fetchTargetVersion(defaultNs, device, 1).futureValue
-    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, Uri(), None))
+    update shouldBe Map(primEcu -> CustomImage(targetUpdate.to.image, targetUpdate.to.uri, None))
 
     val ecuManifestTarget = Seq(GenSignedEcuManifestWithImage(primEcu, targetUpdate.to.image).generate)
     val devManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestTarget).generate

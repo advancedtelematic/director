@@ -85,7 +85,7 @@ object Schema {
     def filepath = column[TargetFilename]("filepath")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
-    def uri = column[Uri]("uri")
+    def uri = column[Option[Uri]]("uri")
     def diffFormat = column[Option[TargetFormat]]("diff_format")
 
     def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
@@ -168,21 +168,23 @@ object Schema {
     def targetFormat = column[TargetFormat]("target_format")
     def generateDiff = column[Boolean]("generate_diff")
     def namespace = column[Namespace]("namespace")
+    def toTargetUri = column[Option[Uri]]("target_uri")
+    def fromTargetUri = column[Option[Uri]]("from_target_uri")
 
     def fromTargetChecksum: Rep[Option[Checksum]] = (fromHashMethod, fromTargetHash) <> (
       { case (hashMethod, hash) => (hashMethod, hash).mapN(Checksum)},
       (x: Option[Checksum]) => Some((x.map(_.method), x.map(_.hash)))
       )
 
-    def fromTargetUpdate = (fromTarget, fromTargetChecksum, fromTargetSize) <> (
-      { case (target, checksum, size) => (target, checksum, size).mapN(TargetUpdate)},
-      (x : Option[TargetUpdate]) => Some((x.map(_.target), x.map(_.checksum), x.map(_.targetLength)))
+    def fromTargetUpdate = (fromTarget, fromTargetChecksum, fromTargetSize, fromTargetUri) <> (
+      { case (target, checksum, size, uri) => (target, checksum, size, Option(uri)).mapN(TargetUpdate.apply)},
+      (x : Option[TargetUpdate]) => Some((x.map(_.target), x.map(_.checksum), x.map(_.targetLength), x.flatMap(_.uri)))
     )
 
     def toTargetChecksum: Rep[Checksum] = (toHashMethod, toTargetHash) <>
       ((Checksum.apply _).tupled, Checksum.unapply)
 
-    def toTargetUpdate = (toTarget, toTargetChecksum, toTargetSize) <>
+    def toTargetUpdate = (toTarget, toTargetChecksum, toTargetSize, toTargetUri) <>
       ((TargetUpdate.apply _).tupled, TargetUpdate.unapply)
 
     def * = (id, hardwareId, fromTargetUpdate, toTargetUpdate, targetFormat, generateDiff, namespace) <>

@@ -69,7 +69,9 @@ trait Generators {
   lazy val GenCustomImage: Gen[CustomImage] = for {
     im <- GenImage
     tf <- Gen.option(GenTargetFormat)
-  } yield CustomImage(im, Uri("http://www.example.com"), tf)
+    nr <- Gen.posNum[Int]
+    uri <- Gen.option(Gen.const(Uri(s"http://test-$nr.example.com")))
+  } yield CustomImage(im, uri, tf)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)
@@ -102,7 +104,9 @@ trait Generators {
     target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum
-  } yield TargetUpdate(target, checksum, size)
+    nr <- Gen.posNum[Int]
+    uri <- Gen.option(Gen.const(Uri(s"http://test-$nr.example.com")))
+  } yield TargetUpdate(target, checksum, size, uri)
 
   val GenTargetUpdateRequest: Gen[TargetUpdateRequest] = for {
     targetUpdate <- GenTargetUpdate

@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.db
 
-import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
@@ -9,11 +8,11 @@ import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateAssigned}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent}
+import java.time.Instant
+
 import slick.jdbc.MySQLProfile.api._
 
-import java.time.Instant
-import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) extends AdminRepositorySupport
@@ -24,7 +23,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
                             (implicit db: Database, ec: ExecutionContext): DBIO[Map[EcuIdentifier, CustomImage]] = {
     val hwTargets = mtuRows.map{ mtu =>
       val diffFormat = if (mtu.generateDiff) Some(mtu.targetFormat) else None
-      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, Uri(), diffFormat)))
+      mtu.hardwareId -> ((mtu.fromTarget, CustomImage(mtu.toTarget.image, uri = mtu.toTarget.uri, diffFormat = diffFormat)))
     }.toMap
     for {
       ecus <- adminRepository.fetchHwMappingAction(namespace, device)

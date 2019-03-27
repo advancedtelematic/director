@@ -3,7 +3,8 @@ package com.advancedtelematic.director.http
 import java.security.{KeyPairGenerator, PublicKey}
 import java.util.concurrent.ConcurrentHashMap
 
-import akka.http.scaladsl.model.{StatusCodes, Uri}
+import com.advancedtelematic.director.data.Codecs._
+import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
 import com.advancedtelematic.director.data.DataType._
@@ -245,6 +246,34 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
     updateManifestOk(device, deviceManifestTarget)
   }
 
+  testWithNamespace("Device receives targets with uri if target contains uri") { implicit ns =>
+    createRepoOk(testKeyType)
+
+    val device = DeviceId.generate()
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+    val ecus = List(primEcuReg)
+
+    val regDev = RegisterDevice(device, primEcu, ecus)
+
+    registerDeviceOk(regDev)
+
+    val targetImage = GenCustomImage.retryUntil(_.uri.isDefined).generate.copy(diffFormat = None)
+    val targets = SetTarget(Map(primEcu -> targetImage))
+
+    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
+    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
+
+    updateManifestOk(device, deviceManifest)
+
+    schedule(device, targets)
+
+    val deviceTargets = fetchTargetsFor(device).signed
+    val uri = deviceTargets.targets.head._2.custom.flatMap(_.as[TargetCustom].toOption).flatMap(_.uri)
+
+    uri shouldBe targetImage.uri
+  }
+
   testWithNamespace("Device can report current current") { implicit ns =>
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
@@ -283,7 +312,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
 
     updateManifestOk(device, deviceManifest)
 
-    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, Uri(), None)))
+    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, None, None)))
 
     schedule(device, targets)
     updateManifestOk(device, deviceManifest)

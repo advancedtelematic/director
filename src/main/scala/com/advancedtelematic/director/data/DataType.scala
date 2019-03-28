@@ -34,21 +34,22 @@ object DataType {
 
   final case class FileInfo(hashes: Hashes, length: Long)
   final case class Image(filepath: TargetFilename, fileinfo: FileInfo) {
+    @deprecated("0.7.1", "decoder that uses this method is deprecated")
     def toTargetUpdate: TargetUpdate = {
       val checksum = Checksum(HashMethod.SHA256, fileinfo.hashes.sha256)
-      TargetUpdate(filepath, checksum, fileinfo.length)
+      TargetUpdate(filepath, checksum, fileinfo.length, uri = None)
     }
   }
 
-  final case class CustomImage(image: Image, uri: Uri, diffFormat: Option[TargetFormat])
-  final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
+  final case class CustomImage(image: Image, uri: Option[Uri], diffFormat: Option[TargetFormat])
+  final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
 
   final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
 
-  final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Uri, diff: Option[DiffInfo])
+  final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
   final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuIdentifier,
                                 hardwareId: HardwareIdentifier,
-                                uri: Uri, diff: Option[DiffInfo],
+                                uri: Option[Uri], diff: Option[DiffInfo],
                                 ecuIdentifiers: Map[EcuIdentifier, TargetCustomUri])
 
   final case class Ecu(ecuSerial: EcuIdentifier, device: DeviceId, namespace: Namespace, primary: Boolean,
@@ -76,7 +77,7 @@ object DataType {
     lazy val targetUpdateRequest: TargetUpdateRequest = TargetUpdateRequest(fromTarget, toTarget, targetFormat, generateDiff)
   }
 
-  final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long) {
+  final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long, uri: Option[Uri]) {
     lazy val image: Image = {
       val hashes = Hashes(checksum.hash)
       Image(target, FileInfo(hashes, targetLength))

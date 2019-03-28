@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.daemon
 
 import akka.Done
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.db.{AutoUpdateRepositorySupport, MultiTargetUpdatesRepositorySupport, SetMultiTargets}
@@ -11,8 +12,10 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, Target
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import org.slf4j.LoggerFactory
+
 import scala.concurrent.{ExecutionContext, Future}
 import slick.driver.MySQLDriver.api.Database
+
 import scala.util.{Failure, Success}
 
 class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, ec: ExecutionContext)
@@ -37,7 +40,8 @@ class TufTargetWorker(setMultiTargets: SetMultiTargets)(implicit db: Database, e
                 _log.error(s"Could not parse filename from $tufTargetAdded")
                 FastFuture.successful(Done)
               case Success(filename) =>
-                val toTarget = TargetUpdate(filename, tufTargetAdded.checksum, tufTargetAdded.length)
+                val uri = tufTargetAdded.custom.flatMap(_.uri).map(u => Uri(u.toString))
+                val toTarget = TargetUpdate(filename, tufTargetAdded.checksum, tufTargetAdded.length, uri = uri)
                 findAndSchedule(tufTargetAdded.namespace, custom.name, targetFormat, toTarget)
                   .map(_ => Done)
             }

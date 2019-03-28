@@ -14,10 +14,12 @@ import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 
+
 object Codecs {
   import AdminRequest._
   import DeviceRequest._
   import io.circe.generic.semiauto._
+  import JsonDropNullValues._
 
   implicit val decoderFileInfo: Decoder[FileInfo] = deriveDecoder
   implicit val encoderFileInfo: Encoder[FileInfo] = deriveEncoder
@@ -35,7 +37,7 @@ object Codecs {
   implicit val encoderTargetCustomUri: Encoder[TargetCustomUri] = deriveEncoder
 
   implicit val decoderTargetCustom: Decoder[TargetCustom] = deriveDecoder
-  implicit val encoderTargetCustom: Encoder[TargetCustom] = deriveEncoder
+  implicit val encoderTargetCustom: Encoder[TargetCustom] = deriveEncoder[TargetCustom].mapJson(_.dropNullValuesDeep)
 
   implicit val decoderCustomImage: Decoder[CustomImage] = deriveDecoder
   implicit val encoderCustomImage: Encoder[CustomImage] = deriveEncoder

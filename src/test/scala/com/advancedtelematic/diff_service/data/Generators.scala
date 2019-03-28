@@ -1,5 +1,6 @@
 package com.advancedtelematic.diff_service.data
 
+import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.diff_service.data.DataType._
 import com.advancedtelematic.director.data.DataType.TargetUpdate
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, ValidChecksum}
@@ -30,11 +31,12 @@ trait Generators {
     target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])
     size <- Gen.chooseNum(0, Long.MaxValue)
     checksum <- GenChecksum
-  } yield TargetUpdate(target, checksum, size)
+    nr <- Gen.posNum[Int]
+    uri <- Gen.option(Gen.const(Uri(s"http://test-$nr.example.com")))
+  } yield TargetUpdate(target, checksum, size, uri = uri)
 
   def GenCreateDiffInfoRequest(format: TargetFormat): Gen[CreateDiffInfoRequest] = for {
     from <- GenTargetUpdate
     to <- GenTargetUpdate
   } yield CreateDiffInfoRequest(format, from, to)
-
 }

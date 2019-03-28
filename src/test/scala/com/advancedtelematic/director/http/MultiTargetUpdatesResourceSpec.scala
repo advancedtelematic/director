@@ -21,4 +21,11 @@ class MultiTargetUpdatesResourceSpec extends DirectorSpec with Generators with D
 
     fetchMultiTargetUpdate(id) shouldBe mtu.targets
   }
+
+  test("accepts mtu with an update") {
+    val mtu = GenMultiTargetUpdateRequest.retryUntil(_.targets.head._2.to.uri.isDefined).generate
+    val id = createMultiTargetUpdateOK(mtu)
+
+    fetchMultiTargetUpdate(id) shouldBe mtu.targets
+  }
 }

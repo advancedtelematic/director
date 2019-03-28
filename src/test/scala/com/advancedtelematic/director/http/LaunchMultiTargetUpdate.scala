@@ -167,6 +167,24 @@ trait LaunchMultiTargetUpdate extends DirectorSpec with KeyGenerators
       sendManifestCustom(device, prim, bto, CustomManifest(OperationResult("hh", 0, "okay, but wrong report")))
     }
   }
+
+  test("device receives uri when mtu contains a target with an uri") {
+    withRandomNamespace { implicit ns =>
+      createRepoOk(testKeyType)
+
+      val (device, prim, ecu) = registerDevice(ahw)
+      val target = GenTargetUpdate.retryUntil(_.uri.isDefined).generate
+      sendManifest(device, prim)(prim -> ato)
+
+      val update = createMtu(ahw -> target)
+      launchMtu(update, Seq(device))
+
+      val deviceTargets = fetchTargetsFor(device).signed
+      val uri = deviceTargets.targets.head._2.custom.flatMap(_.as[TargetCustom].toOption).flatMap(_.uri)
+
+      uri shouldBe target.uri
+    }
+  }
 }
 
 class RsaLaunchMultiTargetUpdate extends LaunchMultiTargetUpdate with RsaGenerators

@@ -259,7 +259,7 @@ class CodecsSpec extends DirectorSpec {
 
     val targetUpdate = TargetUpdate(Refined.unsafeApply("/file2.txt"),
                                     Checksum(HashMethod.SHA256, "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
-                                    21)
+                                    21, uri = None)
 
     exampleDecode(sample, targetUpdate, "TargetUpdate can be decoded as an Image")
   }
@@ -273,7 +273,7 @@ class CodecsSpec extends DirectorSpec {
 
     val targetUpdate = TargetUpdate(Refined.unsafeApply("/file2.txt"),
                                     Checksum(HashMethod.SHA256, "3910b632b105b1e03baa9780fc719db106f2040ebfe473c66710c7addbb2605a".refineTry[ValidChecksum].get),
-                                    21)
+                                    21, uri = None)
 
     val targetUpdateRequest = TargetUpdateRequest(None, targetUpdate, TargetFormat.BINARY, false)
 

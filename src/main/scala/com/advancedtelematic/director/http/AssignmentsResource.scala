@@ -1,90 +1,71 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.marshalling.Marshaller._
+import java.time.Instant
+
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.unmarshalling.PredefinedFromStringUnmarshallers.CsvSeq
+import com.advancedtelematic.director.data.AdminDataType.AssignUpdateRequest
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.AdminRequest.AssignUpdateRequest
-import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.Messages.UpdateSpec
-import com.advancedtelematic.director.db.{AdminRepositorySupport, CancelUpdate, SetMultiTargets}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateCanceled}
-
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, _}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import java.time.Instant
 import slick.jdbc.MySQLProfile.api.Database
+
 import scala.concurrent.{ExecutionContext, Future}
 
+
 class AssignmentsResource(extractNamespace: Directive1[Namespace])
-(implicit db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
-  extends AdminRepositorySupport {
+                         (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
 
   import Directives._
 
-  val cancelUpdate = new CancelUpdate
-  val setMultiTargets = new SetMultiTargets()
+  val deviceAssignments = new DeviceAssignments()
+
+  private def createAssignments(ns: Namespace, req: AssignUpdateRequest): Future[Unit] = {
+    val assignments = deviceAssignments.createForDevices(ns, req.correlationId, req.devices, req.mtuId)
+
+    assignments.map {
+      _.foreach { a =>
+        val msg: DeviceUpdateEvent = DeviceUpdateAssigned(ns, Instant.now(), req.correlationId, a.deviceId)
+        messageBusPublisher.publishSafe(msg)
+      }
+    }
+  }
+
+  private implicit val updateIdUnmarshaller = UpdateId.unmarshaller
+  private implicit val deviceIdUnmarshaller = DeviceId.unmarshaller
 
   val route = extractNamespace { ns =>
     pathPrefix("assignments") {
+      (path("devices") & parameter('mtuId.as[UpdateId]) & parameter('ids.as(CsvSeq[DeviceId]))) { (mtuId, deviceIds) =>
+        val f = deviceAssignments.findAffectedDevices(ns, deviceIds, mtuId)
+        complete(f)
+      } ~
       pathEnd {
         post {
           entity(as[AssignUpdateRequest]) { req =>
-            if (req.dryRun.getOrElse(false)) {
-              complete {
-                setMultiTargets.findAffected(ns, req.devices, req.mtuId)
-              }
-            } else {
-              complete {
-                setMultiTargets.setMultiUpdateTargetsForDevices(
-                  ns, req.devices, req.mtuId, req.correlationId)
-              }
-            }
+            val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
+            complete(f)
           }
         } ~
         patch {
-          entity(as[Seq[DeviceId]]) { devices =>
-            val f = cancelUpdate.several(ns, devices).flatMap { canceledDevices =>
-              Future.traverse(canceledDevices.filter(_.correlationId.isDefined)) { updateTarget =>
-                for {
-                  // UpdateSpec is deprecated by DeviceUpdateEvent
-                  _ <- messageBusPublisher.publish(UpdateSpec(ns, updateTarget.device, UpdateStatus.Canceled))
-                  deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateCanceled(
-                      ns,
-                      Instant.now,
-                      updateTarget.correlationId.get,
-                      updateTarget.device)
-                  _ <- messageBusPublisher.publish(deviceUpdateEvent)
-                } yield ()
-              }.map(_ => canceledDevices.map(_.device))
-            }
-            complete(f)
+          // Seq[DeviceId
+          entity(as[String]) { _ =>
+            ???
           }
         }
       } ~
       pathPrefix(DeviceId.Path) { deviceId =>
-        get {
-          val f = adminRepository.findQueue(ns, deviceId)
+        get { //  This should be replacing /queue in /admin
+          val f = deviceAssignments.findDeviceAssignments(ns, deviceId)
           complete(f)
         } ~
         delete {
-          val f = cancelUpdate.one(ns, deviceId).flatMap{ updateTarget =>
-            for {
-              // UpdateSpec is deprecated by DeviceUpdateEvent
-              _ <- messageBusPublisher.publish(UpdateSpec(ns, updateTarget.device, UpdateStatus.Canceled))
-              _ <- updateTarget.correlationId.map { correlationId =>
-                val deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateCanceled(
-                    ns,
-                    Instant.now,
-                    correlationId,
-                    updateTarget.device)
-                messageBusPublisher.publish(deviceUpdateEvent)
-              }.getOrElse(Future.successful(()))
-            } yield ()
-          }
-          complete(f)
+          ???
         }
       }
     }

@@ -5,7 +5,6 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.libtuf.crypt.TufCrypto
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RoleKeys, RootRole}
@@ -19,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.util.Try
 
-class FakeKeyserverClient extends KeyserverClient with Generators {
+class FakeKeyserverClient extends KeyserverClient {
 
   import io.circe.syntax._
 
@@ -54,7 +53,7 @@ class FakeKeyserverClient extends KeyserverClient with Generators {
     RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)
   }
 
-  override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = {
+  override def createRoot(repoId: RepoId, keyType: KeyType, forceSync: Boolean): Future[Json] = {
     if (keys.contains(repoId)) {
       FastFuture.failed(KeyserverClient.RootRoleConflict)
     } else {

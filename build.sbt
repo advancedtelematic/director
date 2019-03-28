@@ -2,8 +2,7 @@ name := "director"
 organization := "com.advancedtelematic"
 scalaVersion := "2.12.5"
 
-scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification"
-   )
+scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 
 resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/repositories/releases"
 
@@ -14,7 +13,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.1.7"
   val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.6.0-1-g2f23c85"
+  val tufV = "0.6.0-21-gdd73b45-SNAPSHOT"
   val libatsV = "0.2.1-2-g962e326"
   val circeConfigV = "0.0.2"
 
@@ -39,6 +38,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-http-tracing" % libatsV,
     "com.advancedtelematic" %% "libats-slick" % libatsV,
     "com.advancedtelematic" %% "libats-logging" % libatsV,
+    "com.advancedtelematic" %% "libats-auth" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,
     "com.advancedtelematic" %% "circe-config" % circeConfigV,
@@ -54,16 +54,16 @@ libraryDependencies ++= {
 
 scalacOptions in Compile ++= Seq(
   "-deprecation",
-  "-feature",
+    "-feature",
   "-Xlog-reflective-calls",
-  "-Xlint",
-  "-Ywarn-unused-import",
-  "-Ywarn-dead-code",
+//  "-Xlint",
+//  "-Ywarn-unused-import",
+//  "-Ywarn-dead-code",
   "-Yno-adapted-args",
   "-Ypartial-unification"
 )
 
-scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
+// scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
 
 testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),

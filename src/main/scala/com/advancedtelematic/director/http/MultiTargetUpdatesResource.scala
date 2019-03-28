@@ -1,50 +1,38 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.marshalling.Marshaller._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
-import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType.MultiTargetUpdateRequest
-import com.advancedtelematic.director.db.MultiTargetUpdatesRepositorySupport
-import com.advancedtelematic.libats.codecs.CirceRefined._
-import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.http.UUIDKeyAkka._
+import com.advancedtelematic.director.data.AdminDataType.MultiTargetUpdate
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
+import com.advancedtelematic.libats.http.UUIDKeyAkka._
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.db.MultiTargetUpdates
+import com.advancedtelematic.libats.data.DataType.Namespace
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
-class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit db: Database, ec: ExecutionContext)
-  extends MultiTargetUpdatesRepositorySupport {
 
+
+class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext) {
   import Directives._
 
-  def getTargetInfo(id: UpdateId, ns: Namespace): Route = {
-    val f = multiTargetUpdatesRepository.fetch(id, ns).map { rows =>
-      rows.map(mtuRow => mtuRow.hardwareId -> mtuRow.targetUpdateRequest).toMap
-    }
-    complete(f)
-  }
-
-  def createMultiTargetUpdate(ns: Namespace): Route = {
-    entity(as[MultiTargetUpdateRequest]) { mtuRequest =>
-      val updateId = UpdateId.generate
-      val mtuRows = mtuRequest.multiTargetUpdateRows(updateId, ns)
-      val f = multiTargetUpdatesRepository.create(mtuRows).map{ _ =>
-        StatusCodes.Created -> updateId
-      }
-      complete(f)
-    }
-  }
+  val multiTargetUpdates = new MultiTargetUpdates()
 
   val route = extractNamespace { ns =>
     pathPrefix("multi_target_updates") {
-      (pathPrefix(UpdateId.Path) & get) { updateRequestId =>
-        getTargetInfo(updateRequestId, ns)
+      (get & pathPrefix(UpdateId.Path)) { uid =>
+        complete(multiTargetUpdates.find(ns, uid))
       } ~
       (post & pathEnd) {
-        createMultiTargetUpdate(ns)
+        entity(as[MultiTargetUpdate]) { mtuRequest =>
+          val f = multiTargetUpdates.create(ns, mtuRequest).map {
+            StatusCodes.Created -> _
+          }
+
+          complete(f)
+        }
       }
     }
   }

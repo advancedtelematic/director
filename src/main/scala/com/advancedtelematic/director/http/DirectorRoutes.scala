@@ -1,28 +1,21 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.{Directives, _}
-import com.advancedtelematic.director.VersionInfo
-import com.advancedtelematic.director.manifest.Verifier.Verifier
-import com.advancedtelematic.director.roles.Roles
-import com.advancedtelematic.libats.http.ErrorHandler
+import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
+import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libtuf.data.TufDataType.TufKey
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.ExecutionContext
 
 
-class DirectorRoutes(verifier: TufKey => Verifier,
-                     keyserverClient: KeyserverClient,
-                     roles: Roles)
-                    (implicit val db: Database,
-                     ec: ExecutionContext,
-                     messageBusPublisher: MessageBusPublisher) extends VersionInfo {
+class DirectorRoutes(keyserverClient: KeyserverClient)
+                    (implicit val db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
   import Directives._
 
-  val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor
+  val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor.map(_.namespace)
 
   val routes: Route =
     handleRejections(rejectionHandler) {
@@ -30,7 +23,7 @@ class DirectorRoutes(verifier: TufKey => Verifier,
         pathPrefix("api" / "v1") {
           new AdminResource(extractNamespace, keyserverClient).route ~
           new AssignmentsResource(extractNamespace).route ~
-          new DeviceResource(extractNamespace, verifier, keyserverClient, roles).route ~
+          new DeviceResource(extractNamespace, keyserverClient).route ~
           new MultiTargetUpdatesResource(extractNamespace).route
         }
       }

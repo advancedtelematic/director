@@ -8,8 +8,6 @@ import com.advancedtelematic.director.data.AdminRequest.{FindAffectedRequest, Fi
 import com.advancedtelematic.director.data.AkkaHttpUnmarshallingSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.{MultiTargetUpdateRequest, TargetUpdateRequest}
-import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
-import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.repo.DirectorRepo
 import com.advancedtelematic.libats.codecs.CirceCodecs._
@@ -30,7 +28,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.slf4j.LoggerFactory
 import slick.jdbc.MySQLProfile.api._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
@@ -255,12 +253,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           queueForDevice(ns, device)
         } ~
         (path("cancel") & put) {
-          val f = cancelUpdate.one(ns, device).flatMap{ res =>
-            messageBusPublisher
-              .publish(UpdateSpec(ns, device, UpdateStatus.Canceled))
-              .map(_ => res.deviceId)
-          }
-          complete(f)
+          complete(cancelUpdate.one(ns, device).map(_.deviceId))
         }
       } ~
       path("targets") {
@@ -320,12 +313,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         } ~
         // Deprecated in favor of "assignments/cancel" endpoint
         (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
-          val f = cancelUpdate.several(ns, devices).flatMap { canceledDeviceUpdates =>
-            Future.traverse(canceledDeviceUpdates) { updateAssignment =>
-              messageBusPublisher.publish(UpdateSpec(ns, updateAssignment.deviceId, UpdateStatus.Canceled))
-            }.map(_ => canceledDeviceUpdates.map(_.deviceId))
-          }
-          complete(f)
+          complete(cancelUpdate.several(ns, devices).map(_.map(_.deviceId)))
         } ~
         (get & path("hardware_identifiers")) {
           findHardwareIdentifiers(ns)

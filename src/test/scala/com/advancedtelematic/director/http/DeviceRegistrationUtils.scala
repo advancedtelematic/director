@@ -4,14 +4,17 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.DataType.CustomImage
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.KeyGenerators
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.director.db.SetTargets
 import com.advancedtelematic.director.util.NamespaceTag._
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.libats.data.DataType.CorrelationId
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetFilename}
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, TargetFilename}
 import eu.timepit.refined.api.Refined
 import org.scalacheck.Gen
+import scala.concurrent.Future
 
 trait DeviceRegistrationUtils extends DirectorSpec
     with KeyGenerators
@@ -94,6 +97,24 @@ trait DeviceRegistrationUtils extends DirectorSpec
     setTargetsOk(device, SetTarget(targets))
     targets
   }
+
+  def setRandomTargetsWithCorrelationId(
+      device: DeviceId,
+      ecuIds: Seq[EcuIdentifier],
+      correlationId: CorrelationId,
+      diffFormat: Option[TargetFormat] = Gen.option(GenTargetFormat).generate)
+      (implicit ns: NamespaceTag): Future[Unit] = {
+    val targets = ecuIds.map{ ecu =>
+      ecu -> GenCustomImage.generate.copy(diffFormat = diffFormat)
+    }.toMap
+
+    SetTargets.setTargets(ns.get, Seq(device -> SetTarget(targets)), Some(correlationId)).map(_ => ())
+  }
+
+  def makeUpdatesInflightFor(deviceId: DeviceId)(implicit ns: NamespaceTag): Unit =
+    if (fetchTargetsFor(deviceId).signed.version != 1) {
+      throw new Error(s"Can't make updates inflight for $deviceId")
+    }
 
   val afn: TargetFilename = Refined.unsafeApply("a")
   val bfn: TargetFilename = Refined.unsafeApply("b")

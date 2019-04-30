@@ -2,13 +2,20 @@ package com.advancedtelematic.director.db
 
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.DeviceUpdateAssignment
+import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
+import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateCanceled}
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
+import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
-class CancelUpdate(implicit val db: Database, val ec: ExecutionContext)
+class CancelUpdate(implicit db: Database,
+                   ec: ExecutionContext,
+                   messageBusPublisher: MessageBusPublisher)
     extends DeviceUpdateAssignmentRepositorySupport
     with EcuUpdateAssignmentRepositorySupport
     with DeviceRepositorySupport {
@@ -30,15 +37,40 @@ class CancelUpdate(implicit val db: Database, val ec: ExecutionContext)
     } yield res
   }.transactionally
 
+  private def publishMessages(namespace: Namespace, assignment: DeviceUpdateAssignment): Future[Unit] = for {
+    // UpdateSpec is deprecated by DeviceUpdateEvent
+    _ <- messageBusPublisher.publish(UpdateSpec(namespace, assignment.deviceId, UpdateStatus.Canceled))
+    _ <- assignment.correlationId.map { correlationId =>
+      val deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateCanceled(
+          namespace,
+          Instant.now,
+          correlationId,
+          assignment.deviceId)
+      messageBusPublisher.publish(deviceUpdateEvent)
+    }.getOrElse(Future.successful(()))
+  } yield ()
 
+  /**
+   * Cancels current update for the given device, publishes corresponding
+   * messages, and returns the information about the cancelled update in case of
+   * successful cancellation, otherwise fails with CouldNotCancelUpdate error
+   */
   def one(ns: Namespace, device: DeviceId): Future[DeviceUpdateAssignment] =
     db.run(act(ns, device)).flatMap {
-      case Some(assignment) => FastFuture.successful(assignment)
-      case None => FastFuture.failed(Errors.CouldNotCancelUpdate)
+      case Some(assignment) =>
+        publishMessages(ns, assignment).map(_ => assignment)
+      case None =>
+        FastFuture.failed(Errors.CouldNotCancelUpdate)
     }
 
-  // returns the subset of devices that were canceled
-  def several(ns: Namespace, devices: Seq[DeviceId]): Future[Seq[DeviceUpdateAssignment]] = db.run {
-    DBIO.sequence(devices.map(act(ns,_))).map(_.flatten)
-  }
+  /**
+   * Cancels current update for the given list of devices, publishes
+   * corresponding messages for each cancelled device, and returns the
+   * information about successfully cancelled devices. DOES NOT fail if a device
+   * could not be cancelled.
+   */
+  def several(ns: Namespace, devices: Seq[DeviceId]): Future[Seq[DeviceUpdateAssignment]] = for {
+    assignments <- db.run(DBIO.sequence(devices.map(act(ns,_))).map(_.flatten))
+    _ <- Future.traverse(assignments)(assg => publishMessages(ns, assg))
+  } yield assignments
 }

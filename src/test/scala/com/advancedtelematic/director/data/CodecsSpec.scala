@@ -9,7 +9,7 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.TestCodecs._
 import com.advancedtelematic.director.util.DirectorSpec
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, Namespace, ResultCode, ResultDescription, ValidChecksum}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult, UpdateId}
@@ -234,8 +234,8 @@ class CodecsSpec extends DirectorSpec {
       "application/vnd.com.here.otac.installationReport.v1",
       InstallationReport(
         MultiTargetUpdateId(UUID.fromString("388a2227-6d56-466c-8154-5c283e696728")),
-        InstallationResult(true, "OK", "Installation was successful"),
-        Seq(InstallationItem(ecuId, InstallationResult(true, "OK", "ECU installation was successful"))),
+        InstallationResult(true, ResultCode("OK"), ResultDescription("Installation was successful")),
+        Seq(InstallationItem(ecuId, InstallationResult(true, ResultCode("OK"), ResultDescription("ECU installation was successful")))),
         Some("")))
 
     val wrapped_device_manifest_sample: String = wrapSample(device_manifest_with_report_sample)

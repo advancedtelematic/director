@@ -6,9 +6,10 @@ import cats.implicits._
 import com.advancedtelematic.director.data.MessageDataType.UpdateStatus
 import com.advancedtelematic.director.data.Messages.UpdateSpec
 import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdate}
+import com.advancedtelematic.libats.data.DataType.{ResultCode, ResultDescription}
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, DeviceUpdateCompleted}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateCompleted, DeviceUpdateEvent}
 import slick.driver.MySQLDriver.api._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -20,7 +21,11 @@ class AfterDeviceManifestUpdate()
     extends AdminRepositorySupport
     with DeviceRepositorySupport {
 
-  val canceledInstallationResult = InstallationResult(false, "CANCELLED_ON_ERROR", "Cancelled update due to previous installation error")
+  val canceledInstallationResult = InstallationResult(
+    success = false,
+    ResultCode("CANCELLED_ON_ERROR"),
+    ResultDescription("Cancelled update due to previous installation error")
+  )
 
   def clearUpdate(report: DeviceUpdateCompleted): Future[Unit] =
     for {

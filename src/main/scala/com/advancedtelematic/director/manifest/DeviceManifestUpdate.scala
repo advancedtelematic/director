@@ -5,7 +5,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.{CustomManifest, DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdate, DeviceUpdateResult}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace, ResultCode, ResultDescription}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, EcuInstallationReport, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateCompleted
 import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKey}
@@ -24,9 +24,9 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
     extends DeviceRepositorySupport {
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  private val successInstallationResult = InstallationResult(true, "0", "All targeted ECUs were successfully updated")
-  private val failureInstallationResult = InstallationResult(false, "19", "One or more targeted ECUs failed to update")
-  private val unexpectedTargetResult = InstallationResult(false, "20", "Device reported incorrect filepath, hash, or length of ECU targets")
+  private val successInstallationResult = InstallationResult(true, ResultCode("0"), ResultDescription("All targeted ECUs were successfully updated"))
+  private val failureInstallationResult = InstallationResult(false, ResultCode("19"), ResultDescription("One or more targeted ECUs failed to update"))
+  private val unexpectedTargetResult = InstallationResult(false, ResultCode("20"), ResultDescription("Device reported incorrect filepath, hash, or length of ECU targets"))
 
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
@@ -44,7 +44,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
         val f = for {
           correlationId <- updateTarget.correlationId
           ireport <- toDeviceInstallationReport(namespace, device, deviceManifest, correlationId)
-          report = ireport if (!ireport.result.success)
+          report = ireport if !ireport.result.success
         } yield afterUpdate.clearUpdate(report)
         f.getOrElse(Future.successful(()))
       case DeviceUpdateResult.UpdateSuccessful(updateTarget) =>
@@ -87,7 +87,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
       ecuManifest.custom.flatMap(_.as[CustomManifest].toOption).map { custom =>
         val op = custom.operation_result
         ecuManifest.ecu_serial -> EcuInstallationReport(
-          InstallationResult(op.result_code == 0, op.result_code.toString, op.result_text),
+          InstallationResult(op.result_code == 0, ResultCode(op.result_code.toString), ResultDescription(op.result_text)),
           Seq(ecuManifest.installed_image.filepath.toString))
       }
     }.toMap.seq

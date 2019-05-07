@@ -94,18 +94,31 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
         launchDeviceUpdate(namespace, device, hwRows, updateId, correlationId) })
     } yield toUpdate
 
-    db.run(dbAct.transactionally).flatMap { scheduled =>
-      Future.traverse(scheduled){ device =>
-        for {
-          _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Pending))
-          deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateAssigned(
-            namespace,
-            Instant.now(),
-            correlationId,
-            device)
-          _ <- messageBusPublisher.publish(deviceUpdateEvent)
-        } yield ()
-      }.map(_ => scheduled)
+    def publishDeviceUpdateAssignedMsg(device: DeviceId): Future[Unit] = for {
+        _ <- messageBusPublisher.publish(UpdateSpec(namespace, device, UpdateStatus.Pending))
+        deviceUpdateEvent: DeviceUpdateEvent = DeviceUpdateAssigned(
+          namespace,
+          Instant.now(),
+          correlationId,
+          device)
+        _ <- messageBusPublisher.publish(deviceUpdateEvent)
+      } yield ()
+
+    def publishDeviceRejectedMsg(device: DeviceId): Future[Unit] = {
+      val deviceUpdateEvent: DeviceUpdateEvent =
+        DeviceUpdateAssignmentRejected(
+          namespace,
+          Instant.now(),
+          correlationId,
+          device)
+      messageBusPublisher.publish(deviceUpdateEvent).map(_ => ())
     }
+
+    for {
+      scheduled <- db.run(dbAct.transactionally)
+      rejected = devices.toSet -- scheduled.toSet
+      _ <- Future.traverse(scheduled)(publishDeviceUpdateAssignedMsg)
+      _ <- Future.traverse(rejected)(publishDeviceRejectedMsg)
+    } yield scheduled
   }
 }

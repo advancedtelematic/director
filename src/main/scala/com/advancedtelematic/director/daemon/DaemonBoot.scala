@@ -15,7 +15,7 @@ import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.http.tracing.NullRequestTracing
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, DeltaGenerationFailed, DeviceUpdateEvent, GeneratedBsDiff, GeneratedDelta, UserCreated}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.data.Messages._
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
@@ -62,6 +62,7 @@ object DaemonBoot extends BootApp
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
   val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
+  startListener[DeviceUpdateEvent](new DeviceUpdateEventListener())
 
   val routes: Route = (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
     prometheusMetricsRoutes ~

@@ -8,7 +8,7 @@ import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent}
+import com.advancedtelematic.libats.messaging_datatype.Messages._
 import java.time.Instant
 
 import slick.jdbc.MySQLProfile.api._

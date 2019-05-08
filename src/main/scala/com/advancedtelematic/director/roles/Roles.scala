@@ -4,7 +4,8 @@ import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
-import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport, MultiTargetUpdatesRepositorySupport, Errors => DBErrors}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, DeviceUpdateAssignmentRepositorySupport, Errors => DBErrors,
+  FileCacheRepositorySupport, FileCacheRequestRepositorySupport, MultiTargetUpdatesRepositorySupport}
 import com.advancedtelematic.director.roles.RolesGeneration.MtuDiffDataMissing
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -15,7 +16,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 class Roles(rolesGeneration: RolesGeneration)
-           (implicit db: Database, ec: ExecutionContext) extends AdminRepositorySupport
+           (implicit val db: Database, val ec: ExecutionContext)
+    extends DeviceUpdateAssignmentRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRepositorySupport
     with FileCacheRequestRepositorySupport
@@ -38,7 +40,7 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private def nextVersionToFetch(ns: Namespace, device: DeviceId, currentVersion: Int): Future[Int] = {
     val timestampVersion = currentVersion + 1
-    adminRepository.updateExists(ns, device, timestampVersion).flatMap {
+    deviceUpdateAssignmentRepository.exists(ns, device, timestampVersion).flatMap {
       case true  => fileCacheRepository.versionIsCached(device, timestampVersion).flatMap {
         case true => FastFuture.successful(timestampVersion)
         case false =>

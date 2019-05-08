@@ -45,7 +45,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn)
 
-    setCampaign(device1, 1).futureValue
+    setCampaign(ns.get, device1, 1).futureValue
     pretendToGenerate.futureValue
 
     val pag = getAffectedByImage("a")()
@@ -57,7 +57,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn)
 
-    setCampaign(device1, 1).futureValue
+    setCampaign(ns.get, device1, 1).futureValue
     setDeviceVersion(device1, 1).futureValue
 
     val pag = getAffectedByImage("a")()
@@ -129,7 +129,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
 
     val reportedVersions = 42
-    setCampaign(device, reportedVersions).futureValue
+    setCampaign(ns.get, device, reportedVersions).futureValue
     setDeviceVersion(device, reportedVersions).futureValue
 
     val targets = setRandomTargets(device, ecuIds)
@@ -142,7 +142,7 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
     val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
 
     val reportedVersions = 42
-    setCampaign(device, reportedVersions).futureValue
+    setCampaign(ns.get, device, reportedVersions).futureValue
     setDeviceVersion(device, reportedVersions).futureValue
 
     val targets = setRandomTargets(device, ecuIds)

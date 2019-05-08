@@ -36,6 +36,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
                    (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
     extends AdminRepositorySupport
+    with EcuUpdateAssignmentRepositorySupport
     with AutoUpdateRepositorySupport
     with DeviceRepositorySupport
     with FileCacheRequestRepositorySupport
@@ -164,7 +165,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   }
 
   def queueForDevice(namespace: Namespace, device: DeviceId): Route = {
-    val f = adminRepository.findQueue(namespace, device)
+    val f = ecuUpdateAssignmentRepository.fetchQueue(namespace, device)
     complete(f)
   }
 
@@ -257,7 +258,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           val f = cancelUpdate.one(ns, device).flatMap{ res =>
             messageBusPublisher
               .publish(UpdateSpec(ns, device, UpdateStatus.Canceled))
-              .map(_ => res.device)
+              .map(_ => res.deviceId)
           }
           complete(f)
         }
@@ -320,9 +321,9 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         // Deprecated in favor of "assignments/cancel" endpoint
         (path("queue" / "cancel") & put & entity(as[Seq[DeviceId]])) { devices =>
           val f = cancelUpdate.several(ns, devices).flatMap { canceledDeviceUpdates =>
-            Future.traverse(canceledDeviceUpdates) { deviceUpdateTarget =>
-              messageBusPublisher.publish(UpdateSpec(ns, deviceUpdateTarget.device, UpdateStatus.Canceled))
-            }.map(_ => canceledDeviceUpdates.map(_.device))
+            Future.traverse(canceledDeviceUpdates) { updateAssignment =>
+              messageBusPublisher.publish(UpdateSpec(ns, updateAssignment.deviceId, UpdateStatus.Canceled))
+            }.map(_ => canceledDeviceUpdates.map(_.deviceId))
           }
           complete(f)
         } ~

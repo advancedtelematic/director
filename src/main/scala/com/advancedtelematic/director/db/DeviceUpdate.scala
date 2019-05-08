@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DataType.{DeviceUpdateTarget, Image}
+import com.advancedtelematic.director.data.DataType.{DeviceUpdateAssignment, Image}
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -13,16 +13,20 @@ object DeviceUpdateResult {
   sealed abstract class DeviceUpdateResult
 
   final case object NoUpdate extends DeviceUpdateResult
-  final case class UpdateNotCompleted(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
-  final case class UpdateSuccessful(updateTarget: DeviceUpdateTarget) extends DeviceUpdateResult
+  final case class UpdateNotCompleted(assignment: DeviceUpdateAssignment) extends DeviceUpdateResult
+  final case class UpdateSuccessful(assignment: DeviceUpdateAssignment) extends DeviceUpdateResult
   final case class UpdateUnexpectedTarget(
-                                           updateTarget: DeviceUpdateTarget, expectedTargets: Map[EcuIdentifier, Image], actualTargets: Map[EcuIdentifier, Image]
+    assignment: DeviceUpdateAssignment,
+    expectedTargets: Map[EcuIdentifier, Image],
+    actualTargets: Map[EcuIdentifier, Image]
   ) extends DeviceUpdateResult
 
 }
 
 object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
+    with DeviceUpdateAssignmentRepositorySupport
+    with EcuUpdateAssignmentRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
 
@@ -35,7 +39,7 @@ object DeviceUpdate extends AdminRepositorySupport
 
     val dbAct = deviceRepository.getCurrentVersionSetIfInitialAction(device).flatMap { currentVersion =>
       val nextVersion = currentVersion + 1
-      adminRepository.updateExistsAction(namespace, device, nextVersion).flatMap {
+      deviceUpdateAssignmentRepository.existsAction(namespace, device, nextVersion).flatMap {
         case true => handleUpdate(namespace, device, ecuManifests, nextVersion)
         case false => DBIO.successful(NoUpdate)
       }
@@ -47,8 +51,8 @@ object DeviceUpdate extends AdminRepositorySupport
   private def handleUpdate(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest], nextVersion: Int)
     (implicit db: Database, ec: ExecutionContext): DBIO[DeviceUpdateResult] = {
 
-    adminRepository.fetchDeviceUpdateTargetAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
-      adminRepository.fetchTargetVersionAction(namespace, device, nextVersion).flatMap { ecuTargets =>
+    deviceUpdateAssignmentRepository.fetchAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
+      ecuUpdateAssignmentRepository.fetchAction(namespace, device, nextVersion).flatMap { ecuTargets =>
         val actualTargets = ecuManifests.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
         val expectedTargets = ecuTargets.mapValues(_.image)
         if (subMap(expectedTargets, actualTargets)) {
@@ -71,9 +75,9 @@ object DeviceUpdate extends AdminRepositorySupport
   private [db] def clearTargetsFromAction(namespace: Namespace, device: DeviceId, deviceVersion: Int)
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
-      latestScheduledVersion <- adminRepository.getLatestScheduledVersion(namespace, device)
+      latestScheduledVersion <- deviceUpdateAssignmentRepository.fetchLatestAction(namespace, device)
       nextTimestampVersion = latestScheduledVersion + 1
-      _ <- adminRepository.updateDeviceTargetsAction(device, None, None, nextTimestampVersion)
+      _ <- deviceUpdateAssignmentRepository.persistAction(namespace, device, None, None, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
     } yield latestScheduledVersion
 

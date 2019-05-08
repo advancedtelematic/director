@@ -39,24 +39,24 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
     DeviceUpdate.checkAgainstTarget(namespace, device, deviceManifest.ecu_manifests).flatMap {
       case DeviceUpdateResult.NoUpdate => Future.successful(())
-      case DeviceUpdateResult.UpdateNotCompleted(updateTarget) =>
-        _log.debug(s"UpdateNotCompleted $updateTarget")
+      case DeviceUpdateResult.UpdateNotCompleted(updateAssignment) =>
+        _log.debug(s"UpdateNotCompleted $updateAssignment")
         val f = for {
-          correlationId <- updateTarget.correlationId
+          correlationId <- updateAssignment.correlationId
           ireport <- toDeviceInstallationReport(namespace, device, deviceManifest, correlationId)
           report = ireport if !ireport.result.success
         } yield afterUpdate.clearUpdate(report)
         f.getOrElse(Future.successful(()))
-      case DeviceUpdateResult.UpdateSuccessful(updateTarget) =>
-        _log.debug(s"UpdateSuccessful $updateTarget")
+      case DeviceUpdateResult.UpdateSuccessful(updateAssignment) =>
+        _log.debug(s"UpdateSuccessful $updateAssignment")
         val f = for {
-          correlationId <- updateTarget.correlationId
+          correlationId <- updateAssignment.correlationId
           report <- toDeviceInstallationReport(namespace, device, deviceManifest, correlationId, enforceExplicit = false)
         } yield afterUpdate.clearUpdate(report)
         f.getOrElse(Future.successful(()))
-      case DeviceUpdateResult.UpdateUnexpectedTarget(updateTarget, targets, manifest) =>
-        _log.debug(s"UpdateUnexpectedTarget $updateTarget")
-        val currentVersion = updateTarget.targetVersion - 1
+      case DeviceUpdateResult.UpdateUnexpectedTarget(updateAssignment, targets, manifest) =>
+        _log.debug(s"UpdateUnexpectedTarget $updateAssignment")
+        val currentVersion = updateAssignment.version - 1
         if (targets.isEmpty) {
           _log.debug(s"Device ${device.show} updated when no update was available")
         } else {
@@ -69,7 +69,7 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
            """.stripMargin
         }
         val f = for {
-          correlationId <- updateTarget.correlationId
+          correlationId <- updateAssignment.correlationId
           report <- toDeviceInstallationReport(namespace, device, deviceManifest, correlationId, enforceExplicit = false)
         } yield {
           val reportUpdated = if (report.result.success)

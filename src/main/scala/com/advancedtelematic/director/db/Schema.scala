@@ -40,7 +40,7 @@ object Schema {
 
     def createdAt = column[Instant]("created_at")
 
-    def primKey = primaryKey("ecus_pk", (namespace, ecuSerial))
+    def primKey = primaryKey("ecus_pk", (namespace, device, ecuSerial))
 
     override def * = (ecuSerial, device, namespace, primary, hardwareId, publicKey) <> ((Ecu.apply _).tupled, Ecu.unapply)
   }

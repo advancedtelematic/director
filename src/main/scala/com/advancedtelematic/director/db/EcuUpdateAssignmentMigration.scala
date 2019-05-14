@@ -47,6 +47,11 @@ class EcuUpdateAssignmentMigration(implicit
     FROM device_update_targets dt
     INNER JOIN ecus e
     ON e.device = dt.device
+    WHERE NOT EXISTS (
+      SELECT * FROM device_update_assignments du
+      WHERE du.device_id = dt.device
+      AND du.version = dt.version)
+    GROUP BY dt.device, dt.version
   """.as[(Namespace, DeviceUpdateTarget)]
 
   def run: Future[Done] = {

@@ -46,16 +46,6 @@ protected class EcuUpdateAssignmentRepository()(implicit val db: Database, val e
   def fetch(namespace: Namespace, deviceId: DeviceId, version: Int): Future[Map[EcuIdentifier, CustomImage]] =
     db.run(fetchAction(namespace, deviceId, version))
 
-  protected [db] def legacyFetchAction(namespace: Namespace, deviceId: DeviceId, version: Int): DBIO[Map[EcuIdentifier, CustomImage]] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === deviceId)
-      .join(Schema.ecuTargets.filter(_.version === version)).on(_.ecuSerial === _.id)
-      .map(_._2)
-      .map{ecuTarget => ecuTarget.id -> ecuTarget.customImage}
-      .result
-      .map(_.toMap)
-
   def fetchQueue(namespace: Namespace, deviceId: DeviceId): Future[Seq[QueueResponse]] = db.run {
     def queueResult(updateAssignment: DeviceUpdateAssignment): DBIO[QueueResponse] = for {
       targets <- fetchAction(namespace, deviceId, updateAssignment.version)

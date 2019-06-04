@@ -49,7 +49,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
     } yield if (okay) Some(device) else None
 
     for {
-      devs <- adminRepository.devicesNotInACampaign(devices).result
+      devs <- adminRepository.devicesNotInACampaign(namespace, devices).result
       affected <- DBIO.sequence(devs.map(act)).map(_.flatten)
     } yield affected
   }

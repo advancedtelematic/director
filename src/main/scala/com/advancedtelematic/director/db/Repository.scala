@@ -32,11 +32,13 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   import com.advancedtelematic.director.data.DataType.{CustomImage, Hashes, Image}
 
   implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
-    def devUpdateAssignments = Schema.deviceUpdateAssignments
-      .groupBy(_.deviceId)
-      .map{case (devId, q) => (devId, q.map(_.version).max.getOrElse(0))}
+    def notInACampaign(namespace: Namespace): Query[Rep[DeviceId], DeviceId, Seq] = {
 
-    def notInACampaign: Query[Rep[DeviceId], DeviceId, Seq] = {
+      def devUpdateAssignments = Schema.deviceUpdateAssignments
+        .filter(_.namespace === namespace)
+        .groupBy(_.deviceId)
+        .map{case (devId, q) => (devId, q.map(_.version).max.getOrElse(0))}
+
       val reportedButNotInACampaign = query
         .join(Schema.deviceCurrentTarget).on(_ === _.device)
         .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
@@ -51,8 +53,12 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     }
   }
 
-  protected [db] def devicesNotInACampaign(devices: Seq[DeviceId]): Query[Rep[DeviceId], DeviceId, Seq] =
-    Schema.ecu.map(_.device).filter(_.inSet(devices)).notInACampaign
+  protected [db] def devicesNotInACampaign(namespace: Namespace, devices: Seq[DeviceId]): Query[Rep[DeviceId], DeviceId, Seq] =
+    Schema.ecu
+      .filter(_.namespace === namespace)
+      .map(_.device)
+      .filter(_.inSet(devices))
+      .notInACampaign(namespace)
 
   private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
     Schema.ecu
@@ -86,7 +92,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .join(Schema.ecu.filter(_.namespace === namespace)).on(_ === _.ecuSerial)
       .map(_._2)
       .map(_.device)
-      .notInACampaign
+      .notInACampaign(namespace)
       .distinct
       .paginateResult(offset = offset, limit = limit)
   }
@@ -143,7 +149,10 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
     Schema.ecu
       .filter(_.namespace === namespace)
       .filter(_.device === device)
-      .join(Schema.ecuUpdateAssignments.filter(_.version === version)).on(_.ecuSerial === _.ecuId)
+      .join(Schema.ecuUpdateAssignments
+        .filter(_.namespace === namespace)
+        .filter(_.deviceId === device)
+        .filter(_.version === version)).on(_.ecuSerial === _.ecuId)
       .map { case (ecu, ecuTarget) => ecuTarget.ecuId -> ((ecu.hardwareId, ecuTarget.customImage)) }
       .result
       .map(_.toMap)
@@ -268,6 +277,7 @@ protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) 
     }
 
     val act = Schema.deviceUpdateAssignments
+      .filter(_.namespace === namespace)
       .filter(_.deviceId === device)
       .filter(_.version === version)
       .map(_.served)

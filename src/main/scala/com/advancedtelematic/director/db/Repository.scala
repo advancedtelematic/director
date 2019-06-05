@@ -100,7 +100,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
   def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
     Schema.ecu
         .filter(_.namespace === namespace).filter(_.device === device)
-        .join(Schema.currentImage).on(_.ecuSerial === _.id)
+        .join(Schema.currentImage.filter(_.namespace === namespace)).on(_.ecuSerial === _.id)
         .map { case (ecu, curImage) => (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum) }
         .result
         .failIfEmpty(MissingDevice)

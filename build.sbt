@@ -1,6 +1,11 @@
 name := "director"
 organization := "com.advancedtelematic"
 scalaVersion := "2.12.5"
+licenses += ("MPL-2.0", url("http://mozilla.org/MPL/2.0/"))
+scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/advancedtelematic/director"),
+    "scm:git:git@github.com:advancedtelematic/director.git"))
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification"
    )
@@ -14,8 +19,8 @@ libraryDependencies ++= {
   val akkaHttpV = "10.1.7"
   val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.6.0-1-g2f23c85"
-  val libatsV = "0.2.1-13-g4a34692"
+  val tufV = "0.7.0-9-g3300750"
+  val libatsV = "0.3.0-12-gcc90349"
   val circeConfigV = "0.0.2"
 
   Seq(

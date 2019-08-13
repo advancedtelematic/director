@@ -52,12 +52,14 @@ trait DeviceResources {
     deviceId
   }
 
-  def getDeviceRole[T : Encoder : Decoder](deviceId: DeviceId)(implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): RouteTestResult = {
-    Get(apiUri(s"device/${deviceId.show}/${tufRole.metaPath.value}")).namespaced ~> routes
+  def getDeviceRole[T : Encoder : Decoder](deviceId: DeviceId, version: Option[Int] = None)
+                                          (implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): RouteTestResult = {
+    val versionStr = version.map(_ + ".").getOrElse("")
+    Get(apiUri(s"device/${deviceId.show}/$versionStr${tufRole.metaPath.value}")).namespaced ~> routes
   }
 
-  def getDeviceRoleOk[T : Encoder : Decoder](deviceId: DeviceId)(implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): SignedPayload[T] = {
-    getDeviceRole[T](deviceId) ~> check {
+  def getDeviceRoleOk[T : Encoder : Decoder](deviceId: DeviceId, version: Option[Int] = None)(implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): SignedPayload[T] = {
+    getDeviceRole[T](deviceId, version) ~> check {
       status shouldBe StatusCodes.OK
       responseAs[SignedPayload[T]]
     }
@@ -380,6 +382,15 @@ class DeviceResourceSpec extends DirectorSpec
     val deviceId = registerDeviceOk()
 
     getDeviceRoleOk[RootRole](deviceId)
+
+    val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
+    deviceSeenMsg.map(_.namespace) should contain(ns)
+  }
+
+  testWithRepo("device gets logged when fetching root with version") { implicit ns =>
+    val deviceId = registerDeviceOk()
+
+    getDeviceRoleOk[RootRole](deviceId, version = 1.some)
 
     val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
     deviceSeenMsg.map(_.namespace) should contain(ns)

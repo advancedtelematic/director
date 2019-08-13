@@ -25,7 +25,7 @@ class DeviceRoleGeneration(keyserverClient: KeyserverClient)(implicit val db: Da
     new SignedRoleGeneration(keyserverClient, itemsProvider, signedRoleProvider)
   }
 
-  private val roleRefresher =  (ns: Namespace, device: DeviceId) => {
+  private val roleRefresher = (ns: Namespace, device: DeviceId) => {
     val itemsProvider = new DeviceTargetProvider(ns, device)
     val signedRoleProvider = new DeviceSignedRoleProvider(ns, device)
     new RepoRoleRefresh(keyserverClient, signedRoleProvider, itemsProvider)

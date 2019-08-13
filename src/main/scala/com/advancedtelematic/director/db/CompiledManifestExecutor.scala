@@ -21,10 +21,10 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
     val io = for {
       assignments <- Schema.assignments.filter(_.deviceId === deviceId).result
       processed <- Schema.processedAssignments.filter(_.deviceId === deviceId).result
-      ecuTargetIds = assignments.map(_.ecuTargetId)
       ecuStatus <- Schema.ecus.filter(_.deviceId === deviceId).map(ecu => ecu.ecuSerial -> ecu.installedTarget).result
       primaryEcu <- Schema.devices.filter(_.id === deviceId).map(_.primaryEcu).result.head
-      ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds.toSet)).map { t => t.id -> t }.result
+      ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
+      ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
     } yield DeviceKnownStatus(deviceId, primaryEcu, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet)
 
     io

@@ -51,22 +51,24 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
             val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
             complete(f)
           }
-        } ~
-        patch {
-          // Seq[DeviceId
-          entity(as[String]) { _ =>
-            ???
-          }
         }
+        // TODO:SM
+//        patch {
+//          // Seq[DeviceId
+//          entity(as[String]) { _ =>
+//            ???
+//          }
+//        }
       } ~
       pathPrefix(DeviceId.Path) { deviceId =>
         get { //  This should be replacing /queue in /admin
           val f = deviceAssignments.findDeviceAssignments(ns, deviceId)
           complete(f)
-        } ~
-        delete {
-          ???
         }
+        // TODO:SM
+//        delete {
+//          ???
+//        }
       }
     }
   }

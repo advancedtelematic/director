@@ -23,7 +23,7 @@ CREATE TABLE `ecus` (
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   PRIMARY KEY (`namespace`,`ecu_serial`),
   CONSTRAINT `ecu_current_target_fk` FOREIGN KEY (`current_target`) REFERENCES ecu_targets(`id`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 ;
 
 CREATE TABLE `devices` (
@@ -35,7 +35,9 @@ CREATE TABLE `devices` (
   PRIMARY KEY (`id`),
   CONSTRAINT `devices_unique_id` UNIQUE (`id`),
   CONSTRAINT `primary_ecu_fk` FOREIGN KEY (`namespace`, `primary_ecu_id`) REFERENCES ecus(`namespace`, `ecu_serial`)
-);
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+;
+
 
 CREATE TABLE `signed_roles` (
   `role` enum('ROOT','SNAPSHOT','TARGETS','TIMESTAMP') NOT NULL,
@@ -93,7 +95,8 @@ CREATE TABLE `assignments` (
 
   PRIMARY KEY (`device_id`, `ecu_serial`)
 
-);
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+;
 
 CREATE TABLE `processed_assignments` (
   `namespace` varchar(200) NOT NULL,
@@ -111,4 +114,5 @@ CREATE TABLE `processed_assignments` (
   CONSTRAINT `p_assignments_ecu_fk` FOREIGN KEY (`ecu_target_id`) REFERENCES ecu_targets(`id`),
   CONSTRAINT `p_assignments_ecu_target_fk` FOREIGN KEY (`namespace`, `ecu_serial`) REFERENCES ecus(`namespace`, `ecu_serial`),
   CONSTRAINT `p_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
-);
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+;

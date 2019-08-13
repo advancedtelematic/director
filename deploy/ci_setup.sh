@@ -21,7 +21,7 @@ docker run -d \
   -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_USER=director \
   -e MYSQL_PASSWORD=director \
-  mariadb:10.1 \
+  mariadb:10.3.13 \
   --character-set-server=utf8 --collation-server=utf8_unicode_ci \
   --max_connections=1000
 

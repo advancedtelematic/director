@@ -64,7 +64,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
        } ~
         get {
           path(IntNumber ~ ".root.json") { version =>
-            complete(fetchRoot(ns, version.some))
+            logDevice(ns, device) {
+              complete(fetchRoot(ns, version.some))
+            }
           } ~
             path(JsonRoleTypeMetaPath) {
               case RoleType.ROOT =>

@@ -14,7 +14,7 @@ import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHeal
 import com.advancedtelematic.libats.http.tracing.Tracing
 import com.advancedtelematic.libats.http.tracing.Tracing.RequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.db.DatabaseConfig
+import com.advancedtelematic.libats.slick.db.{AsyncMigrations, BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
@@ -54,7 +54,8 @@ object Boot extends BootApp
   with DatabaseMetrics
   with InfluxdbMetricsReporterSupport
   with AkkaHttpRequestMetrics
-  with PrometheusMetricsSupport {
+  with PrometheusMetricsSupport
+  with BootMigrations {
 
   implicit val _db = db
 

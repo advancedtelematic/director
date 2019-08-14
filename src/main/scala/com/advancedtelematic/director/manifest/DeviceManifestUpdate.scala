@@ -13,6 +13,7 @@ import io.circe.Json
 import org.slf4j.LoggerFactory
 import java.time.Instant
 
+import com.advancedtelematic.director.data.DataType.Image
 import com.advancedtelematic.libats.data.EcuIdentifier
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -26,7 +27,9 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
 
   private val successInstallationResult = InstallationResult(true, ResultCode("0"), ResultDescription("All targeted ECUs were successfully updated"))
   private val failureInstallationResult = InstallationResult(false, ResultCode("19"), ResultDescription("One or more targeted ECUs failed to update"))
-  private val unexpectedTargetResult = InstallationResult(false, ResultCode("20"), ResultDescription("Device reported incorrect filepath, hash, or length of ECU targets"))
+  private def UnexpectedTargetResult(expected: Map[EcuIdentifier, Image], reported: Map[EcuIdentifier, Image]) =
+    InstallationResult(success = false, ResultCode("20"),
+      ResultDescription(s"Device reported incorrect filepath, hash, or length of ECU targets. Expected $expected reported: $reported"))
 
 
   def setDeviceManifest(namespace: Namespace, device: DeviceId, signedDevMan: SignedPayload[Json]): Future[Unit] = for {
@@ -72,9 +75,10 @@ class DeviceManifestUpdate(afterUpdate: AfterDeviceManifestUpdate,
           correlationId <- updateAssignment.correlationId
           report <- toDeviceInstallationReport(namespace, device, deviceManifest, correlationId, enforceExplicit = false)
         } yield {
-          val reportUpdated = if (report.result.success)
-            report.copy(result = unexpectedTargetResult)
-          else
+          val reportUpdated = if (report.result.success) {
+            _log.debug(s"$device reported an unexpected target: $manifest Expected $manifest")
+            report.copy(result = UnexpectedTargetResult(targets, manifest))
+          } else
             report
           afterUpdate.clearUpdate(reportUpdated)
         }

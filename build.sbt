@@ -1,6 +1,6 @@
 name := "director"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.5"
+scalaVersion := "2.12.8"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 

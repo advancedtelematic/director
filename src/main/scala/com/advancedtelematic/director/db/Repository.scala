@@ -2,11 +2,13 @@ package com.advancedtelematic.director.db
 
 import java.time.Instant
 
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
 import com.advancedtelematic.director.data.DataType.{Ecu, FileCacheRequest, MultiTargetUpdateRow}
 import com.advancedtelematic.director.data.{DataType, FileCacheRequestStatus}
 import com.advancedtelematic.director.db.Errors._
 import com.advancedtelematic.director.db.SlickMapping._
+import com.advancedtelematic.director.http.DeviceDebugInfo.ReceivedDeviceManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
@@ -16,8 +18,10 @@ import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
+import org.slf4j.LoggerFactory
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -97,16 +101,27 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
       .paginateResult(offset = offset, limit = limit)
   }
 
-  def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
+  def findDeviceById(device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
+    findDeviceAction(namespaceO = None, device)
+  }
+
+  private def findDeviceAction(namespaceO: Option[Namespace], deviceId: DeviceId): DBIO[Seq[EcuInfoResponse]] = {
     Schema.ecu
-        .filter(_.namespace === namespace).filter(_.device === device)
-        .join(Schema.currentImage.filter(_.namespace === namespace)).on(_.ecuSerial === _.id)
-        .map { case (ecu, curImage) => (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum) }
-        .result
-        .failIfEmpty(MissingDevice)
-        .map { _.map { case (id, hardwareId, primary, filepath, size, checksum) =>
+      .maybeFilter(_.namespace === namespaceO)
+      .filter(_.device === deviceId)
+      .join(Schema.currentImage).on { case (e, ci) => e.ecuSerial === ci.id && e.namespace === ci.namespace }
+      .map { case (ecu, curImage) => (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum) }
+      .result
+      .failIfEmpty(MissingDevice)
+      .map { _.map {
+        case (id, hardwareId, primary, filepath, size, checksum) =>
           EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
-        } }
+      }
+      }
+  }
+
+  def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
+    findDeviceAction(Option(namespace), device)
   }
 
   def findDevices(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
@@ -309,6 +324,15 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .map(_.fileEntity)
       .result
       .failIfNotSingle(err)
+  }
+
+  def fetchDeviceTargets(deviceId: DeviceId): Future[Seq[Json]] = db.run {
+    Schema.fileCache
+      .filter(_.role === RoleType.TARGETS)
+      .filter(_.device === deviceId)
+      .sortBy(_.expires.desc)
+      .map(_.fileEntity)
+      .result
   }
 
   def fetchTarget(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TARGETS, MissingTarget)(device, version)
@@ -516,5 +540,34 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
     findByTargetNameAction(namespace, targetName)
       .map(_.groupBy{case (device, _, _) => device}
              .map{case (k, v) => k -> v.map{case (_, hw, tu) => (hw, tu)}})
+  }
+}
+
+trait DeviceManifestsRepositorySupport {
+  def deviceManifestsRepository(implicit db: Database, ec: ExecutionContext) = new DeviceManifestsRepository()
+}
+
+protected class DeviceManifestsRepository()(implicit db: Database, ec: ExecutionContext) {
+  private val _log = LoggerFactory.getLogger(this.getClass)
+
+  def persist(deviceId: DeviceId, payload: Json, success: Boolean, message: String): Future[Unit] = db.run {
+    val manifest = ReceivedDeviceManifest(deviceId, payload, success, message, Instant.now())
+    Schema.deviceManifests.insertOrUpdate(manifest).map(_ => ())
+  }
+
+  def persistSafe(deviceId: DeviceId, payload: Json, success: Boolean, message: String): Future[Unit] = {
+    persist(deviceId, payload, success, message).recover {
+      case ex =>
+        _log.error("Could not save received manifest", ex)
+    }
+  }
+
+  def findAll(deviceId: DeviceId): Future[Seq[ReceivedDeviceManifest]] = db.run {
+    import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+
+    Schema.deviceManifests
+      .sortBy(_.receivedAt.desc)
+      .filter(_.deviceId === deviceId)
+      .result
   }
 }

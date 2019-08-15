@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.Uri
 import cats.implicits._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
+import com.advancedtelematic.director.http.DeviceDebugInfo.ReceivedDeviceManifest
 import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -205,4 +206,19 @@ object Schema {
       ((AutoUpdate.apply _).tupled, AutoUpdate.unapply)
   }
   protected [db] val autoUpdates = TableQuery[AutoUpdates]
+
+  class DeviceManifests(tag: Tag) extends Table[ReceivedDeviceManifest](tag, "device_manifests") {
+    def deviceId = column[DeviceId]("device_id")
+    def payload = column[Json]("payload")
+    def receivedAt = column[Instant]("received_at")
+    def success = column[Boolean]("success")
+    def message = column[String]("message")
+
+    def pk = primaryKey("device_manifest_pk", (deviceId, success))
+
+    override def * = (deviceId, payload, success, message, receivedAt) <>
+      ((ReceivedDeviceManifest.apply _).tupled, ReceivedDeviceManifest.unapply)
+  }
+
+  protected [db] val deviceManifests = TableQuery[DeviceManifests]
 }

@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.server.{Directive0, Directive1}
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DeviceRequest.DeviceRegistration
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
+import com.advancedtelematic.director.db.{DeviceManifestsRepositorySupport, DeviceRepositorySupport, FileCacheRepositorySupport, RepoNameRepositorySupport}
 import com.advancedtelematic.director.manifest.Verifier.Verifier
 import com.advancedtelematic.director.manifest.{AfterDeviceManifestUpdate, DeviceManifestUpdate}
 import com.advancedtelematic.director.roles.Roles
@@ -30,6 +31,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
     extends DeviceRepositorySupport
     with FileCacheRepositorySupport
     with RepoNameRepositorySupport
+    with DeviceManifestsRepositorySupport
     with RootFetcher {
   import akka.http.scaladsl.server.Directives._
   import akka.http.scaladsl.server.Route
@@ -61,7 +63,18 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       put {
         path("manifest") {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
-            val f = deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)
+            val f =
+              deviceManifestUpdate.setDeviceManifest(ns, device, jsonDevMan)
+                .flatMap { _ =>
+                  deviceManifestsRepository.persistSafe(device, jsonDevMan.signed, success = true, message = "")
+                }
+                .recoverWith {
+                  case ex =>
+                    deviceManifestsRepository
+                      .persistSafe(device, jsonDevMan.signed, success = false, message = ex.getMessage)
+                      .flatMap { _ => FastFuture.failed(ex) }
+                }
+
             complete(f)
           }
         }

@@ -5,15 +5,19 @@ import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling.PredefinedFromStringUnmarshallers.CsvSeq
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminDataType.AssignUpdateRequest
+import com.advancedtelematic.director.data.AssignmentDataType.CancelAssignments
 import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.DbDataType
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, _}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateCanceled, DeviceUpdateEvent}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.deviceUpdateCanceledEncoder
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -51,24 +55,19 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
             val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
             complete(f)
           }
+        } ~
+        patch {
+          entity(as[CancelAssignments]) { cancelAssignments =>
+            val a = deviceAssignments.cancel(ns, cancelAssignments.cancelAssignments)
+            complete(a.map(_.map(_.deviceId)))
+          }
         }
-        // TODO:SM
-//        patch {
-//          // Seq[DeviceId
-//          entity(as[String]) { _ =>
-//            ???
-//          }
-//        }
       } ~
       pathPrefix(DeviceId.Path) { deviceId =>
         get { //  This should be replacing /queue in /admin
           val f = deviceAssignments.findDeviceAssignments(ns, deviceId)
           complete(f)
         }
-        // TODO:SM
-//        delete {
-//          ???
-//        }
       }
     }
   }

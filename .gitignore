@@ -16,3 +16,5 @@ project/target
 .idea/
 
 director_entrypoint.d
+/.metals/
+.bloop

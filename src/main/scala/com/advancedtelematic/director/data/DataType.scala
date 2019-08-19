@@ -24,7 +24,7 @@ object DbDataType {
                                        ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
                                        ecuTargets: Map[EcuTargetId, EcuTarget],
                                        currentAssignments: Set[Assignment],
-                                       processedAssignments: Set[Assignment])
+                                       processedAssignments: Set[ProcessedAssignment])
 
   final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier)
 
@@ -57,7 +57,15 @@ object DbDataType {
                        sha256: SHA256Checksum,
                        uri: Option[Uri])
 
-  case class Assignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId, correlationId: CorrelationId, inFlight: Boolean)
+  case class Assignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
+                        correlationId: CorrelationId, inFlight: Boolean) {
+
+    def toProcessedAssignment(canceled: Boolean): ProcessedAssignment =
+                                      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, canceled)
+  }
+
+  case class ProcessedAssignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
+                                 correlationId: CorrelationId, canceled: Boolean)
 
   type SHA256Checksum = Refined[String, ValidChecksum]
 }
@@ -88,6 +96,10 @@ object AdminDataType {
   final case class QueueResponse(correlationId: CorrelationId, targets: Map[EcuIdentifier, TargetImage], inFlight: Boolean)
 
   final case class FindImageCount(filepaths: Seq[TargetFilename])
+}
+
+object AssignmentDataType {
+  final case class CancelAssignments(cancelAssignments: Seq[DeviceId])
 }
 
 object UptaneDataType {

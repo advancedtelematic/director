@@ -104,7 +104,7 @@ CREATE TABLE `processed_assignments` (
   `ecu_serial` varchar(64) NOT NULL,
   `ecu_target_id` char(36) NOT NULL,
   `correlation_id` varchar(255) NOT NULL,
-  `in_flight` BOOLEAN NOT NULL,
+  `canceled` BOOLEAN NOT NULL,
 
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),

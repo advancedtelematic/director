@@ -3,7 +3,6 @@ package com.advancedtelematic.director.db
 import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DbDataType._
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -98,15 +97,15 @@ object Schema {
 
   protected [db] val assignments = TableQuery[AssignmentsTable]
 
-  class ProcessedAssignmentsTable(tag: Tag) extends Table[Assignment](tag, "processed_assignments") {
+  class ProcessedAssignmentsTable(tag: Tag) extends Table[ProcessedAssignment](tag, "processed_assignments") {
     def namespace = column[Namespace]("namespace")
     def deviceId = column[DeviceId]("device_id")
     def ecuId = column[EcuIdentifier]("ecu_serial")
     def ecuTargetId = column[EcuTargetId]("ecu_target_id")
     def correlationId = column[CorrelationId]("correlation_id")
-    def inFlight = column[Boolean]("in_flight")
+    def canceled = column[Boolean]("canceled")
 
-    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, inFlight) <> ((Assignment.apply _).tupled, Assignment.unapply)
+    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
   }
 
   protected [db] val processedAssignments = TableQuery[ProcessedAssignmentsTable]

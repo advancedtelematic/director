@@ -2,7 +2,7 @@ package com.advancedtelematic.director.manifest
 
 import cats.data.ValidatedNel
 import com.advancedtelematic.director.data.UptaneDataType.Image
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId, ProcessedAssignment}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
@@ -49,7 +49,7 @@ object ManifestCompiler {
       assignmentExists(knownStatus.currentAssignments, knownStatus.ecuTargets, ecuId, signedManifest.signed)
     }
 
-    val newProcessed = knownStatus.processedAssignments ++ assignmentsProcessedInManifest
+    val newProcessed = knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false))
     val newAssigned = knownStatus.currentAssignments -- assignmentsProcessedInManifest
 
     val newEcuTargets = manifest.ecu_version_manifests.values.map { ecuManifest =>

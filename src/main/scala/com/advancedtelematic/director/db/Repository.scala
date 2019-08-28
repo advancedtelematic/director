@@ -167,6 +167,20 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
   def setAllInFlight(deviceId: DeviceId): Future[Unit] = db.run {
     Schema.assignments.filter(_.deviceId === deviceId).map(_.inFlight).update(true).map(_ => ())
   }
+
+  def processCancelation(ns: Namespace, deviceIds: Seq[DeviceId]): Future[Seq[Assignment]] = {
+
+    val assignmentQuery = Schema.assignments.filter(_.namespace === ns).filter(_.deviceId inSet deviceIds).filterNot(_.inFlight)
+
+    val action = for {
+      assignments <- assignmentQuery.result
+      _ <- Schema.processedAssignments ++= assignments.map(_.toProcessedAssignment(true))
+      _ <- assignmentQuery.delete
+    } yield(assignments)
+
+    db.run(action.transactionally)
+  }
+
 }
 
 

@@ -1,17 +1,18 @@
 package com.advancedtelematic.director.http
 
+import java.time.Instant
+
+import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.QueueResponse
-import com.advancedtelematic.director.data.DataType
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DbDataType.Assignment
-import com.advancedtelematic.director.data.UptaneDataType._
-import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, EcuRepositorySupport, EcuTargetsRepositorySupport, HardwareUpdateRepositorySupport}
+import com.advancedtelematic.director.data.UptaneDataType.{TargetImage, _}
+import com.advancedtelematic.director.db._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateCanceled, DeviceUpdateEvent}
 import org.slf4j.LoggerFactory
 import slick.jdbc.MySQLProfile.api._
-import cats.implicits._
-import com.advancedtelematic.director.data.UptaneDataType.TargetImage
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -23,6 +24,7 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
   import scala.async.Async._
 
   def findDeviceAssignments(ns: Namespace, deviceId: DeviceId): Future[Vector[QueueResponse]] = async {
+
     val correlationIdToAssignments = await(assignmentsRepository.findBy(deviceId)).groupBy(_.correlationId)
 
     val deviceQueues =
@@ -80,4 +82,15 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
 
     assignments
   }
+
+  def cancel(namespace: Namespace, devices: Seq[DeviceId])(implicit messageBusPublisher: MessageBusPublisher): Future[Seq[Assignment]] = {
+    assignmentsRepository.processCancelation(namespace, devices).flatMap { canceledAssignments =>
+      Future.traverse(canceledAssignments) { canceledAssignment =>
+        val ev: DeviceUpdateEvent =
+          DeviceUpdateCanceled(namespace, Instant.now, canceledAssignment.correlationId, canceledAssignment.deviceId)
+        messageBusPublisher.publish(ev).map(_ => canceledAssignment)
+      }
+    }
+  }
+
 }

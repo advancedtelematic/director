@@ -2,21 +2,27 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
+import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType._
+import com.advancedtelematic.director.data.AssignmentDataType.CancelAssignments
 import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.DataType.TargetItemCustom
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.data.UptaneDataType.FileInfo
 import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
-import com.advancedtelematic.director.util.{DirectorSpec, MockMessageBus, NamespacedTests, RepositorySpec, RouteResourceSpec}
+import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, _}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.TargetsRole
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.scalactic.source.Position
-import cats.syntax.show._
-import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateEvent
-import com.advancedtelematic.libats.messaging_datatype.Messages._
+
 
 trait AssignmentResources {
   self: DirectorSpec with RouteResourceSpec with NamespacedTests with AdminResources =>
@@ -56,6 +62,20 @@ trait AssignmentResources {
     getDeviceAssignment(deviceId) {
       status shouldBe StatusCodes.OK
       responseAs[Seq[QueueResponse]]
+    }
+  }
+
+  def getTargetsOk(regDev: AdminResources.RegisterDeviceResult)(implicit ns: Namespace): SignedPayload[TargetsRole] = {
+    Get(apiUri(s"device/${regDev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]]
+    }
+  }
+
+  def cancelAssignmentsOk(deviceIds: Seq[DeviceId])(implicit ns: Namespace): Seq[DeviceId] = {
+    Patch(apiUri("assignments"), CancelAssignments(deviceIds)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[DeviceId]]
     }
   }
 }
@@ -158,9 +178,29 @@ class AssignmentsResourceSpec extends DirectorSpec
     }
   }
 
-  test("PATCH assignments cancels assigned updates") (pending)
+  testWithRepo("PATCH assignments cancels assigned updates") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 
-  test("DELETE assignments/:device cancels assigned updates") (pending)
+    cancelAssignmentsOk(Seq(regDev.deviceId)) shouldBe Seq(regDev.deviceId)
+
+    val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+      msg.deviceUuid == regDev.deviceId
+    }
+
+    msg shouldBe defined
+    msg.get shouldBe a [DeviceUpdateCanceled]
+  }
+
+  testWithRepo("DELETE assignments can only cancel if update is not in-flight") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
+
+    // make it inflight
+    getTargetsOk(regDev)
+
+    cancelAssignmentsOk(Seq(regDev.deviceId)) shouldBe Seq.empty
+  }
 
   testWithRepo("published DeviceUpdateAssigned message") { implicit ns =>
     val regDev = registerAdminDeviceOk()
@@ -173,6 +213,21 @@ class AssignmentsResourceSpec extends DirectorSpec
     msg shouldBe defined
   }
 
-  // TODO: Cancel Implementation missing
-  test("published DeviceUpdateCanceled message")(pending)
+  testWithRepo("Device ignores canceled assignment and sees new assignment created afterwards") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
+
+    cancelAssignmentsOk(Seq(regDev.deviceId)) shouldBe Seq(regDev.deviceId)
+
+    val t1 = getTargetsOk(regDev)
+    t1.signed.targets shouldBe 'empty
+
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
+
+    val t2 = getTargetsOk(regDev)
+    // check if a target is addressing our ECU:
+    val targetItemCustom = t2.signed.targets.values.head.customParsed[TargetItemCustom]
+    targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
+  }
+
 }

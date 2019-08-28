@@ -10,7 +10,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.syntax._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.UptaneDataType._
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId, ProcessedAssignment}
 import com.advancedtelematic.libats.data.DataType.Namespace
 
 class ManifestCompilerSpec extends DirectorSpec {
@@ -69,12 +69,13 @@ class ManifestCompilerSpec extends DirectorSpec {
     val manifest = DeviceManifest(primary, ecuVersionManifest)
     val secondaryAssignment = Assignment(ns, deviceId, secondary, ecuTarget.id, GenCorrelationId.generate, inFlight = true)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None, secondary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, secondaryAssignment), Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None, secondary -> None), Map(ecuTarget.id -> ecuTarget),
+                                          Set(assignment, secondaryAssignment), Set.empty)
 
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
     newStatus.currentAssignments shouldBe Set(assignment)
-    newStatus.processedAssignments shouldBe Set(secondaryAssignment)
+    newStatus.processedAssignments shouldBe Set(secondaryAssignment.toProcessedAssignment(false))
     newStatus.ecuStatus(primary) shouldBe None
     newStatus.ecuStatus(secondary) should contain(ecuTarget.id)
     newStatus.ecuTargets shouldBe currentStatus.ecuTargets
@@ -91,7 +92,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
     newStatus.currentAssignments shouldBe Set(otherAssignment)
-    newStatus.processedAssignments shouldBe Set(assignment)
+    newStatus.processedAssignments shouldBe Set(assignment.toProcessedAssignment(false))
     newStatus.ecuStatus(primary) should contain(ecuTarget.id)
     newStatus.ecuTargets shouldBe currentStatus.ecuTargets
   }

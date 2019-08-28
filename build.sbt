@@ -1,6 +1,6 @@
 name := "director"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.5"
+scalaVersion := "2.12.8"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 
@@ -13,7 +13,7 @@ libraryDependencies ++= {
   val akkaHttpV = "10.1.7"
   val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.6.0-21-gdd73b45-SNAPSHOT"
+  val tufV = "0.7.0-5-gf70955a"
   val libatsV = "0.2.1-2-g962e326"
   val circeConfigV = "0.0.2"
 

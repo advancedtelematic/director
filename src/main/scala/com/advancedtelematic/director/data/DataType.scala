@@ -14,17 +14,22 @@ import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, TargetFilename, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
 
 object DbDataType {
-    final case class DeviceKnownStatus(deviceId: DeviceId,
-                                       primaryEcu: EcuIdentifier,
-                                       ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
-                                       ecuTargets: Map[EcuTargetId, EcuTarget],
-                                       currentAssignments: Set[Assignment],
-                                       processedAssignments: Set[ProcessedAssignment])
+  case class AutoUpdateDefinitionId(uuid: UUID) extends UUIDKey
+  object AutoUpdateDefinitionId extends UUIDKeyObj[AutoUpdateDefinitionId]
+
+  final case class AutoUpdateDefinition(id: AutoUpdateDefinitionId, namespace: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName)
+
+  final case class DeviceKnownStatus(deviceId: DeviceId,
+                                     primaryEcu: EcuIdentifier,
+                                     ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
+                                     ecuTargets: Map[EcuTargetId, EcuTarget],
+                                     currentAssignments: Set[Assignment],
+                                     processedAssignments: Set[ProcessedAssignment])
 
   final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier)
 

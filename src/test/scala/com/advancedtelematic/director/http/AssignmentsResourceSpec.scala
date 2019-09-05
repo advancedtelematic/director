@@ -229,5 +229,4 @@ class AssignmentsResourceSpec extends DirectorSpec
     val targetItemCustom = t2.signed.targets.values.head.customParsed[TargetItemCustom]
     targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
   }
-
 }

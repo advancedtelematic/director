@@ -4,7 +4,7 @@ import java.time.Instant
 
 import akka.http.scaladsl.util.FastFuture
 import cats.Show
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, SHA256Checksum}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, SHA256Checksum}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorCode, PaginationResult}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId, RawError}
@@ -12,17 +12,19 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, Updat
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
 import SlickMapping._
+import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
+import com.advancedtelematic.libats.slick.db.SlickExtensions._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -148,12 +150,30 @@ trait AssignmentsRepositorySupport extends DatabaseSupport {
 
 protected class AssignmentsRepository()(implicit val db: Database, val ec: ExecutionContext) {
 
+  def persistManyForEcuTarget(ecuTargetsRepository: EcuTargetsRepository)
+                             (ecuTarget: EcuTarget, assignments: Seq[Assignment]): Future[Unit] = db.run {
+
+    println(assignments)
+
+    ecuTargetsRepository.persistAction(ecuTarget).andThen {
+      (Schema.assignments ++= assignments).map(_ => ())
+    }.transactionally
+  }
+
   def persistMany(assignments: Seq[Assignment]): Future[Unit] = db.run {
     (Schema.assignments ++= assignments).map(_ => ())
   }
 
   def findBy(deviceId: DeviceId): Future[Seq[Assignment]] = db.run {
     Schema.assignments.filter(_.deviceId === deviceId).result
+  }
+
+  def existsForDevices(deviceIds: Set[DeviceId]): Future[Map[DeviceId, Boolean]] = db.run {
+    Schema.assignments
+      .filter(_.deviceId.inSet(deviceIds))
+      .map { a => a.deviceId -> true }
+      .result
+      .map { existing => deviceIds.map(_ -> false).toMap ++ existing.toMap }
   }
 
   def existsFor(ecus: Set[EcuIdentifier]): Future[Boolean] = db.run {
@@ -168,19 +188,17 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
     Schema.assignments.filter(_.deviceId === deviceId).map(_.inFlight).update(true).map(_ => ())
   }
 
-  def processCancelation(ns: Namespace, deviceIds: Seq[DeviceId]): Future[Seq[Assignment]] = {
-
+  def processCancellation(ns: Namespace, deviceIds: Seq[DeviceId]): Future[Seq[Assignment]] = {
     val assignmentQuery = Schema.assignments.filter(_.namespace === ns).filter(_.deviceId inSet deviceIds).filterNot(_.inFlight)
 
     val action = for {
       assignments <- assignmentQuery.result
       _ <- Schema.processedAssignments ++= assignments.map(_.toProcessedAssignment(true))
       _ <- assignmentQuery.delete
-    } yield(assignments)
+    } yield assignments
 
     db.run(action.transactionally)
   }
-
 }
 
 
@@ -294,4 +312,32 @@ protected[db] class DbSignedRoleRepository()(implicit val db: Database, val ec: 
         DBIO.failed(Errors.InvalidVersionBumpError(sr.version, signedRole.version, signedRole.role))
       case _ => DBIO.successful(())
     }
+}
+
+trait AutoUpdateDefinitionRepositorySupport {
+  def autoUpdateDefinitionRepository(implicit db: Database, ec: ExecutionContext) = new AutoUpdateDefinitionRepository()
+}
+
+protected class AutoUpdateDefinitionRepository()(implicit db: Database, ec: ExecutionContext) {
+  private val nonDeleted = Schema.autoUpdates.filter(_.deleted === false)
+
+  def persist(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[AutoUpdateDefinitionId] = db.run {
+    val id = AutoUpdateDefinitionId.generate()
+    (Schema.autoUpdates += AutoUpdateDefinition(id, ns, deviceId, ecuId, targetName)).map(_ => id)
+  }
+
+  def remove(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[Unit] = db.run {
+    nonDeleted
+      .filter(_.deviceId === deviceId).filter(_.ecuId === ecuId)
+      .filter(_.namespace === ns).filter(_.targetName === targetName)
+      .map(_.deleted).update(true).handleSingleUpdateError(MissingEntity[AutoUpdateDefinition]())
+  }
+
+  def findByName(namespace: Namespace, targetName: TargetName): Future[Seq[AutoUpdateDefinition]] = db.run {
+    nonDeleted.filter(_.namespace === namespace).filter(_.targetName === targetName).result
+  }
+
+  def findOnDevice(ns: Namespace, device: DeviceId, ecuId: EcuIdentifier): Future[Seq[AutoUpdateDefinition]] = db.run {
+    nonDeleted.filter(_.namespace === ns).filter(_.deviceId === device).filter(_.ecuId === ecuId).result
+  }
 }

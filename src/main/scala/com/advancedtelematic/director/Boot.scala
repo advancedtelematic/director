@@ -12,18 +12,16 @@ import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHealthCheck}
 import com.advancedtelematic.libats.http.tracing.Tracing
-import com.advancedtelematic.libats.http.tracing.Tracing.RequestTracing
+import com.advancedtelematic.libats.http.tracing.Tracing.ServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.db.{AsyncMigrations, BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, InfluxdbMetricsReporterSupport}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
-import scala.util.Try
 
 object Util {
   def namedType[T](name: String): T = {
@@ -63,14 +61,14 @@ object Boot extends BootApp
 
   lazy val tracing = Tracing.fromConfig(config, projectName)
 
-  def keyserverClient(implicit tracing: RequestTracing) = KeyserverHttpClient(tufUri)
+  def keyserverClient(implicit tracing: ServerRequestTracing) = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
 
   Security.addProvider(new BouncyCastleProvider())
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing: RequestTracing =>
+    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
         new DirectorRoutes(keyserverClient).routes
     }

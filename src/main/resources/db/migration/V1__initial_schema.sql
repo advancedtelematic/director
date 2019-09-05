@@ -116,3 +116,26 @@ CREATE TABLE `processed_assignments` (
   CONSTRAINT `p_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
 ) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 ;
+
+CREATE TABLE `auto_update_definitions` (
+  `id` char(36) NOT NULL,
+  `namespace` varchar(200) NOT NULL,
+  `device_id` char(36) NOT NULL,
+  `ecu_serial` varchar(64) NOT NULL,
+  `target_name` varchar(255) NOT NULL,
+  `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
+
+  `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+
+  CONSTRAINT `auto_update_definitions_unique_target_name` UNIQUE (`device_id`, `ecu_serial`, `target_name`),
+  INDEX `auto_update_definitions_idx_target_name` (`namespace`, `target_name`),
+  INDEX `auto_update_definitions_idx_namespace_device_id` (`namespace`, `device_id`),
+
+  PRIMARY KEY (`id`),
+
+  CONSTRAINT `auto_update_definitions_ecu_target_fk` FOREIGN KEY (`namespace`, `ecu_serial`) REFERENCES ecus(`namespace`, `ecu_serial`),
+  CONSTRAINT `auto_update_definitions_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
+
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+;

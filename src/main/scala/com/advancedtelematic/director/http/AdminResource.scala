@@ -6,7 +6,7 @@ import akka.http.scaladsl.server._
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.{FindImageCount, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.db.{DeviceRegistration, DeviceRepositorySupport, EcuRepositorySupport, RepoNamespaceRepositorySupport}
+import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, DeviceRepositorySupport, EcuRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
@@ -14,7 +14,7 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId, TargetName}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
@@ -40,16 +40,18 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   extends NamespaceRepoId
     with RepoNamespaceRepositorySupport
     with RootFetching
-    with EcuRepositorySupport {
+    with EcuRepositorySupport
+    with AutoUpdateDefinitionRepositorySupport {
 
   private val EcuIdPath = Segment.flatMap(EcuIdentifier(_).toOption)
+  private val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
   val deviceRegistration = new DeviceRegistration(keyserverClient)
   val repositoryCreation = new RepositoryCreation(keyserverClient)
 
   val paginationParameters: Directive[(Long, Long)] =
     (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)).tmap { case (mLimit, mOffset) =>
-      val limit  = mLimit.getOrElse(50L).min(1000)
+      val limit = mLimit.getOrElse(50L).min(1000)
       val offset = mOffset.getOrElse(0L)
       (limit, offset)
     }
@@ -60,20 +62,33 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         val f = repositoryCreation.create(ns).map(_ => StatusCodes.Created)
         complete(f)
       } ~
-      get {
-        path("root.json") {
-          complete(fetchRoot(ns, version = None))
-        } ~
-        path(IntNumber ~ ".root.json") { version ⇒
-          complete(fetchRoot(ns, version.some))
+        get {
+          path("root.json") {
+            complete(fetchRoot(ns, version = None))
+          } ~
+            path(IntNumber ~ ".root.json") { version ⇒
+              complete(fetchRoot(ns, version.some))
+            }
         }
-      }
     }
 
   def devicePath(ns: Namespace): Route =
     pathPrefix(DeviceId.Path) { device =>
       pathPrefix("ecus") {
         pathPrefix(EcuIdPath) { ecuId =>
+          pathPrefix("auto_update") {
+            (pathEnd & get) {
+              complete(autoUpdateDefinitionRepository.findOnDevice(ns, device, ecuId).map(_.map(_.targetName)))
+            } ~
+              path(TargetNamePath) { targetName =>
+                put {
+                  complete(autoUpdateDefinitionRepository.persist(ns, device, ecuId, targetName).map(_ => StatusCodes.NoContent))
+                } ~
+                delete {
+                  complete(autoUpdateDefinitionRepository.remove(ns, device, ecuId, targetName).map(_ => StatusCodes.NoContent))
+                }
+              }
+          } ~
             (path("public_key") & get) {
               val key = ecuRepository.findBySerial(ns, device, ecuId).map(_.publicKey)
               complete(key)

@@ -1,38 +1,28 @@
 package com.advancedtelematic.director.http
 
-import java.util.concurrent.ConcurrentHashMap
-
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.util.FastFuture
 import cats.syntax.option._
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminDataType.{QueueResponse, RegisterDevice, TargetUpdate}
+import com.advancedtelematic.director.data.AdminDataType.{QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.director.util._
-import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorRepresentation}
-import com.advancedtelematic.libats.messaging.MessageBusPublisher
+import com.advancedtelematic.libats.data.DataType.{Namespace, ResultCode, ResultDescription}
+import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
-import com.advancedtelematic.libats.messaging_datatype.MessageLike
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{SignedPayload, TufKeyPair}
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.{Decoder, Encoder, Json}
 import org.scalactic.source.Position
 import org.scalatest.Inspectors
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.reflect.ClassTag
 
 
 trait DeviceResources {
@@ -400,8 +390,8 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
     val correlationId = GenCorrelationId.generate
-    val installItem = InstallationItem(regDev.primary.ecuSerial, InstallationResult(true, "pk-somecode", "pk-somedesc"))
-    val deviceReport = InstallationReport(correlationId, InstallationResult(true, "somecode", "somedesc"), Seq(installItem), None)
+    val installItem = InstallationItem(regDev.primary.ecuSerial, InstallationResult(true, ResultCode("pk-somecode"), ResultDescription("pk-somedesc")))
+    val deviceReport = InstallationReport(correlationId, InstallationResult(true, ResultCode("somecode"), ResultDescription("somedesc")), Seq(installItem), None)
     val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey,targetUpdate.to, deviceReport.some)
 
     putManifestOk(regDev.deviceId, deviceManifest)

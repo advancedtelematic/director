@@ -8,7 +8,7 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Name
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, TargetFilename, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, TargetFilename, TargetName, TufKey}
 import slick.jdbc.MySQLProfile.api._
 
 object Schema {
@@ -132,4 +132,17 @@ object Schema {
   }
 
   protected [db] val repoNamespaces = TableQuery[RepoNameTable]
+
+  class AutoUpdateDefinitionTable(tag: Tag) extends Table[AutoUpdateDefinition](tag, "auto_update_definitions") {
+    def namespace = column[Namespace]("namespace")
+    def id = column[AutoUpdateDefinitionId]("id")
+    def deviceId = column[DeviceId]("device_id")
+    def ecuId = column[EcuIdentifier]("ecu_serial")
+    def targetName = column[TargetName]("target_name")
+    def deleted = column[Boolean]("deleted")
+
+    override def * = (id, namespace, deviceId, ecuId, targetName) <> ((AutoUpdateDefinition.apply _).tupled, AutoUpdateDefinition.unapply)
+  }
+
+  protected [db] val autoUpdates = TableQuery[AutoUpdateDefinitionTable]
 }

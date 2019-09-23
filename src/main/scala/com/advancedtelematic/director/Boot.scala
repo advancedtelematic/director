@@ -16,13 +16,13 @@ import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
 import com.advancedtelematic.libats.http.monitoring.{MetricsSupport, ServiceHealthCheck}
 import com.advancedtelematic.libats.http.tracing.Tracing
-import com.advancedtelematic.libats.http.tracing.Tracing.RequestTracing
+import com.advancedtelematic.libats.http.tracing.Tracing.ServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.db.DatabaseConfig
+import com.advancedtelematic.libats.slick.db.{CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, InfluxdbMetricsReporterSupport}
+import com.advancedtelematic.metrics.AkkaHttpRequestMetrics
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.typesafe.config.{Config, ConfigFactory}
 
@@ -65,13 +65,13 @@ trait Settings {
 }
 
 object Boot extends BootApp
+  with CheckMigrations
   with Directives
   with Settings
   with VersionInfo
   with DatabaseConfig
   with MetricsSupport
   with DatabaseMetrics
-  with InfluxdbMetricsReporterSupport
   with AkkaHttpRequestMetrics
   with PrometheusMetricsSupport {
 
@@ -81,7 +81,7 @@ object Boot extends BootApp
 
   lazy val tracing = Tracing.fromConfig(config, projectName)
 
-  def keyserverClient(implicit tracing: RequestTracing) = KeyserverHttpClient(tufUri)
+  def keyserverClient(implicit tracing: ServerRequestTracing) = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
   val diffService = new DiffServiceDirectorClient(tufBinaryUri)
 
@@ -89,7 +89,7 @@ object Boot extends BootApp
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing: RequestTracing =>
+      (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
         new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient, diffService)), diffService).routes
     }

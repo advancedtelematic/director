@@ -19,8 +19,8 @@ libraryDependencies ++= {
   val akkaHttpV = "10.1.7"
   val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.7.0-9-g3300750"
-  val libatsV = "0.3.0-12-gcc90349"
+  val tufV = "0.7.0-43-gf15f82b"
+  val libatsV = "0.3.0-38-g6acedb6"
   val circeConfigV = "0.0.2"
 
   Seq(
@@ -90,13 +90,14 @@ dockerRepository := Some("advancedtelematic")
 
 packageName in Docker := packageName.value
 
-dockerUpdateLatest := true
+dockerUpdateLatest := false
+
+dockerAliases ++= Seq(dockerAlias.value.withTag(git.gitHeadCommit.value))
 
 defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
 
 dockerCommands := Seq(
   Cmd("FROM", "advancedtelematic/alpine-jre:adoptopenjdk-jdk8u222"),
-  Cmd("RUN", "apk update && apk add --update bash coreutils"),
   ExecCmd("RUN", "mkdir", "-p", s"/var/log/${moduleName.value}"),
   Cmd("ADD", "opt /opt"),
   Cmd("WORKDIR", s"/opt/${moduleName.value}"),
@@ -107,8 +108,6 @@ dockerCommands := Seq(
 )
 
 enablePlugins(JavaAppPackaging)
-
-Revolver.settings
 
 Versioning.settings
 

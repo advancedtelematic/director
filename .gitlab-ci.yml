@@ -51,7 +51,7 @@ build docker image:
     - env | sort
     - export VAULT_TOKEN=$(cat /opt/vault/token)
     - gitlab-docker-login $VAULT_ADDR
-    - ./sbt -x -sbt-dir ./.sbt -ivy ./.ivy2 -batch release with-defaults
+    - ./sbt -x -sbt-dir ./.sbt -ivy ./.ivy2 -batch "release with-defaults"
   cache:
     paths:
       - .ivy2/

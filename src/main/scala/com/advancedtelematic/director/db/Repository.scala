@@ -8,7 +8,6 @@ import com.advancedtelematic.director.data.DataType.{Ecu, FileCacheRequest, Mult
 import com.advancedtelematic.director.data.{DataType, FileCacheRequestStatus}
 import com.advancedtelematic.director.db.Errors._
 import com.advancedtelematic.director.db.SlickMapping._
-import com.advancedtelematic.director.http.DeviceDebugInfo.ReceivedDeviceManifest
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
@@ -543,31 +542,5 @@ protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionConte
   }
 }
 
-trait DeviceManifestsRepositorySupport {
-  def deviceManifestsRepository(implicit db: Database, ec: ExecutionContext) = new DeviceManifestsRepository()
-}
 
-protected class DeviceManifestsRepository()(implicit db: Database, ec: ExecutionContext) {
-  private val _log = LoggerFactory.getLogger(this.getClass)
 
-  def persist(deviceId: DeviceId, payload: Json, success: Boolean, message: String): Future[Unit] = db.run {
-    val manifest = ReceivedDeviceManifest(deviceId, payload, success, message, Instant.now())
-    Schema.deviceManifests.insertOrUpdate(manifest).map(_ => ())
-  }
-
-  def persistSafe(deviceId: DeviceId, payload: Json, success: Boolean, message: String): Future[Unit] = {
-    persist(deviceId, payload, success, message).recover {
-      case ex =>
-        _log.error("Could not save received manifest", ex)
-    }
-  }
-
-  def findAll(deviceId: DeviceId): Future[Seq[ReceivedDeviceManifest]] = db.run {
-    import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
-
-    Schema.deviceManifests
-      .sortBy(_.receivedAt.desc)
-      .filter(_.deviceId === deviceId)
-      .result
-  }
-}

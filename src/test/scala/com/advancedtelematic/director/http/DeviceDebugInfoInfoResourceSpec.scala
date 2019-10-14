@@ -54,10 +54,6 @@ class DeviceDebugInfoInfoResourceSpec extends DirectorSpec with KeyGenerators wi
       deviceDebug.deviceId shouldBe device
       deviceDebug.ecus.map(_.id) should contain theSameElementsAs ecus.map(_.ecu_serial)
 
-      deviceDebug.manifests should have size(1)
-      deviceDebug.manifests.headOption.map(_.success) should contain(true)
-      deviceDebug.manifests.map(_.payload.canonical).headOption should contain(deviceManifest.json.canonical)
-
       deviceDebug.targets shouldNot be(empty)
     }
   }

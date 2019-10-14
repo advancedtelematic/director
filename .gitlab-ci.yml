@@ -46,6 +46,7 @@ build docker image:
     - master
   tags:
     - docker-sock
+    - vault-token
   image: advancedtelematic/gitlab-jobs:0.2.0
   script:
     - env | sort

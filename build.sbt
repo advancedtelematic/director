@@ -90,7 +90,7 @@ dockerRepository := Some("advancedtelematic")
 
 packageName in Docker := packageName.value
 
-dockerUpdateLatest := false
+dockerUpdateLatest := true
 
 dockerAliases ++= Seq(dockerAlias.value.withTag(git.gitHeadCommit.value))
 

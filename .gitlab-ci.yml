@@ -1,7 +1,10 @@
 stages:
+  - prepare
   - test
   - build image
   - trigger deploy
+  - update deployment
+  - integration test
   - veracode scan
   - deps scan
   - generate pages
@@ -12,6 +15,7 @@ variables:
   MYSQL_USER: "director"
   MYSQL_PASSWORD: "director"
   VAULT_ADDR: "http://vault.sit-ota.aws.in.here.com"
+  SERVICE_IMAGE: "advancedtelematic/director"
 
 default:
   services:
@@ -43,9 +47,13 @@ test:
 build docker image:
   stage: build image
   except:
-    - schedules
+    refs:
+      - schedules
+      - deploy/sit
   only:
-    - master
+    refs:
+      - master
+      - /^deploy/.*$/
   tags:
     - docker-sock
     - vault-token
@@ -146,3 +154,7 @@ veracode scan:
   artifacts:
     paths:
       - /tmp/package.zip
+
+include:
+  - project: olp/edge/ota/testing/dynamic-hats
+    file: /.gitlab-ci.yml

@@ -31,6 +31,9 @@ test:
   tags:
     - docker-sock
   image: advancedtelematic/gitlab-jobs:0.2.3
+  except:
+    refs:
+      - deploy/sit
   variables:
     DB_URL: "jdbc:mariadb://db:3306/$MYSQL_DATABASE"
   before_script:

@@ -15,12 +15,12 @@ resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/
 resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.20"
-  val akkaHttpV = "10.1.7"
+  val akkaV = "2.5.25"
+  val akkaHttpV = "10.1.10"
   val scalaTestV = "3.0.5"
   val bouncyCastleV = "1.57"
-  val tufV = "0.7.0-43-gf15f82b"
-  val libatsV = "0.3.0-38-g6acedb6"
+  val tufV = "0.7.0-61-g909b804"
+  val libatsV = "0.3.0-60-ga90afb0"
   val circeConfigV = "0.0.2"
 
   Seq(

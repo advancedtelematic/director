@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.repo
 
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, ResourceSpec}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
@@ -14,9 +15,9 @@ import scala.concurrent.{ExecutionContext, Future}
 class FakeKeyserverClient(implicit ec: ExecutionContext) extends KeyserverClient {
   var count: Int = 0
 
-  override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = Future {
+  override def createRoot(repoId: RepoId, keyType: KeyType, forceSync: Boolean = false): Future[Json] = {
     count += 1
-    Json.obj()
+    FastFuture.successful(Json.obj())
   }
 
   override def sign(repoId: RepoId, roleType: RoleType, payload: Json): Future[JsonSignedPayload] = ???

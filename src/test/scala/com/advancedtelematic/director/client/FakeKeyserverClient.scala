@@ -54,7 +54,7 @@ class FakeKeyserverClient extends KeyserverClient with Generators {
     RootRole(clientKeys, roles, expires = Instant.now.plusSeconds(3600), version = 1)
   }
 
-  override def createRoot(repoId: RepoId, keyType: KeyType): Future[Json] = {
+  override def createRoot(repoId: RepoId, keyType: KeyType, forceSync: Boolean = false): Future[Json] = {
     if (keys.contains(repoId)) {
       FastFuture.failed(KeyserverClient.RootRoleConflict)
     } else {

@@ -3,7 +3,6 @@ package com.advancedtelematic.director
 
 import java.security.Security
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
@@ -22,9 +21,10 @@ import com.advancedtelematic.libats.slick.db.{CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.AkkaHttpRequestMetrics
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
+import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 import scala.util.Try
 
@@ -73,6 +73,7 @@ object Boot extends BootApp
   with MetricsSupport
   with DatabaseMetrics
   with AkkaHttpRequestMetrics
+  with AkkaHttpConnectionMetrics
   with PrometheusMetricsSupport {
 
   implicit val _db = db
@@ -94,5 +95,5 @@ object Boot extends BootApp
         new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient, diffService)), diffService).routes
     }
 
-  Http().bindAndHandle(routes, host, port)
+  Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port)
 }

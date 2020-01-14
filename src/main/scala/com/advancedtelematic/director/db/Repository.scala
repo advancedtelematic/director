@@ -152,9 +152,6 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
 
   def persistManyForEcuTarget(ecuTargetsRepository: EcuTargetsRepository)
                              (ecuTarget: EcuTarget, assignments: Seq[Assignment]): Future[Unit] = db.run {
-
-    println(assignments)
-
     ecuTargetsRepository.persistAction(ecuTarget).andThen {
       (Schema.assignments ++= assignments).map(_ => ())
     }.transactionally
@@ -219,8 +216,9 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
     Schema.ecus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
-  def countEcusWithImages(targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
-    Schema.ecus.join(Schema.ecuTargets.filter(_.filename.inSet(targets))).on(_.installedTarget === _.id)
+  def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
+    Schema.ecus.filter(_.namespace === ns)
+      .join(Schema.ecuTargets.filter(_.filename.inSet(targets)).filter(_.namespace === ns)).on(_.installedTarget === _.id)
       .map { case (ecu, ecuTarget) => ecu.ecuSerial -> ecuTarget.filename }
       .result
       .map { targetByEcu =>

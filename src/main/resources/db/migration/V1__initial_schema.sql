@@ -9,7 +9,7 @@ CREATE TABLE `ecu_targets` (
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   PRIMARY KEY (`id`),
-  INDEX ecu_targets_file_idx(namespace, `filename`(500), sha256)
+  INDEX ecu_targets_file_sha256_idx(namespace, `filename`(500), sha256)
 )
 ;
 
@@ -22,6 +22,7 @@ CREATE TABLE `ecus` (
   `current_target` CHAR(36) DEFAULT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+  INDEX `ecu_namespace_idx` (`namespace`),
   PRIMARY KEY (`device_id`,`ecu_serial`),
   CONSTRAINT `ecu_current_target_fk` FOREIGN KEY (`current_target`) REFERENCES ecu_targets(`id`)
 )
@@ -50,7 +51,7 @@ CREATE TABLE `signed_roles` (
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   `expires_at` datetime(3) NOT NULL,
-  PRIMARY KEY (`role`,`version`,`device_id`)
+  PRIMARY KEY (`device_id`, `role`,`version`)
 )
 ;
 
@@ -96,9 +97,9 @@ CREATE TABLE `assignments` (
   CONSTRAINT `assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`),
 
   INDEX `assignments_device_id_idx` (`device_id`),
+  INDEX `assignments_ecu_serial_idx` (`ecu_serial`),
 
   PRIMARY KEY (`device_id`, `ecu_serial`)
-
 )
 ;
 
@@ -133,6 +134,7 @@ CREATE TABLE `auto_update_definitions` (
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
 
   CONSTRAINT `auto_update_definitions_unique_target_name` UNIQUE (`device_id`, `ecu_serial`, `target_name`),
+
   INDEX `auto_update_definitions_idx_target_name` (`namespace`, `target_name`),
   INDEX `auto_update_definitions_idx_namespace_device_id` (`namespace`, `device_id`),
 

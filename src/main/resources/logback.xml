@@ -1,4 +1,5 @@
 <configuration>
     <logger name="com.advancedtelematic.director.manifest" level="debug" />
+    <logger name="akka" level="debug" />
     <include resource="logback-libats.xml"/>
 </configuration>

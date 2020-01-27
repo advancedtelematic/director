@@ -12,11 +12,15 @@ import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAss
 import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import akka.http.scaladsl.server.Directives._
+
 import scala.concurrent.{ExecutionContext, Future}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import PaginationParametersDirectives._
+import com.advancedtelematic.director.db.EcuRepositorySupport
 
 // Implements routes provided by old director that ota-web-app still uses
-class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
+class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+  extends EcuRepositorySupport {
   private val deviceAssignments = new DeviceAssignments()
 
   private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Unit] = {
@@ -41,6 +45,11 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Dat
         delete {
           val a = deviceAssignments.cancel(ns, List(deviceId))
           complete(a.map(_.map(_.deviceId)))
+        }
+      } ~
+      (path("admin" / "devices") & PaginationParameters) { (limit, offset) =>
+        get {
+          complete(ecuRepository.findAllDeviceIds(ns, offset, limit))
         }
       }
     }

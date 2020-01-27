@@ -11,6 +11,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
+import com.advancedtelematic.libats.data.PaginationResult
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
 
@@ -74,5 +75,19 @@ class LegacyApiResourceSpec extends DirectorSpec
 
     msg shouldBe defined
     msg.get shouldBe a [DeviceUpdateCanceled]
+  }
+
+  testWithRepo("get admin devices") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    Get(apiUri("admin/devices")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val devices = responseAs[PaginationResult[DeviceId]]
+      devices.total shouldBe 1
+      devices.offset shouldBe 0
+      devices.limit shouldBe 50
+      devices.values should have size(1)
+      devices.values should contain(regDev.deviceId)
+    }
   }
 }

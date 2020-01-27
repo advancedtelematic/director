@@ -233,7 +233,15 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
       .filter(_.namespace === ns)
       .map(_.hardwareId)
       .distinct
-      .paginateAndSortResult(identity, offset = offset, limit = limit)
+      .paginateResult(offset = offset, limit = limit)
+  }
+
+  def findAllDeviceIds(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .map(d => (d.id, d.createdAt))
+      .paginateAndSortResult(_._2, offset = offset, limit = limit)
+      .map(_.map(_._1))
   }
 
   def findFor(deviceId: DeviceId): Future[Map[EcuIdentifier, Ecu]] = db.run {

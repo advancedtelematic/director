@@ -19,6 +19,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
+import PaginationParametersDirectives._
 
 import scala.concurrent.ExecutionContext
 
@@ -36,13 +37,6 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   val deviceRegistration = new DeviceRegistration(keyserverClient)
   val repositoryCreation = new RepositoryCreation(keyserverClient)
-
-  val paginationParameters: Directive[(Long, Long)] =
-    (parameters('limit.as[Long].?) & parameters('offset.as[Long].?)).tmap { case (mLimit, mOffset) =>
-      val limit = mLimit.getOrElse(50L).min(1000)
-      val offset = mOffset.getOrElse(0L)
-      (limit, offset)
-    }
 
   def repoRoute(ns: Namespace): Route =
     pathPrefix("repo") {
@@ -113,7 +107,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
               }
             } ~
               (get & path("hardware_identifiers")) {
-                paginationParameters { (limit, offset) =>
+                PaginationParameters { (limit, offset) =>
                   val f = ecuRepository.findAllHardwareIdentifiers(ns, offset, limit)
                   complete(f)
                 }

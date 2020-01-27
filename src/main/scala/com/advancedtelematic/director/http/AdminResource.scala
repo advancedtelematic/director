@@ -107,7 +107,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         pathPrefix("images") {
           (post & path("installed_count")) { // this is post because front-end can't send
             entity(as[FindImageCount]) { findImageReq =>
-              val f = ecuRepository.countEcusWithImages(findImageReq.filepaths.toSet)
+              val f = ecuRepository.countEcusWithImages(ns, findImageReq.filepaths.toSet)
               complete(f)
             }
           }

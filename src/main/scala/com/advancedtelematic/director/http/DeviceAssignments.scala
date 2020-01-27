@@ -2,6 +2,7 @@ package com.advancedtelematic.director.http
 
 import java.time.Instant
 
+import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.QueueResponse
 import com.advancedtelematic.director.data.DbDataType.Assignment
@@ -63,6 +64,10 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
         None
       }
     }
+  }
+
+  def createForDevice(ns: Namespace, correlationId: CorrelationId, deviceId: DeviceId, mtuId: UpdateId): Future[Assignment] = {
+    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.head)
   }
 
   def createForDevices(ns: Namespace, correlationId: CorrelationId, devices: Seq[DeviceId], mtuId: UpdateId): Future[Seq[Assignment]] = async {

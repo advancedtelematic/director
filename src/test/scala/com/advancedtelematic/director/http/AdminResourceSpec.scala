@@ -2,7 +2,7 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.util._
-import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -19,11 +19,12 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, Signed
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
+import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, MultiTargetUpdate, QueueResponse, RegisterDevice}
 import org.scalactic.source.Position
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, InstallationReportEntity}
 import com.advancedtelematic.libats.codecs.CirceCodecs._
+import org.scalatest.OptionValues._
+import com.advancedtelematic.libats.messaging_datatype.Messages._
 
 object AdminResources {
   case class RegisterDeviceResult(deviceId: DeviceId,

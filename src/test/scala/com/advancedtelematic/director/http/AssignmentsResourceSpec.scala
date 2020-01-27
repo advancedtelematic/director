@@ -139,11 +139,9 @@ class AssignmentsResourceSpec extends DirectorSpec
     createAssignmentOk(regDev0.deviceId, regDev0.primary.hardwareId)
 
     val queue0 = getDeviceAssignmentOk(regDev0.deviceId)
-
     queue0 shouldNot be(empty)
 
     val queue1 = getDeviceAssignmentOk(regDev1.deviceId)
-
     queue1 shouldBe empty
   }
 
@@ -184,6 +182,9 @@ class AssignmentsResourceSpec extends DirectorSpec
 
     cancelAssignmentsOk(Seq(regDev.deviceId)) shouldBe Seq(regDev.deviceId)
 
+    val queue = getDeviceAssignmentOk(regDev.deviceId)
+    queue shouldBe empty
+
     val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid == regDev.deviceId
     }
@@ -192,7 +193,7 @@ class AssignmentsResourceSpec extends DirectorSpec
     msg.get shouldBe a [DeviceUpdateCanceled]
   }
 
-  testWithRepo("DELETE assignments can only cancel if update is not in-flight") { implicit ns =>
+  testWithRepo("PATCH assignments can only cancel if update is not in-flight") { implicit ns =>
     val regDev = registerAdminDeviceOk()
     createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 

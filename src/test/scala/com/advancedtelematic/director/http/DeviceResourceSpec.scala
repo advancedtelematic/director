@@ -105,7 +105,7 @@ class DeviceResourceSpec extends DirectorSpec
     deviceId
   }
 
-  testWithRepo("targets.json is after after register") { implicit ns =>
+  testWithRepo("targets.json is empty after register") { implicit ns =>
     val deviceId = registerDeviceOk()
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
@@ -263,6 +263,26 @@ class DeviceResourceSpec extends DirectorSpec
     secondTargets.signed.expires.isAfter(firstTargets.signed.expires)
     firstTargets.signed.version shouldBe 1
     secondTargets.signed.version shouldBe 2
+  }
+
+  testWithRepo("a refreshed targets returns the same assignments as before, even if they were completed") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+
+    val firstTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, targetUpdate.to)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    forceRoleExpire[TargetsRole](regDev.deviceId)
+
+    val secondTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    secondTargets.signed.expires.isAfter(firstTargets.signed.expires)
+    secondTargets.signed.targets shouldBe firstTargets.signed.targets
   }
 
   testWithRepo("returns a refreshed version of snapshots if it expires") { implicit ns =>

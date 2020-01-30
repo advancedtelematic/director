@@ -55,6 +55,11 @@ class DeviceRoleGeneration(keyserverClient: KeyserverClient)(implicit val db: Da
     }
   }
 
+  def forceTargetsRefresh(ns: Namespace, repoId: RepoId, deviceId: DeviceId): Future[JsonSignedPayload] = {
+    val refresher = roleRefresher(ns, deviceId)
+    refresher.refreshTargets(repoId).map(_.content)
+  }
+
   def findFreshDeviceRole[T : TufRole](ns: Namespace, repoId: RepoId, deviceId: DeviceId): Future[JsonSignedPayload] = {
     implicit val refresher = roleRefresher(ns, deviceId)
     roleGeneration(ns, deviceId).findRole[T](repoId).map(_.content)

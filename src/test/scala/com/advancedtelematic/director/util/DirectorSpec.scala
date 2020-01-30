@@ -30,7 +30,8 @@ object NamespacedTests extends NamespacedTests
 abstract class DirectorSpec extends FunSuite
   with Matchers
   with ScalaFutures
-  with NamespacedTests {
+  with NamespacedTests
+  with DefaultPatience {
 
   Security.addProvider(new BouncyCastleProvider())
 

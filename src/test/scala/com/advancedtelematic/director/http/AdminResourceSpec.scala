@@ -16,7 +16,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
+import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetFilename, TufKey, TufKeyPair}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -157,6 +157,25 @@ class AdminResourceSpec extends DirectorSpec
       resp.head.id shouldBe dev.primary.ecuSerial
       resp.head.primary shouldBe true
       resp.head.image.filepath shouldBe targetUpdate.target
+    }
+  }
+
+  testWithRepo("PUT devices/id/targets.json forces refresh of devices targets.json") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 1
+    }
+
+    Put(apiUri(s"admin/devices/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
+    }
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
     }
   }
 }

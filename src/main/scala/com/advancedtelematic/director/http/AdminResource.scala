@@ -15,11 +15,12 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, TargetName}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
+import com.advancedtelematic.director.repo.DeviceRoleGeneration
 
 import scala.concurrent.ExecutionContext
 
@@ -37,6 +38,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
 
   val deviceRegistration = new DeviceRegistration(keyserverClient)
   val repositoryCreation = new RepositoryCreation(keyserverClient)
+  val deviceRoleGeneration = new DeviceRoleGeneration(keyserverClient)
 
   def repoRoute(ns: Namespace): Route =
     pathPrefix("repo") {
@@ -54,7 +56,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         }
     }
 
-  def devicePath(ns: Namespace): Route =
+  def devicePath(ns: Namespace, repoId: RepoId): Route =
     pathPrefix(DeviceId.Path) { device =>
       pathPrefix("ecus") {
         pathPrefix(EcuIdPath) { ecuId =>
@@ -77,9 +79,12 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
             }
         }
       } ~
-      (pathEnd & get) {
-        val f = deviceRegistration.findDeviceEcuInfo(ns, device)
-        complete(f)
+        get {
+          val f = deviceRegistration.findDeviceEcuInfo(ns, device)
+          complete(f)
+        } ~
+      (path("targets.json") & put) {
+        complete(deviceRoleGeneration.forceTargetsRefresh(ns, repoId, device).map(StatusCodes.Created -> _))
       }
     }
 
@@ -112,7 +117,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   complete(f)
                 }
               } ~
-              devicePath(ns)
+              devicePath(ns, repoId)
           }
         }
     }

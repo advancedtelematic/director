@@ -14,6 +14,7 @@ import cats.syntax.show._
 import com.advancedtelematic.libats.data.PaginationResult
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
+import org.scalatest.LoneElement._
 
 class LegacyApiResourceSpec extends DirectorSpec
   with RouteResourceSpec
@@ -86,8 +87,7 @@ class LegacyApiResourceSpec extends DirectorSpec
       devices.total shouldBe 1
       devices.offset shouldBe 0
       devices.limit shouldBe 50
-      devices.values should have size(1)
-      devices.values should contain(regDev.deviceId)
+      devices.values.loneElement shouldBe regDev.deviceId
     }
   }
 }

@@ -325,6 +325,19 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .failIfNotSingle(err)
   }
 
+  protected [db] def fetchLatestVersionAction(deviceId: DeviceId): DBIO[Option[Int]] = {
+    Schema.fileCache
+      .filter(_.device === deviceId)
+      .map(_.version)
+      .sortBy(_.desc)
+      .max
+      .result
+  }
+
+  def fetchLatestVersion(deviceId: DeviceId): Future[Option[Int]] = db.run {
+    fetchLatestVersionAction(deviceId)
+  }
+
   def fetchDeviceTargets(deviceId: DeviceId): Future[Seq[Json]] = db.run {
     Schema.fileCache
       .filter(_.role === RoleType.TARGETS)
@@ -340,6 +353,7 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
 
   def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
 
+  // TODO: This should **never** update, that breaks the validation
   protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, expires: Instant, file: Json): DBIO[Unit] =
     Schema.fileCache.insertOrUpdate(FileCache(role, version, device, expires, file))
       .handleIntegrityErrors(err)

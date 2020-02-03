@@ -27,6 +27,7 @@ object DeviceUpdate extends AdminRepositorySupport
     with DeviceRepositorySupport
     with DeviceUpdateAssignmentRepositorySupport
     with EcuUpdateAssignmentRepositorySupport
+    with FileCacheRepositorySupport
     with FileCacheRequestRepositorySupport {
   import DeviceUpdateResult._
 
@@ -53,18 +54,20 @@ object DeviceUpdate extends AdminRepositorySupport
 
     deviceUpdateAssignmentRepository.fetchAction(namespace, device, nextVersion).flatMap { deviceUpdateTarget =>
       ecuUpdateAssignmentRepository.fetchAction(namespace, device, nextVersion).flatMap { ecuTargets =>
-        val actualTargets = ecuManifests.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
-        val expectedTargets = ecuTargets.mapValues(_.image)
-        if (subMap(expectedTargets, actualTargets)) {
-          deviceRepository.updateDeviceVersionAction(device, nextVersion).map { _ =>
-            UpdateSuccessful(deviceUpdateTarget)
-          }
-        } else {
-          adminRepository.findImagesAction(namespace, device).map { currentStored =>
-            if (currentStored.toMap == actualTargets) {
-              UpdateNotCompleted(deviceUpdateTarget)
-            } else {
-              UpdateUnexpectedTarget(deviceUpdateTarget, expectedTargets, actualTargets)
+        fileCacheRepository.fetchLatestVersionAction(device).flatMap { latestDeviceVersion =>
+          val actualTargets = ecuManifests.map(ecu => (ecu.ecu_serial, ecu.installed_image)).toMap
+          val expectedTargets = ecuTargets.mapValues(_.image)
+          if (subMap(expectedTargets, actualTargets)) {
+            deviceRepository.updateDeviceVersionAction(device, latestDeviceVersion.getOrElse(nextVersion)).map { _ =>
+              UpdateSuccessful(deviceUpdateTarget)
+            }
+          } else {
+            adminRepository.findImagesAction(namespace, device).map { currentStored =>
+              if (currentStored.toMap == actualTargets) {
+                UpdateNotCompleted(deviceUpdateTarget)
+              } else {
+                UpdateUnexpectedTarget(deviceUpdateTarget, expectedTargets, actualTargets)
+              }
             }
           }
         }

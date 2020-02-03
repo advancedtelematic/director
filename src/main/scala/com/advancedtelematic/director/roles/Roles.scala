@@ -25,17 +25,17 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private lazy val _log = LoggerFactory.getLogger(this.getClass)
 
-  private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Done] =
-    fileCacheRepository.haveExpired(device,version).flatMap {
+  private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Int] =
+    fileCacheRepository.haveExpired(device, version).flatMap {
       case true =>
-        val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
-        rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
+        val fcr = FileCacheRequest(ns, version + 1, device, FileCacheRequestStatus.PENDING, version + 1)
+        rolesGeneration.processFileCacheRequest(fcr).map(_ => version + 1)
       case false =>
-        FastFuture.successful(Done)
+        FastFuture.successful(version)
     }.recoverWith {
       case DBErrors.NoCacheEntry =>
         val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
-        rolesGeneration.processFileCacheRequest(fcr).map(_ => Done)
+        rolesGeneration.processFileCacheRequest(fcr).map(_ => version)
     }
 
   private def nextVersionToFetch(ns: Namespace, device: DeviceId, currentVersion: Int): Future[Int] = {
@@ -58,9 +58,10 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private def findVersion(ns: Namespace, device: DeviceId): Future[Int] = for {
     currentVersion <- deviceRepository.getCurrentVersion(device)
-    nextVersion <- nextVersionToFetch(ns, device, currentVersion)
-    _ <- updateCacheIfExpired(ns, device, nextVersion)
-  } yield nextVersion
+    assignmentVersion <- nextVersionToFetch(ns, device, currentVersion)
+    latestDeviceVersion <- fileCacheRepository.fetchLatestVersion(device)
+    latestVersion <- updateCacheIfExpired(ns, device, Math.max(assignmentVersion, latestDeviceVersion.getOrElse(assignmentVersion)))
+  } yield latestVersion
 
   def fetchTimestamp(ns: Namespace, device: DeviceId): Future[Json] =
     findVersion(ns, device).flatMap{ version =>

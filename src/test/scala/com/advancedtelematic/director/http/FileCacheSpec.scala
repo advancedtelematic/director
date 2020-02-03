@@ -203,7 +203,8 @@ trait FileCacheSpec extends DirectorSpec
 
     val oldTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
     isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe oldTime
-    isAvailable[TargetsRole](device, "targets.json").signed.expires shouldBe oldTime
+    val oldTargets = isAvailable[TargetsRole](device, "targets.json")
+    oldTargets.signed.expires shouldBe oldTime
     isAvailable[RootRole](device, "root.json")
 
     makeFilesExpire(device).futureValue
@@ -213,7 +214,10 @@ trait FileCacheSpec extends DirectorSpec
     val newTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
     newTime should beAfter(oldTime)
     isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe newTime
-    isAvailable[TargetsRole](device, "targets.json").signed.expires shouldBe newTime
+
+    val newTargets = isAvailable[TargetsRole](device, "targets.json")
+    newTargets.signed.expires shouldBe newTime
+    newTargets.signed.version shouldBe oldTargets.signed.version + 1
   }
 }
 

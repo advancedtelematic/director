@@ -16,6 +16,7 @@ import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
+import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
@@ -334,6 +335,17 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .result
   }
 
+  def roleWasUpdated(deviceId: DeviceId, version: Int, roleType: RoleType): Future[Boolean] = db.run {
+    Schema.fileCache.filter(_.device === deviceId)
+      .filter(_.version === version)
+      .map(row => row.createdAt -> row.updatedAt)
+      .result
+      .headOption.map {
+      case Some((createdAt, updatedAt)) => updatedAt.minusSeconds(5).isAfter(createdAt)
+       case None => false
+    }
+  }
+
   def fetchLatestVersion(deviceId: DeviceId): Future[Option[Int]] = db.run {
     fetchLatestVersionAction(deviceId)
   }
@@ -354,6 +366,8 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
   def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
 
   // TODO: This should **never** update, that breaks the validation
+  // This cannot be easily changed because tests rely on this:
+  // When two updates are scheduled concurrently, 2 file requests are generated with the same version (!!!) and the last one wins
   protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, expires: Instant, file: Json): DBIO[Unit] =
     Schema.fileCache.insertOrUpdate(FileCache(role, version, device, expires, file))
       .handleIntegrityErrors(err)
@@ -398,10 +412,6 @@ protected class FileCacheRequestRepository()(implicit db: Database, ec: Executio
     (Schema.fileCacheRequest += req)
       .map(_ => ())
       .handleIntegrityErrors(ConflictingFileCacheRequest)
-
-  def persist(req: FileCacheRequest): Future[Unit] = db.run {
-    persistAction(req)
-  }
 
   def findPending(limit: Int = 10): Future[Seq[FileCacheRequest]] = db.run {
     Schema.fileCacheRequest.filter(_.status === FileCacheRequestStatus.PENDING).take(limit).result

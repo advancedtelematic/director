@@ -132,6 +132,8 @@ object Schema {
     def device  = column[DeviceId]("device")
     def fileEntity = column[Json]("file_entity")
     def expires = column[Instant]("expires")
+    def createdAt = column[Instant]("created_at")
+    def updatedAt = column[Instant]("updated_at")
 
     def primKey = primaryKey("file_cache_pk", (role, version, device))
 

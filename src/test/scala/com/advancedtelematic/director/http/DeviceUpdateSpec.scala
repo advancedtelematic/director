@@ -56,11 +56,6 @@ trait DeviceUpdateSpec extends DirectorSpec
     createMultiTargetUpdateOK(mtu)
   }
 
-  def generateAllPendingFiles(): Future[Unit] = for {
-    pends <- fileCacheRequestRepository.findPending()
-    _ <- Future.traverse(pends){fcr => rolesGeneration.processFileCacheRequest(fcr)}
-  } yield ()
-
   def createRepo()(implicit ns: NamespaceTag): Future[Unit] = {
     val repoId = RepoId.generate
     for {

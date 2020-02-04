@@ -2,16 +2,17 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
-import com.advancedtelematic.director.data.Codecs.{targetsCustomDecoder, assignUpdateRequestEncoder}
+import com.advancedtelematic.director.data.Codecs.{assignUpdateRequestEncoder, targetsCustomDecoder}
 import com.advancedtelematic.director.data.DataType.TargetsCustom
 import com.advancedtelematic.director.data.AdminRequest.AssignUpdateRequest
 import com.advancedtelematic.director.data.{EdGenerators, RsaGenerators}
+import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.director.util.NamespaceTag._
 import com.advancedtelematic.libats.data.DataType.{CampaignId, MultiTargetUpdateId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
-trait AssignmentsResourceSpec extends DeviceUpdateSpec {
+trait AssignmentsResourceSpec extends DeviceUpdateSpec with FileCacheDB {
 
   def createDeviceWithAssignment()(implicit ns: NamespaceTag) = {
     createRepo().futureValue

@@ -3,11 +3,12 @@ package com.advancedtelematic.director.http
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.director.db.{FileCacheDB, SetVersion}
+import com.advancedtelematic.director.db.{FileCacheDB, FileCacheRequestRepositorySupport, SetVersion}
 import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
-trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegistrationUtils with FileCacheDB with RouteResourceSpec with NamespacedRequests with SetVersion {
+trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegistrationUtils
+  with FileCacheDB with RouteResourceSpec with NamespacedRequests with SetVersion with FileCacheRequestRepositorySupport {
   testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn, cfn)
@@ -42,11 +43,13 @@ trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegis
   }
 
   testWithNamespace("images/affected Ignores devices in a campaign") { implicit ns =>
+    createRepo
+
     val device1 = registerNSDeviceOk(afn, bfn)
     val device2 = registerNSDeviceOk(afn)
 
     setCampaign(ns.get, device1, 1).futureValue
-    pretendToGenerate.futureValue
+    generateAllPendingFiles().futureValue
 
     val pag = getAffectedByImage("a")()
     pag.total shouldBe 1

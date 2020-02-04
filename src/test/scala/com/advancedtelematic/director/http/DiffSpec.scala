@@ -5,11 +5,12 @@ import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
 import com.advancedtelematic.director.data.DataType.TargetCustom
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.{EdGenerators, RsaGenerators}
+import com.advancedtelematic.director.db.FileCacheDB
 import com.advancedtelematic.libats.data.RefinedUtils._
 import com.advancedtelematic.libtuf.data.TufDataType.ValidTargetFilename
 import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.OSTREE
 
-trait DiffSpec extends DeviceUpdateSpec {
+trait DiffSpec extends DeviceUpdateSpec with FileCacheDB {
 
   testWithNamespace("device waits for diff") { implicit ns =>
     createRepo().futureValue

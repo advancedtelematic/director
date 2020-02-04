@@ -26,6 +26,7 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def id = column[DeviceId]("id")
     def primaryEcu = column[EcuIdentifier]("primary_ecu_id")
+    def createdAt = column[Instant]("created_at")
 
     def pk = primaryKey("devices_pk", id)
 

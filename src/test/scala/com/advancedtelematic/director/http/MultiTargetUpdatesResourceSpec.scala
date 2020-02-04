@@ -1,16 +1,16 @@
 package com.advancedtelematic.director.http
-import cats.syntax.show._
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.data.AdminDataType.MultiTargetUpdate
+import cats.syntax.show._
+import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, TargetUpdateRequest}
+import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.Generators
 import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
+import com.advancedtelematic.libats.codecs.CirceCodecs._
+import com.advancedtelematic.libats.data.ErrorCodes.MissingEntity
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
-import com.advancedtelematic.libats.data.ErrorCodes.MissingEntity
+import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.http.AdminResources
 
 class MultiTargetUpdatesResourceSpec extends DirectorSpec
   with Generators with DefaultPatience with RouteResourceSpec with AdminResources {
@@ -24,7 +24,18 @@ class MultiTargetUpdatesResourceSpec extends DirectorSpec
     }
   }
 
+  testWithNamespace("Legacy API: can GET multi-target updates") { implicit ns =>
+    val mtu = createMtuOk()
+
+    Get(apiUri(s"multi_target_updates/${mtu.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Map[HardwareIdentifier, TargetUpdateRequest]] // This should be responseAs[MultiTargetUpdate], see comments on resource
+    }
+  }
+
   testWithNamespace("can GET multi-target updates") { implicit ns =>
+    pending // due to legacy api support
+
     val mtu = createMtuOk()
 
     Get(apiUri(s"multi_target_updates/${mtu.show}")).namespaced ~> routes ~> check {
@@ -32,6 +43,7 @@ class MultiTargetUpdatesResourceSpec extends DirectorSpec
       responseAs[MultiTargetUpdate]
     }
   }
+
 
   testWithNamespace("accepts mtu with an update") { implicit ns =>
     createMtuOk()

@@ -10,10 +10,8 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.db.MultiTargetUpdates
 import com.advancedtelematic.libats.data.DataType.Namespace
-
-import scala.concurrent.{ExecutionContext, Future}
-
-
+import scala.concurrent.ExecutionContext
+import com.advancedtelematic.libats.codecs.CirceCodecs._
 
 class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext) {
   import Directives._
@@ -23,7 +21,10 @@ class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implic
   val route = extractNamespace { ns =>
     pathPrefix("multi_target_updates") {
       (get & pathPrefix(UpdateId.Path)) { uid =>
-        complete(multiTargetUpdates.find(ns, uid))
+        // For some reason director-v1 accepts `{targets: ...}` but returns `{...}`
+        // To make app compatible with director-v2, for now we do the same, but we should be returning what we accept:
+        // complete(multiTargetUpdates.find(ns, uid))
+        complete(multiTargetUpdates.find(ns, uid).map(_.targets))
       } ~
       (post & pathEnd) {
         entity(as[MultiTargetUpdate]) { mtuRequest =>

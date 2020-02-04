@@ -39,7 +39,21 @@ trait DeviceRepositorySupport extends DatabaseSupport {
 
 protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
   def create(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[Unit] = {
+    val ecusDeleteIO =
+      Schema.ecus
+        .filter(_.namespace === ns)
+        .filter(_.deviceId === deviceId)
+        .filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial)))
+        .delete
+
+    val deviceDeleteIo =
+      Schema.devices
+        .filter(_.namespace === ns)
+        .filter(_.id === deviceId)
+        .delete
+
     val io = for {
+      _ <- ecusDeleteIO.andThen(deviceDeleteIo) // This is a bad idea and will fail if device has assignments, see DeviceResourceSpec
       _ <- Schema.ecus ++= ecus
       _ <- Schema.devices += Device(ns, deviceId, primaryEcuId)
     } yield ()

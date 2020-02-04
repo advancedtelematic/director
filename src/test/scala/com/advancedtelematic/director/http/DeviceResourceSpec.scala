@@ -91,6 +91,30 @@ class DeviceResourceSpec extends DirectorSpec
     registerDeviceOk()
   }
 
+  // TODO: Legacy, this should not be possible
+  // https://saeljira.it.here.com/browse/OTA-441
+  // https://saeljira.it.here.com/browse/OTA-2517
+  testWithNamespace("registering the same device id with different ecus works") { implicit ns =>
+    createRepoOk()
+
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+
+    val ecus2 = GenRegisterEcu.generate
+    val primaryEcu2 = ecus2.ecu_serial
+    val req2 = RegisterDevice(deviceId.some, primaryEcu2, Seq(ecus2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+  }
+
   testWithRepo("fails when primary ecu is not defined in ecus") { implicit ns =>
     val ecus = GenRegisterEcu.generate
     val primaryEcu = GenEcuIdentifier.generate

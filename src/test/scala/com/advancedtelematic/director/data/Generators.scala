@@ -71,7 +71,7 @@ trait Generators {
     tf <- Gen.option(GenTargetFormat)
     nr <- Gen.posNum[Int]
     uri <- Gen.option(Gen.const(Uri(s"http://test-$nr.example.com")))
-  } yield CustomImage(im, uri, tf)
+  } yield CustomImage(im, uri, None)
 
   lazy val GenChecksum: Gen[Checksum] = for {
     hash <- GenRefinedStringByCharN[ValidChecksum](64, GenHexChar)

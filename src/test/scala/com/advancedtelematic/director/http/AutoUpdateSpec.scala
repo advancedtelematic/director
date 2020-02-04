@@ -121,6 +121,7 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
   }
 
   testWithNamespace("when TufTargetEvent fires, updates gets scheduled") { implicit ns =>
+    createRepo
     val (device1, primEcu1, ecus1) = regDevice(hw0)
     val (device2, primEcu2, ecus2) = regDevice(hw0)
     val (deviceN, primEcuN, ecusN) = regDevice(hw0)
@@ -131,7 +132,7 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
     setAutoUpdate(device2, primEcu2, targetName)
 
     tufTargetWorker.action(tufTargetAdded).futureValue
-    pretendToGenerate().futureValue
+    generateAllPendingFiles().futureValue
 
     def checkQueue(device: DeviceId, primEcu: EcuIdentifier): Unit = {
       val queue = deviceQueueOk(device)
@@ -153,6 +154,7 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
   }
 
   testWithNamespace("TufTargetEvent schedule for device with multiple matching ecus") { implicit ns =>
+    createRepo
     val (device, primEcu, Seq(ecu0, ecu1)) = regDevice(hw0, hw1, hw1)
 
     val (tufTargetAdded, targetName) = generateTufTargetAdded(hw1)
@@ -161,7 +163,7 @@ trait AutoUpdateSpec extends DirectorSpec with KeyGenerators with FileCacheDB wi
     setAutoUpdate(device, ecu1, targetName)
 
     tufTargetWorker.action(tufTargetAdded).futureValue
-    pretendToGenerate().futureValue
+    generateAllPendingFiles().futureValue
 
     val queue = deviceQueueOk(device)
 

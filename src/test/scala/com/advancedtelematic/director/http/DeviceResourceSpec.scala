@@ -18,15 +18,16 @@ import com.advancedtelematic.libats.data.DataType.CampaignId
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
 import org.scalatest.Inspectors
+import cats.syntax.option._
 
 trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors {
+    with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors with DeviceUpdateSpec {
 
   val correlationId = CampaignId(java.util.UUID.randomUUID())
 
   def schedule(device: DeviceId, targets: SetTarget)(implicit ns: NamespaceTag): Unit = {
     SetTargets.setTargets(ns.get, Seq(device -> targets), Some(correlationId)).futureValue
-    pretendToGenerate().futureValue
+    generateAllPendingFiles(device.some).futureValue
   }
 
   def deviceVersion(deviceId: DeviceId): Option[Int] = {
@@ -298,6 +299,7 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
   }
 
   testWithNamespace("Update where the device is already") { implicit ns =>
+    createRepo()
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
@@ -321,6 +323,8 @@ trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPat
   }
 
   testWithNamespace("First Device can also update") { implicit ns =>
+    createRepo()
+
     val device = DeviceId.generate()
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial

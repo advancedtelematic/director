@@ -6,77 +6,28 @@ import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType.{QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.data.Messages.DeviceManifestReported
+import com.advancedtelematic.director.db.AssignmentsRepositorySupport
 import com.advancedtelematic.director.util._
-import com.advancedtelematic.libats.data.DataType.{Namespace, ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import io.circe.{Decoder, Encoder, Json}
-import org.scalactic.source.Position
+import io.circe.Json
 import org.scalatest.Inspectors
+import org.scalatest.OptionValues._
 
-
-trait DeviceResources {
-  self: DirectorSpec with ResourceSpec with RouteResourceSpec =>
-
-  def registerDeviceOk()(implicit namespace: Namespace, pos: Position): DeviceId = {
-    val ecus = GenRegisterEcu.generate
-    val primaryEcu = ecus.ecu_serial
-
-    val deviceId = DeviceId.generate()
-    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
-
-    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.Created
-    }
-
-    deviceId
-  }
-
-  def getDeviceRole[T : Encoder : Decoder](deviceId: DeviceId, version: Option[Int] = None)
-                                          (implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): RouteTestResult = {
-    val versionStr = version.map(_ + ".").getOrElse("")
-    Get(apiUri(s"device/${deviceId.show}/$versionStr${tufRole.metaPath.value}")).namespaced ~> routes
-  }
-
-  def getDeviceRoleOk[T : Encoder : Decoder](deviceId: DeviceId, version: Option[Int] = None)(implicit namespace: Namespace, pos: Position, tufRole: TufRole[T]): SignedPayload[T] = {
-    getDeviceRole[T](deviceId, version) ~> check {
-      status shouldBe StatusCodes.OK
-      responseAs[SignedPayload[T]]
-    }
-  }
-
-  def putManifest[T](deviceId: DeviceId, manifest: SignedPayload[DeviceManifest])(fn: => T)(implicit ns: Namespace, pos: Position)  = {
-    Put(apiUri(s"device/${deviceId.show}/manifest"), manifest).namespaced ~> routes ~> check(fn)
-  }
-
-  def putManifestOk(deviceId: DeviceId, manifest: SignedPayload[DeviceManifest])(implicit ns: Namespace, pos: Position): Unit = {
-    putManifest(deviceId, manifest) {
-      status shouldBe StatusCodes.OK
-    }
-  }
-
-  def fetchRoleOk[T : Encoder : Decoder](deviceId: DeviceId)(implicit ns: Namespace, tufRole: TufRole[T]): SignedPayload[T] = {
-    Get(apiUri(s"device/${deviceId.show}/${tufRole.metaPath}")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
-      responseAs[SignedPayload[T]]
-    }
-  }
-
-}
 
 class DeviceResourceSpec extends DirectorSpec
   with RouteResourceSpec with AdminResources with AssignmentResources
-  with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources {
+  with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources with AssignmentsRepositorySupport {
 
   override implicit val msgPub = new MockMessageBus
 
@@ -94,9 +45,7 @@ class DeviceResourceSpec extends DirectorSpec
   // TODO: Legacy, this should not be possible
   // https://saeljira.it.here.com/browse/OTA-441
   // https://saeljira.it.here.com/browse/OTA-2517
-  testWithNamespace("registering the same device id with different ecus works") { implicit ns =>
-    createRepoOk()
-
+  testWithRepo("registering the same device id with different ecus works") { implicit ns =>
     val deviceId = DeviceId.generate()
     val ecus = GenRegisterEcu.generate
     val primaryEcu = ecus.ecu_serial
@@ -179,7 +128,7 @@ class DeviceResourceSpec extends DirectorSpec
     val targetUpdate = GenTargetUpdateRequest.generate
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -204,7 +153,7 @@ class DeviceResourceSpec extends DirectorSpec
     val registerDevice = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
     val deviceId = registerDevice.deviceId
-    createAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some)
 
     val deviceManifest = buildPrimaryManifest(registerDevice.primary, registerDevice.primaryKey, targetUpdate.to)
 
@@ -257,7 +206,7 @@ class DeviceResourceSpec extends DirectorSpec
     import com.advancedtelematic.libtuf.crypt.CanonicalJson._
     val regDev = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     val firstTargets = Get(apiUri(s"device/${regDev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -293,7 +242,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
 
     val targetUpdate = GenTargetUpdateRequest.generate
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     val firstTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
 
@@ -342,7 +291,7 @@ class DeviceResourceSpec extends DirectorSpec
     val targetUpdate = GenTargetUpdateRequest.generate
     val deviceId = registerDevice.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     getDeviceRoleOk[TargetsRole](deviceId)
 
@@ -361,7 +310,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -377,7 +326,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -397,8 +346,8 @@ class DeviceResourceSpec extends DirectorSpec
     val (secondaryEcuSerial, secondaryEcu) = (regDev.ecus - regDev.primary.ecuSerial).head
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
-    createAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -434,8 +383,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
     val correlationId = GenCorrelationId.generate
-    val installItem = InstallationItem(regDev.primary.ecuSerial, InstallationResult(true, ResultCode("pk-somecode"), ResultDescription("pk-somedesc")))
-    val deviceReport = InstallationReport(correlationId, InstallationResult(true, ResultCode("somecode"), ResultDescription("somedesc")), Seq(installItem), None)
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = true, correlationId = correlationId.some).generate
     val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey,targetUpdate.to, deviceReport.some)
 
     putManifestOk(regDev.deviceId, deviceManifest)
@@ -449,7 +397,7 @@ class DeviceResourceSpec extends DirectorSpec
     reportMsg.get.result shouldBe deviceReport.result
     val (ecuReportId, ecuReport) = reportMsg.get.ecuReports.head
     ecuReportId shouldBe regDev.primary.ecuSerial
-    ecuReport.result shouldBe installItem.result
+    ecuReport.result shouldBe deviceReport.items.head.result
     reportMsg.get.correlationId shouldBe correlationId
   }
 
@@ -464,5 +412,159 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.BadRequest
       responseAs[ErrorRepresentation].code shouldBe ErrorCodes.Manifest.EcuNotPrimary
     }
+  }
+
+  testWithRepo("device updates to same target we know it has installed but without install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets shouldNot be(empty)
+    targetsAfter.targets.get(targetUpdate.to.target) shouldBe defined
+    targetsAfter.targets.get(targetUpdate.to.target).map(_.length) should contain(targetUpdate.to.targetLength)
+  }
+
+  testWithRepo("device updates to same target we know it has installed with install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    getDeviceRoleOk[TargetsRole](regDev.deviceId).signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = false, correlationId = correlationId.some).generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets shouldBe empty
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed.head.result shouldNot be(empty)
+    processed.head.canceled  shouldBe false
+    processed.head.successful  shouldBe false
+  }
+
+  // keep old director behavior
+  // Status should not change, since there is no report, nothing should be published
+  testWithRepo("device updates to some unknown target without an installation report should be NOOP") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    val unknownVersion = GenTargetUpdateRequest.generate
+
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownVersion.to)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter shouldBe targetsBefore
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed shouldBe empty
+  }
+
+  // Keep old director behavior, clean targets
+  testWithRepo("device updates to some unknown target with with a failed installation report empties targets") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsBefore.signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = false, correlationId = correlationId.some).generate
+    val unknownUpdate = GenTargetUpdateRequest.generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownUpdate.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter.signed.targets shouldBe empty
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed.head.result shouldNot be(empty)
+  }
+
+  // Keep old behavior, leaving targets/assignments unchanged and publish message if this happens
+  testWithRepo("device updates to some unknown target with a success installation report leaves assignments unchanged") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsBefore.signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = true, correlationId = correlationId.some).generate
+    val unknownUpdate = GenTargetUpdateRequest.generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownUpdate.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter shouldBe targetsBefore
+
+    assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue shouldBe empty
+
+    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+      msg.deviceUuid === regDev.deviceId
+    }.map(_.asInstanceOf[DeviceUpdateCompleted])
+
+    reportMsg.value.result shouldBe deviceReport.result
+  }
+
+  testWithRepo("publishes bus message when manifest is received") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val msg = msgPub.wasReceived[DeviceManifestReported](regDev.deviceId.show)
+
+    msg.value.manifest.asJsonSignedPayload shouldBe deviceManifest.asJsonSignedPayload
   }
 }

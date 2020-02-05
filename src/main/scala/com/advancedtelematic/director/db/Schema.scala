@@ -8,8 +8,11 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Name
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, SignedPayload, TargetFilename, TargetName, TufKey}
+import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
+import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+
 
 object Schema {
   import SlickMapping._
@@ -26,11 +29,12 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def id = column[DeviceId]("id")
     def primaryEcu = column[EcuIdentifier]("primary_ecu_id")
+    def generatedMetadataOutdated = column[Boolean]("generated_metadata_outdated")
     def createdAt = column[Instant]("created_at")
 
     def pk = primaryKey("devices_pk", id)
 
-    override def * = (namespace, id, primaryEcu) <> ((Device.apply _).tupled, Device.unapply)
+    override def * = (namespace, id, primaryEcu, generatedMetadataOutdated) <> ((Device.apply _).tupled, Device.unapply)
   }
 
   protected [db] val devices = TableQuery[DevicesTable]
@@ -105,8 +109,11 @@ object Schema {
     def ecuTargetId = column[EcuTargetId]("ecu_target_id")
     def correlationId = column[CorrelationId]("correlation_id")
     def canceled = column[Boolean]("canceled")
+    def successful = column[Boolean]("successful")
+    def resultDesc = column[Option[String]]("result_desc")
+    def createdAt = column[Instant]("created_at")
 
-    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
+    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, successful, resultDesc, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
   }
 
   protected [db] val processedAssignments = TableQuery[ProcessedAssignmentsTable]
@@ -146,4 +153,18 @@ object Schema {
   }
 
   protected [db] val autoUpdates = TableQuery[AutoUpdateDefinitionTable]
+
+  class DeviceManifestsTable(tag: Tag) extends Table[(DeviceId, Json, SHA256Checksum, Instant)](tag, "device_manifests") {
+    def deviceId = column[DeviceId]("device_id")
+    def targetName = column[TargetName]("target_name")
+    def receivedAt = column[Instant]("received_at")
+    def sha256 = column[SHA256Checksum]("sha256")
+    def manifest = column[Json]("manifest")
+
+    def pk = primaryKey("device-manifests-pk", (deviceId, sha256))
+
+    override def * = (deviceId, manifest, sha256, receivedAt)
+  }
+
+  protected [db] val deviceManifests = TableQuery[DeviceManifestsTable]
 }

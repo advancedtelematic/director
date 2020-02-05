@@ -8,7 +8,7 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import akka.{Done, NotUsed}
-import com.advancedtelematic.libats.codecs.CirceCodecs.checkSumEncoder
+import com.advancedtelematic.libats.codecs.CirceCodecs.checkSumCodec
 import com.advancedtelematic.libats.data.DataType.Checksum
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._

@@ -3,7 +3,7 @@ package com.advancedtelematic.director.daemon
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, EcuTarget, EcuTargetId}
-import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, AutoUpdateDefinitionRepositorySupport, EcuTargetsRepositorySupport}
+import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, AutoUpdateDefinitionRepositorySupport, DeviceRepositorySupport, EcuTargetsRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.{AutoUpdateId, Namespace}
 import com.advancedtelematic.libats.messaging.MsgOperation.MsgOperation
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
@@ -16,7 +16,8 @@ class TufTargetAddedListener()(implicit val db: Database, val ec: ExecutionConte
   extends MsgOperation[TufTargetAdded]
     with AutoUpdateDefinitionRepositorySupport
     with AssignmentsRepositorySupport
-    with EcuTargetsRepositorySupport {
+    with EcuTargetsRepositorySupport
+    with DeviceRepositorySupport {
 
   import scala.async.Async._
 
@@ -56,7 +57,7 @@ class TufTargetAddedListener()(implicit val db: Database, val ec: ExecutionConte
       _log.info(s"Creating auto update assignment for ${assignment.deviceId} (target = ${ecuTarget.filename})")
     }
 
-    assignmentsRepository.persistManyForEcuTarget(ecuTargetsRepository)(ecuTarget, newAssignments)
+    assignmentsRepository.persistManyForEcuTarget(ecuTargetsRepository, deviceRepository)(ecuTarget, newAssignments)
   }
 
   override def apply(msg: TufTargetAdded): Future[_] = async {

@@ -12,7 +12,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.messaging_datatype.MessageCodecs.deviceUpdateCanceledEncoder
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
@@ -50,8 +50,13 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
       pathEnd {
         post {
           entity(as[AssignUpdateRequest]) { req =>
-            val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
-            complete(f)
+            if(req.dryRun.contains(true)) { // Legacy API
+              val f = deviceAssignments.findAffectedDevices(ns, req.devices, req.mtuId)
+              complete(f)
+            } else {
+              val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
+              complete(f)
+            }
           }
         } ~
         patch {

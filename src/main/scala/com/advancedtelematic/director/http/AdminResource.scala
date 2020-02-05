@@ -15,12 +15,14 @@ import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, TargetName}
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, SignedPayload, TargetName, ValidKeyId}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
+import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 
 import scala.concurrent.ExecutionContext
 
@@ -34,6 +36,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
     with AutoUpdateDefinitionRepositorySupport {
 
   private val EcuIdPath = Segment.flatMap(EcuIdentifier(_).toOption)
+  private val KeyIdPath = Segment.flatMap(_.refineTry[ValidKeyId].toOption)
   private val TargetNamePath: PathMatcher1[TargetName] = Segment.map(TargetName.apply)
 
   val deviceRegistration = new DeviceRegistration(keyserverClient)
@@ -46,17 +49,35 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         val f = repositoryCreation.create(ns).map(_ => StatusCodes.Created)
         complete(f)
       } ~
-        get {
-          path("root.json") {
-            complete(fetchRoot(ns, version = None))
+      (pathPrefix("root") & pathEnd & entity(as[SignedPayload[RootRole]]) & UserRepoId(ns)) { (signedPayload, repoId) =>
+        complete {
+          keyserverClient.updateRoot(repoId, signedPayload)
+        } ~
+      get {
+        path("root.json") {
+          complete(fetchRoot(ns, version = None))
+        } ~
+          path(IntNumber ~ ".root.json") { version ⇒
+            complete(fetchRoot(ns, version.some))
+          }
+        } ~
+      path("private_keys" / KeyIdPath) { keyId =>
+        UserRepoId(ns) { repoId =>
+          delete {
+            complete {
+              keyserverClient.deletePrivateKey(repoId, keyId)
+            }
           } ~
-            path(IntNumber ~ ".root.json") { version ⇒
-              complete(fetchRoot(ns, version.some))
+            get {
+              complete {
+                keyserverClient.fetchKeyPair(repoId, keyId)
+              }
             }
         }
+      }
     }
 
-  def devicePath(ns: Namespace, repoId: RepoId): Route =
+  def devicePath(ns: Namespace): Route =
     pathPrefix(DeviceId.Path) { device =>
       pathPrefix("ecus") {
         pathPrefix(EcuIdPath) { ecuId =>
@@ -84,7 +105,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           complete(f)
         } ~
       (path("targets.json") & put) {
-        complete(deviceRoleGeneration.forceTargetsRefresh(ns, repoId, device).map(StatusCodes.Created -> _))
+        complete(deviceRoleGeneration.forceTargetsRefresh(ns, device).map(StatusCodes.Created -> _))
       }
     }
 
@@ -117,7 +138,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   complete(f)
                 }
               } ~
-              devicePath(ns, repoId)
+              devicePath(ns)
           }
         }
     }

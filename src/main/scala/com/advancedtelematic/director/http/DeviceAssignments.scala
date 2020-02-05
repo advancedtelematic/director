@@ -18,7 +18,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport
-  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport {
+  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport with DeviceRepositorySupport {
 
   private val _log = LoggerFactory.getLogger(this.getClass)
 
@@ -51,15 +51,28 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     findAffectedEcus(ns, deviceIds, mtuId).map { _.map(_._1.deviceId) }
   }
 
+  import cats.syntax.option._
+
   private def findAffectedEcus(ns: Namespace, devices: Seq[DeviceId], mtuId: UpdateId) = async {
     val hardwareUpdates = await(hardwareUpdateRepository.findBy(ns, mtuId))
 
-    await(ecuRepository.findFor(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { ecu =>
-      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+    val allTargetIds = hardwareUpdates.values.flatMap(v => List(v.toTarget.some, v.fromTarget).flatten)
+    val hh = await(ecuTargetsRepository.findAll(ns, allTargetIds.toSeq))
 
-      if (hwUpdate.fromTarget.isEmpty || ecu.installedTarget.contains(hwUpdate.fromTarget.get))
-        Some(ecu -> hwUpdate.toTarget)
-      else {
+    await(ecuRepository.findEcuWithTargets(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { case (ecu, installedTarget) =>
+      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+      val updateFrom = hwUpdate.fromTarget.flatMap(hh.get)
+      val updateTo = hh(hwUpdate.toTarget)
+
+      if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
+        if(installedTarget.exists(_.matches(updateTo))) {
+          _log.info("not affected")
+          None
+        } else {
+          _log.info(s"AFFECTED: ${hwUpdate} ${ecu.installedTarget}")
+          Some(ecu -> hwUpdate.toTarget)
+        }
+      } else {
         _log.debug(s"ecu ${ecu.ecuSerial} not affected by $mtuId")
         None
       }
@@ -83,7 +96,7 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     if(await(assignmentsRepository.existsFor(assignments.map(_.ecuId).toSet)))
       throw Errors.AssignmentExists
 
-    await(assignmentsRepository.persistMany(assignments))
+    await(assignmentsRepository.persistMany(deviceRepository)(assignments))
 
     assignments
   }

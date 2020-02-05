@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.http
 
+import akka.actor.FSM.->
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
@@ -9,6 +10,7 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.data.UptaneDataType.Hashes
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{Namespace, ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
@@ -16,7 +18,7 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -465,4 +467,60 @@ class DeviceResourceSpec extends DirectorSpec
       responseAs[ErrorRepresentation].code shouldBe ErrorCodes.Manifest.EcuNotPrimary
     }
   }
+
+  // Should do nothing, will try again
+  test("device updates to same target we know it has installed but without install report") {
+    pending
+  }
+
+  testWithRepo("XXX device updates to same target we know it has installed with install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    getDeviceRoleOk[TargetsRole](regDev.deviceId).signed.targets shouldNot be(empty)
+
+    val installItem = InstallationItem(regDev.primary.ecuSerial, InstallationResult(success = false, ResultCode("pk-somecode"), ResultDescription("pk-somedesc")))
+    val deviceReport = InstallationReport(correlationId, InstallationResult(success = false, ResultCode("somecode"), ResultDescription("somedesc")), Seq(installItem), None)
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets.head._1 shouldBe initialVersion.to.target
+    targetsAfter.targets.head._2 shouldBe ClientTargetItem(Hashes(initialVersion.to.checksum).toClientHashes, initialVersion.to.targetLength, None)
+    // Old director cleans everything
+
+
+    // TODO: Assignment moves to processed, possibly with error?
+
+    // TODO: Check msg was published
+//    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+//      msg.deviceUuid === regDev.deviceId
+//    }.map(_.asInstanceOf[DeviceUpdateCompleted])
+//
+//    reportMsg.map(_.namespace) should contain(ns)
+//
+//    reportMsg.get.result shouldBe deviceReport.result
+//    val (ecuReportId, ecuReport) = reportMsg.get.ecuReports.head
+//    ecuReportId shouldBe regDev.primary.ecuSerial
+//    ecuReport.result shouldBe installItem.result
+//    reportMsg.get.correlationId shouldBe correlationId
+  }
+
+  test("device updates to some unknown target with or without report") {
+    pending
+    // targets should remain the same
+    // ignore what device tells us? Otherwise assignment wont make sense anymore
+  }
+
+  // old director always clears targets.json on receiving FAILED install report, but we dont do that here. should we?
 }

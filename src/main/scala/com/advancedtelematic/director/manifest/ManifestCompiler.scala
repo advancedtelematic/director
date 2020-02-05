@@ -49,9 +49,6 @@ object ManifestCompiler {
       assignmentExists(knownStatus.currentAssignments, knownStatus.ecuTargets, ecuId, signedManifest.signed)
     }
 
-    val newProcessed = knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false))
-    val newAssigned = knownStatus.currentAssignments -- assignmentsProcessedInManifest
-
     val newEcuTargets = manifest.ecu_version_manifests.values.map { ecuManifest =>
       val installedImage = ecuManifest.signed.installed_image
       val existingEcuTarget = findEcuTargetByImage(knownStatus.ecuTargets, installedImage)
@@ -69,13 +66,25 @@ object ManifestCompiler {
       newTargetO.map(_.id)
     }.filter(_._2.isDefined)
 
-    DeviceKnownStatus(
-      knownStatus.deviceId,
-      knownStatus.primaryEcu,
-      knownStatus.ecuStatus ++ statusInManifest,
-      knownStatus.ecuTargets ++ newEcuTargets,
-      newAssigned,
-      newProcessed)
+    if(manifest.installation_report.exists(!_.report.result.success) && assignmentsProcessedInManifest.isEmpty) {
+      _log.info(s"${knownStatus} Received install report success = false, clearing assignments")
+      DeviceKnownStatus(
+        knownStatus.deviceId,
+        knownStatus.primaryEcu,
+        knownStatus.ecuStatus ++ statusInManifest, // TODO: Should this be updated in this case?
+        knownStatus.ecuTargets ++ newEcuTargets, // TODO: Should this be updated in this case?
+        Set(Assignment(ns, knownStatus.deviceId, knownStatus.primaryEcu, knownStatus)),
+        // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
+        knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(canceled = false))) // TODO: But error = true
+    } else { // What if report !success but assignmentsProcessedInManifest not empty?
+      DeviceKnownStatus(
+        knownStatus.deviceId,
+        knownStatus.primaryEcu,
+        knownStatus.ecuStatus ++ statusInManifest,
+        knownStatus.ecuTargets ++ newEcuTargets,
+        knownStatus.currentAssignments -- assignmentsProcessedInManifest,
+        knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false)))
+    }
   }
 
   private def findEcuTargetByImage(ecuTargets: Map[EcuTargetId, EcuTarget], image: Image): Option[EcuTarget] = {

@@ -66,7 +66,7 @@ object DbDataType {
                         correlationId: CorrelationId, inFlight: Boolean) {
 
     def toProcessedAssignment(canceled: Boolean): ProcessedAssignment =
-                                      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, canceled)
+      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, canceled)
   }
 
   case class ProcessedAssignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,

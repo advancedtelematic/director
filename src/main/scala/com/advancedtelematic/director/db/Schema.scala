@@ -105,6 +105,7 @@ object Schema {
     def ecuTargetId = column[EcuTargetId]("ecu_target_id")
     def correlationId = column[CorrelationId]("correlation_id")
     def canceled = column[Boolean]("canceled")
+    def createdAt = column[Instant]("created_at")
 
     def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
   }

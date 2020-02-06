@@ -7,13 +7,11 @@ import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.director.db.SlickMapping._
-
 import Errors._
 
 trait DeviceUpdateAssignmentRepositorySupport {
@@ -54,14 +52,15 @@ protected class DeviceUpdateAssignmentRepository()(implicit db: Database, ec: Ex
     namespace: Namespace,
     deviceId: DeviceId,
     correlationId: Option[CorrelationId],
-    updateId: Option[UpdateId])
+    updateId: Option[UpdateId])(fileCacheRepository: FileCacheRepository)
   : DBIO[Int] = for {
-    version <- fetchLatestAction(namespace, deviceId).asTry.flatMap {
+    latestAssignmentVersion <- fetchLatestAction(namespace, deviceId).asTry.flatMap {
       case Success(x) => DBIO.successful(x)
       case Failure(NoTargetsScheduled) => DBIO.successful(0)
       case Failure(ex) => DBIO.failed(ex)
     }
-    newVersion = version + 1
+    latestGeneratedRoleVersion <- fileCacheRepository.fetchLatestVersionAction(deviceId)
+    newVersion = math.max(latestGeneratedRoleVersion.getOrElse(latestAssignmentVersion), latestAssignmentVersion) + 1
     _ <- persistAction(namespace, deviceId, correlationId, updateId, newVersion)
   } yield newVersion
 

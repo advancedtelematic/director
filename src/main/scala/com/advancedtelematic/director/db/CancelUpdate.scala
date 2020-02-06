@@ -11,6 +11,7 @@ import slick.jdbc.MySQLProfile.api._
 class CancelUpdate(implicit val db: Database, val ec: ExecutionContext)
     extends DeviceUpdateAssignmentRepositorySupport
     with EcuUpdateAssignmentRepositorySupport
+    with FileCacheRepositorySupport
     with DeviceRepositorySupport {
   private def act(namespace: Namespace, device: DeviceId): DBIO[Option[DeviceUpdateAssignment]] = {
     for {
@@ -22,8 +23,9 @@ class CancelUpdate(implicit val db: Database, val ec: ExecutionContext)
         DBIO.successful(None)
       } else for {
         latestVersion <- deviceUpdateAssignmentRepository.fetchLatestAction(namespace, device)
+        currentTimestampVersion <- fileCacheRepository.fetchLatestVersionAction(device)
         assignment <- deviceUpdateAssignmentRepository.fetchAction(namespace, device, latestVersion)
-        nextTimestampVersion = latestVersion + 1
+        nextTimestampVersion = math.max(currentTimestampVersion.getOrElse(latestVersion), latestVersion) + 1
         _ <- deviceUpdateAssignmentRepository.persistAction(namespace, device, None, None, nextTimestampVersion)
         _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
       } yield Some(assignment)

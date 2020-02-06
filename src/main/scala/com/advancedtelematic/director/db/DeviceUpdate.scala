@@ -2,6 +2,7 @@ package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DataType.{DeviceUpdateAssignment, Image}
 import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
+import com.advancedtelematic.director.db.{AdminRepositorySupport, DeviceRepositorySupport, DeviceUpdateAssignmentRepositorySupport, EcuUpdateAssignmentRepositorySupport, FileCacheRepositorySupport, FileCacheRequestRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -79,7 +80,8 @@ object DeviceUpdate extends AdminRepositorySupport
                                          (implicit db: Database, ec: ExecutionContext): DBIO[Int] = {
     val dbAct = for {
       latestScheduledVersion <- deviceUpdateAssignmentRepository.fetchLatestAction(namespace, device)
-      nextTimestampVersion = latestScheduledVersion + 1
+      currentTimestampVersion <- fileCacheRepository.fetchLatestVersionAction(device)
+      nextTimestampVersion = currentTimestampVersion.getOrElse(latestScheduledVersion) + 1
       _ <- deviceUpdateAssignmentRepository.persistAction(namespace, device, None, None, nextTimestampVersion)
       _ <- deviceRepository.updateDeviceVersionAction(device, nextTimestampVersion)
     } yield latestScheduledVersion

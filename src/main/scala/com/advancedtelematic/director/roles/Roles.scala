@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.roles
 
-import akka.Done
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DataType.FileCacheRequest
 import com.advancedtelematic.director.data.FileCacheRequestStatus
@@ -14,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
-
+import cats.syntax.option._
 import scala.async.Async._
 
 class Roles(rolesGeneration: RolesGeneration)
@@ -37,7 +36,7 @@ class Roles(rolesGeneration: RolesGeneration)
     shouldBeRegenerated(ns, device, version).flatMap {
       case true =>
         val fcr = FileCacheRequest(ns, version + 1, device, FileCacheRequestStatus.PENDING, version + 1)
-        rolesGeneration.processFileCacheRequest(fcr).map(_ => version + 1)
+        rolesGeneration.processFileCacheRequest(fcr, assignmentsVersion = version.some).map(_ => version + 1)
       case false =>
         FastFuture.successful(version)
     }.recoverWith {

@@ -91,7 +91,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                                  custom: Option[TargetsCustom]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
-    expires = Instant.now.plus(31, ChronoUnit.DAYS)
+    expires = Instant.now.plus(6 * 31, ChronoUnit.DAYS)
     targetsRole   <- signRole(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires, custom))
     snapshotRole  <- signRole(repo, RoleType.SNAPSHOT, snapshotRole(targetsRole, targetVersion, expires))
     timestampRole <- signRole(repo, RoleType.TIMESTAMP, timestampRole(snapshotRole, timestampVersion, expires))

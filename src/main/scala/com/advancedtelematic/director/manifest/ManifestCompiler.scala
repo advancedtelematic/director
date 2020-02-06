@@ -1,8 +1,7 @@
 package com.advancedtelematic.director.manifest
 
-import cats.data.ValidatedNel
 import com.advancedtelematic.director.data.UptaneDataType.Image
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId, ProcessedAssignment}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, DeviceNewStatus, EcuTarget, EcuTargetId}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
@@ -10,6 +9,7 @@ import com.advancedtelematic.libats.data.EcuIdentifier
 import org.slf4j.LoggerFactory
 
 import scala.util.{Failure, Success, Try}
+
 
 object ManifestCompiler {
   private val _log = LoggerFactory.getLogger(this.getClass)
@@ -31,7 +31,7 @@ object ManifestCompiler {
     }
   }
 
-  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => Try[DeviceKnownStatus] = {
+  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => Try[DeviceNewStatus] = {
     validateManifest(ns, manifest, _).map { compileManifest(ns, manifest) }
   }
 
@@ -42,7 +42,7 @@ object ManifestCompiler {
       Success(deviceKnownStatus)
   }
 
-  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => DeviceKnownStatus = (knownStatus: DeviceKnownStatus) => {
+  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => DeviceNewStatus = (knownStatus: DeviceKnownStatus) => {
     _log.debug(s"CURRENT status for device: $knownStatus")
 
     val assignmentsProcessedInManifest = manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
@@ -67,23 +67,26 @@ object ManifestCompiler {
     }.filter(_._2.isDefined)
 
     if(manifest.installation_report.exists(!_.report.result.success) && assignmentsProcessedInManifest.isEmpty) {
-      _log.info(s"${knownStatus} Received install report success = false, clearing assignments")
-      DeviceKnownStatus(
+      _log.info(s"$knownStatus Received install report success = false, clearing assignments")
+
+      DeviceNewStatus(
         knownStatus.deviceId,
         knownStatus.primaryEcu,
         knownStatus.ecuStatus ++ statusInManifest, // TODO: Should this be updated in this case?
         knownStatus.ecuTargets ++ newEcuTargets, // TODO: Should this be updated in this case?
-        Set(Assignment(ns, knownStatus.deviceId, knownStatus.primaryEcu, knownStatus)),
+        Set.empty,
         // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
-        knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(canceled = false))) // TODO: But error = true
+        knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(canceled = false)),// TODO: But error = true
+        requiresMetadataRegeneration = true)
     } else { // What if report !success but assignmentsProcessedInManifest not empty?
-      DeviceKnownStatus(
+      DeviceNewStatus(
         knownStatus.deviceId,
         knownStatus.primaryEcu,
         knownStatus.ecuStatus ++ statusInManifest,
         knownStatus.ecuTargets ++ newEcuTargets,
         knownStatus.currentAssignments -- assignmentsProcessedInManifest,
-        knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false)))
+        knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false)),
+        requiresMetadataRegeneration = false)
     }
   }
 

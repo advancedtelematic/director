@@ -38,7 +38,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> Some(ecuTarget.id), secondary -> Some(ecuTarget.id)), Map(ecuTarget.id -> ecuTarget), Set.empty, Set.empty)
 
-    ManifestCompiler(ns, manifest).apply(currentStatus).get shouldBe currentStatus
+    ManifestCompiler(ns, manifest).apply(currentStatus).get shouldBe currentStatus.toNewStatus(false)
   }
 
   test("manifest setting unknown ecu targets creates targets") {

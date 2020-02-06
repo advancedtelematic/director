@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DbDataType.{DeviceKnownStatus, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{DeviceKnownStatus, DeviceNewStatus, EcuTargetId}
+import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
@@ -36,7 +37,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       .filter(_.ecuSerial === ecuIdentifier).map(_.installedTarget).update(installedTarget).map(_ => ())
   }
 
-  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceKnownStatus): DBIO[Unit] = {
+  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceNewStatus): DBIO[Unit] = {
     val assignmentsToDelete = (oldStatus.currentAssignments -- newStatus.currentAssignments).map(_.ecuId)
     val newProcessedAssignments = newStatus.processedAssignments -- oldStatus.processedAssignments
 
@@ -56,7 +57,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
     case Failure(ex) => DBIO.failed(ex)
   }
 
-  def process(deviceId: DeviceId, compiledManifest: DeviceKnownStatus => Try[DeviceKnownStatus]): Future[DeviceKnownStatus] = {
+  def process(deviceId: DeviceId, compiledManifest: DeviceKnownStatus => Try[DeviceNewStatus]): Future[DeviceNewStatus] = {
     val io = for {
       initialStatus <- findStatusAction(deviceId)
       newStatus <- dbActionFromTry(compiledManifest.apply(initialStatus))

@@ -21,6 +21,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
+import com.advancedtelematic.libtuf.data.ClientDataType.TargetsRole
 
 import scala.concurrent.ExecutionContext
 

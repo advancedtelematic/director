@@ -44,8 +44,8 @@ class DeviceRoleGeneration(keyserverClient: KeyserverClient)(implicit val db: Da
     val isOutdated = await(targetsIsOutdated(deviceId))
 
     if(isOutdated) {
-      _log.info(s"targets for $deviceId is outdated, generating fresh using current assignments")
-      val t = await(roleGeneration(ns, deviceId).regenerateAllSignedRoles(repoId))
+      _log.info(s"targets for $deviceId is outdated")
+      val t = await(forceRolesFullRegeneration(ns, repoId, deviceId))
       await(assignmentsRepository.setAllInFlight(deviceId))
       t
     } else { // return existing/refreshed targets
@@ -53,6 +53,11 @@ class DeviceRoleGeneration(keyserverClient: KeyserverClient)(implicit val db: Da
       val targets = await(roleGeneration(ns, deviceId).findRole[TargetsRole](repoId))
       targets.content
     }
+  }
+
+  def forceRolesFullRegeneration(ns: Namespace, repoId: RepoId, deviceId: DeviceId): Future[JsonSignedPayload] = {
+    _log.info(s"Forcing refresh of metadata for $deviceId")
+    roleGeneration(ns, deviceId).regenerateAllSignedRoles(repoId)
   }
 
   def forceTargetsRefresh(ns: Namespace, repoId: RepoId, deviceId: DeviceId): Future[JsonSignedPayload] = {

@@ -2,7 +2,7 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
-import akka.http.scaladsl.util.FastFuture
+import scala.async.Async._
 import cats.data.Validated.{Invalid, Valid}
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.RegisterDevice
@@ -18,7 +18,7 @@ import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, Dev
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType, SignedPayload}
 import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -58,7 +58,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
       put {
         path("manifest") {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
-            handleDeviceManifest(ns, device, jsonDevMan)
+            handleDeviceManifest(ns, repoId, device, jsonDevMan)
           }
         }
        } ~
@@ -87,20 +87,26 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
     }
   }
 
-  private def handleDeviceManifest(ns: Namespace, device: DeviceId, jsonDevMan: SignedPayload[Json]): Route = {
+  private def handleDeviceManifest(ns: Namespace, repoId: RepoId, device: DeviceId, jsonDevMan: SignedPayload[Json]): Route = {
     onSuccess(deviceManifestProcess.validateManifestSignatures(ns, device, jsonDevMan)) {
       case Valid(deviceManifest) =>
         val validatedManifest = ManifestCompiler(ns, deviceManifest)
 
         val executor = new CompiledManifestExecutor()
 
-        val f = for {
-          _ <- executor.process(device, validatedManifest)
-          _ <- ManifestReportMessages(ns, device, deviceManifest) match {
-            case Some(msg) => messageBusPublisher.publishSafe[DeviceUpdateEvent](msg)
-            case None => FastFuture.successful(())
-          }
-        } yield StatusCodes.OK
+        val f = async {
+          val newStatus = await(executor.process(device, validatedManifest))
+
+          if(newStatus.requiresMetadataRegeneration)
+            await(deviceRoleGeneration.forceRolesFullRegeneration(ns, repoId, device))
+
+          val msgO = ManifestReportMessages(ns, device, deviceManifest)
+
+          if(msgO.isDefined)
+            await(messageBusPublisher.publishSafe[DeviceUpdateEvent](msgO.get))
+
+          StatusCodes.OK
+        }
 
         complete(f)
       case Invalid(e) =>

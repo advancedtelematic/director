@@ -495,8 +495,9 @@ class DeviceResourceSpec extends DirectorSpec
     putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
 
     val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
-    targetsAfter.targets.head._1 shouldBe initialVersion.to.target
-    targetsAfter.targets.head._2 shouldBe ClientTargetItem(Hashes(initialVersion.to.checksum).toClientHashes, initialVersion.to.targetLength, None)
+    targetsAfter.targets shouldBe empty
+//    targetsAfter.targets.head._1 shouldBe initialVersion.to.target
+//    targetsAfter.targets.head._2 shouldBe ClientTargetItem(Hashes(initialVersion.to.checksum).toClientHashes, initialVersion.to.targetLength, None)
     // Old director cleans everything
 
 

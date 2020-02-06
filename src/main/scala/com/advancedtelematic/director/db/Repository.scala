@@ -330,7 +330,6 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
     Schema.fileCache
       .filter(_.device === deviceId)
       .map(_.version)
-      .sortBy(_.desc)
       .max
       .result
   }

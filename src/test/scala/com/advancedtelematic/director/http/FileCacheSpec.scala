@@ -218,6 +218,8 @@ trait FileCacheSpec extends DirectorSpec
     val newTargets = isAvailable[TargetsRole](device, "targets.json")
     newTargets.signed.expires shouldBe newTime
     newTargets.signed.version shouldBe oldTargets.signed.version + 1
+    newTargets.signed.targets shouldNot be(empty)
+    newTargets.signed.targets shouldBe oldTargets.signed.targets
   }
 }
 

@@ -91,7 +91,7 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
                                  custom: Option[TargetsCustom]): Future[Done] = for {
     repo <- repoNameRepository.getRepo(namespace)
 
-    expires = Instant.now.plus(31, ChronoUnit.DAYS)
+    expires = Instant.now.plus(6 * 31, ChronoUnit.DAYS)
     targetsRole   <- signRole(repo, RoleType.TARGETS, targetsRole(targets, targetVersion, expires, custom))
     snapshotRole  <- signRole(repo, RoleType.SNAPSHOT, snapshotRole(targetsRole, targetVersion, expires))
     timestampRole <- signRole(repo, RoleType.TIMESTAMP, timestampRole(snapshotRole, timestampVersion, expires))
@@ -123,15 +123,19 @@ class RolesGeneration(tuf: KeyserverClient, diffService: DiffServiceClient)
   }
 
   private def tryToGenerate(namespace: Namespace, device: DeviceId, targetVersion: Int, timestampVersion: Int,
-    correlationId: Option[CorrelationId]): Future[Done] = for {
-    targets <- adminRepository.fetchCustomTargetVersion(namespace, device, targetVersion)
+    correlationId: Option[CorrelationId], assignmentsVersion: Int): Future[Done] = for {
+    targets <- adminRepository.fetchCustomTargetVersion(namespace, device, assignmentsVersion)
     currentImages <- adminRepository.findImages(namespace, device)
     customTargets <- generateCustomTargets(namespace, device, currentImages.toMap, targets)
     _ <- generateWithCustom(namespace, device, targetVersion, timestampVersion, customTargets,
                             correlationId.map(c => TargetsCustom(Some(c))))
   } yield Done
 
-  def processFileCacheRequest(fcr: FileCacheRequest): Future[Unit] = for {
-    _ <- tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion, fcr.correlationId)
+  /*
+     Generates a targets.json with a devices current assignment (assignmentsVersion),
+      which can be different from the version in targets.json (targetVersion)
+     */
+  def processFileCacheRequest(fcr: FileCacheRequest, assignmentsVersion: Option[Int] = None): Future[Unit] = for {
+    _ <- tryToGenerate(fcr.namespace, fcr.device, fcr.targetVersion, fcr.timestampVersion, fcr.correlationId, assignmentsVersion.getOrElse(fcr.targetVersion))
   } yield ()
 }

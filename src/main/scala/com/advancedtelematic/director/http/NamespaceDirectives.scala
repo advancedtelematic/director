@@ -16,9 +16,7 @@ object NamespaceDirectives {
 
   val NAMESPACE = "x-ats-namespace"
 
-  def configNamespace(config: Config): Namespace = {
-    Namespace( Try(config.getString("core.defaultNs")).getOrElse("default"))
-  }
+  def configNamespace(config: Config): Namespace = Namespace("default")
 
   lazy val fromHeader: Directive1[Option[Namespace]] =
     optionalHeaderValueByName(NAMESPACE).map(_.map(Namespace(_)))

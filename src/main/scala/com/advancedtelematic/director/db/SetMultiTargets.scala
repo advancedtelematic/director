@@ -83,9 +83,7 @@ class SetMultiTargets()(implicit messageBusPublisher: MessageBusPublisher) exten
       case _ => FastFuture.failed(Errors.CouldNotScheduleDevice)
     }
 
-  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId
-,
-                                      correlationId: CorrelationId)
+  def setMultiUpdateTargetsForDevices(namespace: Namespace, devices: Seq[DeviceId], updateId: UpdateId, correlationId: CorrelationId)
                                      (implicit db: Database, ec: ExecutionContext): Future[Seq[DeviceId]] = {
     val dbAct = for {
       hwRows <- multiTargetUpdatesRepository.fetchAction(updateId, namespace)

@@ -38,8 +38,7 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
               }
             } else {
               complete {
-                setMultiTargets.setMultiUpdateTargetsForDevices(
-                  ns, req.devices, req.mtuId, req.correlationId)
+                setMultiTargets.setMultiUpdateTargetsForDevices(ns, req.devices, req.mtuId, req.correlationId)
               }
             }
           }

@@ -24,11 +24,10 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV,
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
-    "org.scalatest"     %% "scalatest" % scalaTestV % "test",
+    "org.scalatest"     %% "scalatest" % scalaTestV % Test,
+    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
-
-    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
     "com.advancedtelematic" %% "libats" % libatsV,
     "com.advancedtelematic" %% "libats-messaging" % libatsV,
@@ -103,7 +102,6 @@ dockerCommands := Seq(
 
 enablePlugins(JavaAppPackaging)
 
-Revolver.settings
 
 Versioning.settings
 

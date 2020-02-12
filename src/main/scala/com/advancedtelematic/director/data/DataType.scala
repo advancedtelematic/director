@@ -82,12 +82,12 @@ object DbDataType {
   case class Assignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
                         correlationId: CorrelationId, inFlight: Boolean) {
 
-    def toProcessedAssignment(canceled: Boolean): ProcessedAssignment =
-      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, canceled)
+    def toProcessedAssignment(successful: Boolean, canceled: Boolean = false, result: Option[String] = None): ProcessedAssignment =
+      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, successful, result, canceled)
   }
 
   case class ProcessedAssignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
-                                 correlationId: CorrelationId, canceled: Boolean)
+                                 correlationId: CorrelationId, successful: Boolean, result: Option[String], canceled: Boolean)
 
   type SHA256Checksum = Refined[String, ValidChecksum]
 }

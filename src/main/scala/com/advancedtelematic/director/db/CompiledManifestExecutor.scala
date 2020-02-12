@@ -38,6 +38,8 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
   }
 
   private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceNewStatus): DBIO[Unit] = {
+    assert(oldStatus.primaryEcu == newStatus.primaryEcu, "a device cannot change it's primary ecu")
+
     val assignmentsToDelete = (oldStatus.currentAssignments -- newStatus.currentAssignments).map(_.ecuId)
     val newProcessedAssignments = newStatus.processedAssignments -- oldStatus.processedAssignments
 

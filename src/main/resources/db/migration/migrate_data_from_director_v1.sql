@@ -124,8 +124,8 @@ WHERE running = 1
 ;
 
 -- PROCESSED Assignments
-insert into director_v2.processed_assignments (namespace, device_id, ecu_serial, ecu_target_id, correlation_id, canceled, created_at, updated_at)
-select namespace, device_id, ecu_serial, ecu_target_id, correlation_id, 0, created_at, updated_at
+insert into director_v2.processed_assignments (namespace, device_id, ecu_serial, ecu_target_id, correlation_id, successful, canceled, created_at, updated_at)
+select namespace, device_id, ecu_serial, ecu_target_id, correlation_id, 1, 0, created_at, updated_at
 FROM assignments_v1
 WHERE running = 0
 ;

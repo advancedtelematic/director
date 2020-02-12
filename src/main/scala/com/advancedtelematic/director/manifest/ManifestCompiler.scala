@@ -6,7 +6,11 @@ import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuMan
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import org.slf4j.LoggerFactory
+import cats.syntax.option._
+import io.circe.syntax._
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 
 import scala.util.{Failure, Success, Try}
 
@@ -66,27 +70,45 @@ object ManifestCompiler {
       newTargetO.map(_.id)
     }.filter(_._2.isDefined)
 
-    if(manifest.installation_report.exists(!_.report.result.success) && assignmentsProcessedInManifest.isEmpty) {
-      _log.info(s"$knownStatus Received install report success = false, clearing assignments")
+    val status = DeviceNewStatus(
+      knownStatus.deviceId,
+      knownStatus.primaryEcu,
+      knownStatus.ecuStatus ++ statusInManifest,
+      knownStatus.ecuTargets ++ newEcuTargets,
+      currentAssignments = Set.empty,
+      processedAssignments = Set.empty,
+      requiresMetadataRegeneration = false)
 
-      DeviceNewStatus(
-        knownStatus.deviceId,
-        knownStatus.primaryEcu,
-        knownStatus.ecuStatus ++ statusInManifest, // TODO: Should this be updated in this case?
-        knownStatus.ecuTargets ++ newEcuTargets, // TODO: Should this be updated in this case?
-        Set.empty,
-        // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
-        knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(canceled = false)),// TODO: But error = true
-        requiresMetadataRegeneration = true)
-    } else { // What if report !success but assignmentsProcessedInManifest not empty?
-      DeviceNewStatus(
-        knownStatus.deviceId,
-        knownStatus.primaryEcu,
-        knownStatus.ecuStatus ++ statusInManifest,
-        knownStatus.ecuTargets ++ newEcuTargets,
-        knownStatus.currentAssignments -- assignmentsProcessedInManifest,
-        knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(false)),
-        requiresMetadataRegeneration = false)
+    val installationReportFailed = manifest.installation_report.exists(!_.report.result.success)
+
+    if(installationReportFailed && assignmentsProcessedInManifest.isEmpty) {
+      _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
+      _log.info(s"$DeviceId Received install report success = false, clearing assignments")
+
+      val report = manifest.installation_report.map(_.report.result).map(_.asJson.noSpaces)
+      val desc = s"Device reported installation error and no assignments were processed: ${report}"
+
+      status.copy(
+        currentAssignments = Set.empty, // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
+        processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
+        requiresMetadataRegeneration = true
+      )
+    } else if (installationReportFailed) {
+      _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
+
+      val report = manifest.installation_report.map(_.report.result).map(_.asJson.noSpaces)
+      val desc = s"Device reported installation error and no assignments were processed: ${report}"
+
+        status.copy(
+          currentAssignments = Set.empty,
+          processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
+          requiresMetadataRegeneration = true
+        )
+    } else {
+      status.copy(
+        currentAssignments = knownStatus.currentAssignments -- assignmentsProcessedInManifest,
+        processedAssignments = knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(successful = true))
+      )
     }
   }
 

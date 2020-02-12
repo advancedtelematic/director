@@ -57,9 +57,16 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     await(ecuRepository.findFor(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { ecu =>
       val hwUpdate = hardwareUpdates(ecu.hardwareId)
 
-      if (hwUpdate.fromTarget.isEmpty || ecu.installedTarget.contains(hwUpdate.fromTarget.get))
-        Some(ecu -> hwUpdate.toTarget)
-      else {
+      // !ecu.installedTarget.contains(hwUpdate.toTarget) // TODO: Should not be affected if device already has update
+      if (hwUpdate.fromTarget.isEmpty || ecu.installedTarget.contains(hwUpdate.fromTarget.get)) {
+        if(ecu.installedTarget.contains(hwUpdate.toTarget)) {
+          _log.debug("not affected")
+          None
+        } else {
+          _log.info(s"AFFECTED: ${hwUpdate} ${ecu.installedTarget}")
+          Some(ecu -> hwUpdate.toTarget)
+        }
+      } else {
         _log.debug(s"ecu ${ecu.ecuSerial} not affected by $mtuId")
         None
       }

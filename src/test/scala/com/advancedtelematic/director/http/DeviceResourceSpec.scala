@@ -496,25 +496,8 @@ class DeviceResourceSpec extends DirectorSpec
 
     val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
     targetsAfter.targets shouldBe empty
-//    targetsAfter.targets.head._1 shouldBe initialVersion.to.target
-//    targetsAfter.targets.head._2 shouldBe ClientTargetItem(Hashes(initialVersion.to.checksum).toClientHashes, initialVersion.to.targetLength, None)
-    // Old director cleans everything
-
 
     // TODO: Assignment moves to processed, possibly with error?
-
-    // TODO: Check msg was published
-//    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
-//      msg.deviceUuid === regDev.deviceId
-//    }.map(_.asInstanceOf[DeviceUpdateCompleted])
-//
-//    reportMsg.map(_.namespace) should contain(ns)
-//
-//    reportMsg.get.result shouldBe deviceReport.result
-//    val (ecuReportId, ecuReport) = reportMsg.get.ecuReports.head
-//    ecuReportId shouldBe regDev.primary.ecuSerial
-//    ecuReport.result shouldBe installItem.result
-//    reportMsg.get.correlationId shouldBe correlationId
   }
 
   test("device updates to some unknown target with or without report") {

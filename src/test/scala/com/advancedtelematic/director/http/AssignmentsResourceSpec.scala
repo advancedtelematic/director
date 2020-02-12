@@ -83,7 +83,12 @@ trait AssignmentResources {
 class AssignmentsResourceSpec extends DirectorSpec
   with RouteResourceSpec
   with RepoNamespaceRepositorySupport
-  with DbSignedRoleRepositorySupport with AdminResources with AssignmentResources with RepositorySpec {
+  with DbSignedRoleRepositorySupport
+  with AdminResources
+  with AssignmentResources
+  with RepositorySpec
+  with DeviceResources
+  with DeviceManifestSpec {
 
   override implicit val msgPub = new MockMessageBus
 
@@ -143,6 +148,20 @@ class AssignmentsResourceSpec extends DirectorSpec
 
     val queue1 = getDeviceAssignmentOk(regDev1.deviceId)
     queue1 shouldBe empty
+  }
+
+  testWithRepo("ecus are not affected if they already have target installed") { implicit ns =>
+    val regDev0 = registerAdminDeviceOk()
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    putManifestOk(regDev0.deviceId, buildPrimaryManifest(regDev0.primary, regDev0.primaryKey, targetUpdate.to))
+
+    createAssignmentOk(regDev0.deviceId, regDev0.primary.hardwareId, targetUpdate.some)
+
+    val queue0 = getDeviceAssignmentOk(regDev0.deviceId)
+    queue0 should be(empty)
+
+    fail("LOL")
   }
 
   testWithRepo("Only creates assignments for affected ecus in a device") { implicit ns =>
@@ -229,5 +248,11 @@ class AssignmentsResourceSpec extends DirectorSpec
     // check if a target is addressing our ECU:
     val targetItemCustom = t2.signed.targets.values.head.customParsed[TargetItemCustom]
     targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
+  }
+
+  test("dryRun is implemented") {
+    // this is why we got random assignments sometimes
+
+    fail("lol")
   }
 }

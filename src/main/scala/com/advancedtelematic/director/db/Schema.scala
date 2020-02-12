@@ -105,9 +105,11 @@ object Schema {
     def ecuTargetId = column[EcuTargetId]("ecu_target_id")
     def correlationId = column[CorrelationId]("correlation_id")
     def canceled = column[Boolean]("canceled")
+    def successful = column[Boolean]("successful")
+    def resultDesc = column[Option[String]]("result_desc")
     def createdAt = column[Instant]("created_at")
 
-    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
+    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, successful, resultDesc, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
   }
 
   protected [db] val processedAssignments = TableQuery[ProcessedAssignmentsTable]

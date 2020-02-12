@@ -5,9 +5,10 @@ import org.scalacheck.Gen
 import GeneratorOps._
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, RegisterEcu, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
+import com.advancedtelematic.director.data.DeviceRequest.{EcuManifest, InstallationItem, InstallationReport, InstallationReportEntity}
 import com.advancedtelematic.director.data.UptaneDataType._
-import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, ValidChecksum}
+import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, MultiTargetUpdateId, ResultCode, ResultDescription, ValidChecksum}
+import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
 import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, KeyType, RsaKeyType, TufKey, TufKeyPair, ValidTargetFilename}
 import eu.timepit.refined.api.Refined
 
@@ -50,6 +51,14 @@ trait Generators {
     size <- Gen.choose(10, maxLen)
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
+
+  def GenInstallReportEntity(primaryEcu: EcuIdentifier, success: Boolean) = for {
+    code <- Gen.alphaNumStr.map(ResultCode.apply)
+    desc <- Gen.alphaNumStr.map(ResultDescription.apply)
+    installItem = InstallationItem(primaryEcu, InstallationResult(success, code, desc))
+    correlationId <- GenCorrelationId
+    installationReport = InstallationReport(correlationId, InstallationResult(success, code, desc), Seq(installItem), raw_report = None)
+  } yield DeviceRequest.InstallationReportEntity("application/vnd.com.here.otac.installationReport.v1", installationReport)
 
   val GenTargetUpdate: Gen[TargetUpdate] = for {
     target <- genIdentifier(200).map(Refined.unsafeApply[String, ValidTargetFilename])

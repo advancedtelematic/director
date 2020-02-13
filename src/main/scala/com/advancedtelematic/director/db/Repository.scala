@@ -341,7 +341,7 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .result
       .headOption.map {
       case Some((createdAt, updatedAt)) => updatedAt.minusSeconds(5).isAfter(createdAt)
-       case None => false
+      case None => false
     }
   }
 

@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.DataType.TargetsCustom
+import com.advancedtelematic.director.data.DataType.{FileCacheRequest, TargetsCustom}
 import com.advancedtelematic.director.data.Codecs.targetsCustomEncoder
 import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
@@ -23,7 +23,7 @@ import java.time.Instant
 
 import org.scalatest.OptionValues._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
+import com.advancedtelematic.director.data.{EdGenerators, FileCacheRequestStatus, KeyGenerators, RsaGenerators}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.concurrent.Eventually
@@ -222,6 +222,44 @@ trait FileCacheSpec extends DirectorSpec
     newTargets.signed.expires shouldBe newTime
     newTargets.signed.version shouldBe oldTargets.signed.version + 1
     newTargets.signed.targets shouldNot be(empty)
+    newTargets.signed.targets shouldBe oldTargets.signed.targets
+    newTargets.signed.custom.value.as[TargetsCustom].toOption.flatMap(_.correlationId).value should be(correlationId)
+  }
+
+  // https://saeljira.it.here.com/browse/OTA-4539
+  test("targets.json is regenerated if it's missing a correlationId") {
+    val device = DeviceId.generate
+
+    val primEcuReg = GenRegisterEcu.generate
+    val primEcu = primEcuReg.ecu_serial
+
+    val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
+    registerDeviceOk(regDev)
+
+    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
+    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
+
+    updateManifestOk(device, devManifest)
+
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
+    val target = SetTarget(Map(primEcu -> targetImage))
+
+    val correlationId = CampaignId(java.util.UUID.randomUUID())
+    SetTargets.setTargets(defaultNs, Seq(device -> target), Some(correlationId)).futureValue
+
+    val oldTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
+    isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe oldTime
+    val oldTargets = isAvailable[TargetsRole](device, "targets.json")
+    oldTargets.signed.expires shouldBe oldTime
+    oldTargets.signed.custom.value.as[TargetsCustom].toOption.flatMap(_.correlationId).value should be(correlationId)
+    isAvailable[RootRole](device, "root.json")
+
+    val newVersion = oldTargets.signed.version + 1
+    val fcr = FileCacheRequest(defaultNs, newVersion, device, FileCacheRequestStatus.PENDING, newVersion, correlationId = None)
+    rolesGeneration.processFileCacheRequest(fcr, assignmentsVersion = Some(oldTargets.signed.version)).futureValue
+
+    val newTargets = isAvailable[TargetsRole](device, "targets.json")
+    newTargets.signed.version shouldBe oldTargets.signed.version + 2
     newTargets.signed.targets shouldBe oldTargets.signed.targets
     newTargets.signed.custom.value.as[TargetsCustom].toOption.flatMap(_.correlationId).value should be(correlationId)
   }

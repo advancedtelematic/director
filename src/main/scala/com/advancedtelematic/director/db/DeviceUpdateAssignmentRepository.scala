@@ -22,17 +22,20 @@ trait DeviceUpdateAssignmentRepositorySupport {
 protected class DeviceUpdateAssignmentRepository()(implicit db: Database, ec: ExecutionContext) {
   import Schema.deviceUpdateAssignments
 
-  def exists(namespace: Namespace, deviceId: DeviceId, version: Int): Future[Boolean] =
-    db.run(existsAction(namespace, deviceId, version))
+  def find(namespace: Namespace, deviceId: DeviceId, version: Int): Future[Option[DeviceUpdateAssignment]] = db.run {
+    findAction(namespace, deviceId, version)
+  }
 
-  protected [db] def existsAction(namespace: Namespace, deviceId: DeviceId, version: Int)
-  : DBIO[Boolean] =
+  protected [db] def existsAction(namespace: Namespace, deviceId: DeviceId, version: Int): DBIO[Boolean] =
+    findAction(namespace, deviceId, version).map(_.isDefined)
+
+  protected [db] def findAction(namespace: Namespace, deviceId: DeviceId, version: Int): DBIO[Option[DeviceUpdateAssignment]] =
     deviceUpdateAssignments
       .filter(_.namespace === namespace)
       .filter(_.deviceId === deviceId)
       .filter(_.version === version)
-      .exists
       .result
+      .headOption
 
   protected [db] def persistAction(
     namespace: Namespace,

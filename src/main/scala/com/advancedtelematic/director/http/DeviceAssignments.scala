@@ -51,16 +51,22 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     findAffectedEcus(ns, deviceIds, mtuId).map { _.map(_._1.deviceId) }
   }
 
+  import cats.syntax.option._
+
   private def findAffectedEcus(ns: Namespace, devices: Seq[DeviceId], mtuId: UpdateId) = async {
     val hardwareUpdates = await(hardwareUpdateRepository.findBy(ns, mtuId))
 
-    await(ecuRepository.findFor(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { ecu =>
-      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+    val allTargetIds = hardwareUpdates.values.flatMap(v => List(v.toTarget.some, v.fromTarget).flatten)
+    val hh = await(ecuTargetsRepository.findAll(ns, allTargetIds.toSeq))
 
-      // !ecu.installedTarget.contains(hwUpdate.toTarget) // TODO: Should not be affected if device already has update
-      if (hwUpdate.fromTarget.isEmpty || ecu.installedTarget.contains(hwUpdate.fromTarget.get)) {
-        if(ecu.installedTarget.contains(hwUpdate.toTarget)) {
-          _log.debug("not affected")
+    await(ecuRepository.findEcuWithTargets(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { case (ecu, installedTarget) =>
+      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+      val updateFrom = hwUpdate.fromTarget.flatMap(hh.get)
+      val updateTo = hh(hwUpdate.toTarget)
+
+      if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
+        if(installedTarget.exists(_.matches(updateTo))) {
+          _log.info("not affected")
           None
         } else {
           _log.info(s"AFFECTED: ${hwUpdate} ${ecu.installedTarget}")

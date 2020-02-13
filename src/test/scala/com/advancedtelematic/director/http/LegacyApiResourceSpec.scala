@@ -57,7 +57,7 @@ class LegacyApiResourceSpec extends DirectorSpec
 
   testWithRepo("DELETE assignments cancels assigned updates") { implicit ns =>
     val regDev = registerAdminDeviceOk()
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 
     val queue0 = getDeviceAssignmentOk(regDev.deviceId)
     queue0 shouldNot be(empty)

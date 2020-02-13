@@ -55,11 +55,12 @@ trait AdminResources {
     RegisterDeviceResult(regDev.deviceId.get, primary, primaryEcuKey, ecus, Map(primary.ecuSerial -> primaryEcuKey, regSecondaryEcu.ecu_serial -> secondaryEcuKey))
   }
 
-  def registerAdminDeviceOk()(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
+  def registerAdminDeviceOk(hardwareIdentifier: Option[HardwareIdentifier] = None)(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
     val device = DeviceId.generate
     val (regEcu, ecuKey) = GenRegisterEcuKeys.generate
 
-    val regDev = RegisterDevice(device.some, regEcu.ecu_serial, List(regEcu))
+    val hwId = hardwareIdentifier.getOrElse(regEcu.hardware_identifier)
+    val regDev = RegisterDevice(device.some, regEcu.ecu_serial, List(regEcu.copy(hardware_identifier = hwId)))
 
     Post(apiUri("admin/devices"), regDev).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created

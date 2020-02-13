@@ -156,6 +156,13 @@ protected class EcuTargetsRepository()(implicit val db: Database, val ec: Execut
       .filter(_.namespace === ns)
       .filter(_.id === id).result.failIfNotSingle(MissingEntityId[EcuTargetId](id))
   }
+
+  def findAll(ns: Namespace, ids: Seq[EcuTargetId]): Future[Map[EcuTargetId, EcuTarget]] = db.run {
+    Schema.ecuTargets
+      .filter(_.namespace === ns)
+      .filter(_.id.inSet(ids))
+      .result.map(_.map(e => e.id -> e).toMap)
+  }
 }
 
 trait AssignmentsRepositorySupport extends DatabaseSupport {
@@ -262,8 +269,9 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
     Schema.ecus.filter(_.deviceId === deviceId).result
   }.map(_.map(e => e.ecuSerial -> e).toMap)
 
-  def findFor(devices: Set[DeviceId], hardwareIds: Set[HardwareIdentifier]): Future[Seq[Ecu]] = db.run {
-    Schema.ecus.filter(_.deviceId.inSet(devices)).filter(_.hardwareId.inSet(hardwareIds)).result
+  def findEcuWithTargets(devices: Set[DeviceId], hardwareIds: Set[HardwareIdentifier]): Future[Seq[(Ecu, Option[EcuTarget])]] = db.run {
+    Schema.ecus.filter(_.deviceId.inSet(devices)).filter(_.hardwareId.inSet(hardwareIds))
+      .joinLeft(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {

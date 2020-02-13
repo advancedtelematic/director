@@ -181,7 +181,7 @@ class DeviceResourceSpec extends DirectorSpec
     val targetUpdate = GenTargetUpdateRequest.generate
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -206,7 +206,7 @@ class DeviceResourceSpec extends DirectorSpec
     val registerDevice = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
     val deviceId = registerDevice.deviceId
-    createAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some)
 
     val deviceManifest = buildPrimaryManifest(registerDevice.primary, registerDevice.primaryKey, targetUpdate.to)
 
@@ -259,7 +259,7 @@ class DeviceResourceSpec extends DirectorSpec
     import com.advancedtelematic.libtuf.crypt.CanonicalJson._
     val regDev = registerAdminDeviceOk()
     val targetUpdate = GenTargetUpdateRequest.generate
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     val firstTargets = Get(apiUri(s"device/${regDev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -295,7 +295,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
 
     val targetUpdate = GenTargetUpdateRequest.generate
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
     val firstTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
 
@@ -344,7 +344,7 @@ class DeviceResourceSpec extends DirectorSpec
     val targetUpdate = GenTargetUpdateRequest.generate
     val deviceId = registerDevice.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     getDeviceRoleOk[TargetsRole](deviceId)
 
@@ -363,7 +363,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -379,7 +379,7 @@ class DeviceResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -399,8 +399,8 @@ class DeviceResourceSpec extends DirectorSpec
     val (secondaryEcuSerial, secondaryEcu) = (regDev.ecus - regDev.primary.ecuSerial).head
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
-    createAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
@@ -484,7 +484,7 @@ class DeviceResourceSpec extends DirectorSpec
     val targetUpdate = GenTargetUpdateRequest.generate
     val correlationId = GenCorrelationId.generate
 
-    createAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
     getDeviceRoleOk[TargetsRole](regDev.deviceId).signed.targets shouldNot be(empty)
 

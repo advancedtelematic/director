@@ -77,7 +77,13 @@ object DbDataType {
   case class EcuTarget(ns: Namespace, id: EcuTargetId, filename: TargetFilename, length: Long,
                        checksum: Checksum,
                        sha256: SHA256Checksum,
-                       uri: Option[Uri])
+                       uri: Option[Uri]) {
+    def matches(other: EcuTarget): Boolean = {
+      filename == other.filename &&
+        length == other.length &&
+        sha256 == other.sha256
+    }
+  }
 
   case class Assignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
                         correlationId: CorrelationId, inFlight: Boolean) {

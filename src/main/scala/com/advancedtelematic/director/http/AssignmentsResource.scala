@@ -50,8 +50,13 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
       pathEnd {
         post {
           entity(as[AssignUpdateRequest]) { req =>
-            val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
-            complete(f)
+            if(req.dryRun.contains(true)) { // Legacy API
+              val f = deviceAssignments.findAffectedDevices(ns, req.devices, req.mtuId)
+              complete(f)
+            } else {
+              val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
+              complete(f)
+            }
           }
         } ~
         patch {

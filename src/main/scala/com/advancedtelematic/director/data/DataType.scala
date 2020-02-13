@@ -119,7 +119,8 @@ object AdminDataType {
 
   final case class AssignUpdateRequest(correlationId: CorrelationId,
                                        devices: Seq[DeviceId],
-                                       mtuId: UpdateId)
+                                       mtuId: UpdateId,
+                                       dryRun: Option[Boolean] = None)
 
   final case class QueueResponse(correlationId: CorrelationId, targets: Map[EcuIdentifier, TargetImage], inFlight: Boolean)
 

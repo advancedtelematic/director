@@ -9,10 +9,9 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.TargetItemCustom
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
-import com.advancedtelematic.director.data.UptaneDataType.FileInfo
 import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.director.util._
-import com.advancedtelematic.libats.data.DataType.{CorrelationId, Namespace}
+import com.advancedtelematic.libats.data.DataType.{CorrelationId, MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, _}
@@ -146,6 +145,27 @@ class AssignmentsResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("can GET devices affected by assignment using legacy API") { implicit ns =>
+    val regDev0 = registerAdminDeviceOk()
+    val regDev1 = registerAdminDeviceOk()
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val mtu = MultiTargetUpdate(Map(regDev0.primary.hardwareId -> targetUpdate))
+
+    val mtuId = Post(apiUri("multi_target_updates"), mtu).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
+    }
+
+    val assignment = AssignUpdateRequest(MultiTargetUpdateId(mtuId.uuid), Seq(regDev0.deviceId, regDev1.deviceId), mtuId, dryRun = Some(true))
+
+    Post(apiUri("assignments"), assignment).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[DeviceId]] should contain(regDev0.deviceId)
+      responseAs[Seq[DeviceId]] shouldNot contain(regDev1.deviceId)
+    }
+  }
+
   testWithRepo("Only creates assignments for affected devices") { implicit ns =>
     val regDev0 = registerAdminDeviceOk()
     val regDev1 = registerAdminDeviceOk()
@@ -264,9 +284,4 @@ class AssignmentsResourceSpec extends DirectorSpec
     targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
   }
 
-  test("dryRun is implemented") {
-    // this is why we got random assignments sometimes
-
-    fail("lol")
-  }
 }

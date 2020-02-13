@@ -32,23 +32,25 @@ class Roles(rolesGeneration: RolesGeneration)
     expired || wasUpdated
   }
 
-  private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Int] =
-    shouldBeRegenerated(ns, device, version).flatMap {
-      case true =>
-        val fcr = FileCacheRequest(ns, version + 1, device, FileCacheRequestStatus.PENDING, version + 1)
-        rolesGeneration.processFileCacheRequest(fcr, assignmentsVersion = version.some).map(_ => version + 1)
-      case false =>
-        FastFuture.successful(version)
-    }.recoverWith {
-      case DBErrors.NoCacheEntry =>
-        val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
-        rolesGeneration.processFileCacheRequest(fcr).map(_ => version)
-    }
+  private def updateCacheIfExpired(ns: Namespace, device: DeviceId, version: Int): Future[Int] = async {
+    val assignment = await(deviceUpdateAssignmentRepository.find(ns, device, version))
+    val regenerate = await(shouldBeRegenerated(ns, device, version))
+
+    if(regenerate) await {
+      val fcr = FileCacheRequest(ns, version + 1, device, FileCacheRequestStatus.PENDING, version + 1, correlationId = assignment.flatMap(_.correlationId))
+      rolesGeneration.processFileCacheRequest(fcr, assignmentsVersion = version.some).map(_ => version + 1)
+    } else
+      version
+  }.recoverWith {
+    case DBErrors.NoCacheEntry =>
+      val fcr = FileCacheRequest(ns, version, device, FileCacheRequestStatus.PENDING, version)
+      rolesGeneration.processFileCacheRequest(fcr).map(_ => version)
+  }
 
   private def nextVersionToFetch(ns: Namespace, device: DeviceId, currentVersion: Int): Future[Int] = {
     val timestampVersion = currentVersion + 1
-    deviceUpdateAssignmentRepository.exists(ns, device, timestampVersion).flatMap {
-      case true  => fileCacheRepository.versionIsCached(device, timestampVersion).flatMap {
+    deviceUpdateAssignmentRepository.find(ns, device, timestampVersion).flatMap {
+      case Some(_)  => fileCacheRepository.versionIsCached(device, timestampVersion).flatMap {
         case true => FastFuture.successful(timestampVersion)
         case false =>
           fileCacheRequestRepository.findByVersion(ns, device, timestampVersion).flatMap { fcr =>
@@ -59,7 +61,7 @@ class Roles(rolesGeneration: RolesGeneration)
             }
           }
       }
-      case false => FastFuture.successful(currentVersion)
+      case None => FastFuture.successful(currentVersion)
     }
   }
 

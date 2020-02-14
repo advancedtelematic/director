@@ -12,14 +12,13 @@ import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, D
 import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
-import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.http.tracing.NullServerRequestTracing
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageBus, MessageListenerSupport}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{BsDiffGenerationFailed, DeltaGenerationFailed, GeneratedBsDiff, GeneratedDelta, UserCreated}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.data.Messages._
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
-import com.advancedtelematic.metrics.AkkaHttpRequestMetrics
+import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, MetricsSupport, MonitoredBusListenerSupport}
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 
 object DaemonBoot extends BootApp
@@ -33,7 +32,7 @@ object DaemonBoot extends BootApp
     with MessageListenerSupport
     with AkkaHttpRequestMetrics
     with CheckMigrations
-    with PrometheusMetricsSupport {
+    with PrometheusMetricsSupport with MonitoredBusListenerSupport {
 
   implicit val _db = db
 
@@ -50,18 +49,18 @@ object DaemonBoot extends BootApp
   val userCreatedBusListener = defaultKeyType.map { kt =>
     log.info(s"default key type: $kt")
     val createRepoWorker = new CreateRepoWorker(new DirectorRepo(tuf), kt)
-    startListener[UserCreated](createRepoWorker.action)
+    startMonitoredListener[UserCreated](createRepoWorker.action)
   }
 
   val diffListener = new DiffListener
-  val generatedDeltaListener = startListener[GeneratedDelta](diffListener.generatedDeltaAction)
-  val generatedBsDiffListener = startListener[GeneratedBsDiff](diffListener.generatedBsDiffAction)
-  val deltaGenerationFailedListener = startListener[DeltaGenerationFailed](diffListener.deltaGenerationFailedAction)
-  val bsDiffGenerationFailedListener = startListener[BsDiffGenerationFailed](diffListener.bsDiffGenerationFailedAction)
+  val generatedDeltaListener = startMonitoredListener[GeneratedDelta](diffListener.generatedDeltaAction)
+  val generatedBsDiffListener = startMonitoredListener[GeneratedBsDiff](diffListener.generatedBsDiffAction)
+  val deltaGenerationFailedListener = startMonitoredListener[DeltaGenerationFailed](diffListener.deltaGenerationFailedAction)
+  val bsDiffGenerationFailedListener = startMonitoredListener[BsDiffGenerationFailed](diffListener.bsDiffGenerationFailedAction)
 
   val setMultiTargets = new SetMultiTargets
   val tufTargetWorker = new TufTargetWorker(setMultiTargets)
-  val tufTargetAddedListener = startListener[TufTargetAdded](tufTargetWorker.action)
+  val tufTargetAddedListener = startMonitoredListener[TufTargetAdded](tufTargetWorker.action)
 
   val routes: Route = (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName)) {
     prometheusMetricsRoutes ~

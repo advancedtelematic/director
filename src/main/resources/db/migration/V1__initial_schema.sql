@@ -34,6 +34,7 @@ CREATE TABLE `devices` (
   `primary_ecu_id` varchar(64) NOT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+  `generated_metadata_outdated` BOOLEAN NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `devices_unique_id` UNIQUE (`id`),
   CONSTRAINT `primary_ecu_fk` FOREIGN KEY (`id`, `primary_ecu_id`) REFERENCES ecus(`device_id`, `ecu_serial`)

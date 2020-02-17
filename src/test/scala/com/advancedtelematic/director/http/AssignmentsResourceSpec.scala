@@ -21,7 +21,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.scalactic.source.Position
-
+import org.scalatest.OptionValues._
 
 trait AssignmentResources {
   self: DirectorSpec with RouteResourceSpec with NamespacedTests with AdminResources =>
@@ -280,8 +280,7 @@ class AssignmentsResourceSpec extends DirectorSpec
 
     val t2 = getTargetsOk(regDev)
     // check if a target is addressing our ECU:
-    val targetItemCustom = t2.signed.targets.values.head.customParsed[TargetItemCustom]
+    val targetItemCustom = t2.signed.targets.headOption.value._2.customParsed[TargetItemCustom]
     targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
   }
-
 }

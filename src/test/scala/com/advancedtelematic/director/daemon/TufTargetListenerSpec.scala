@@ -47,6 +47,9 @@ class TufTargetListenerSpec extends DirectorSpec
     ecuTarget.filename shouldBe filename
     ecuTarget.checksum shouldBe checksum
     ecuTarget.length shouldBe 1L
+
+    val targets = getTargetsOk(dev)
+    targets.signed.targets.keys.headOption should contain(filename)
   }
 
   testWithRepo("does not create an assignment when device already has an assignment") { implicit ns =>

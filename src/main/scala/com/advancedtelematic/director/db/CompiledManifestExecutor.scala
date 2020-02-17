@@ -1,7 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DbDataType.{DeviceKnownStatus, DeviceNewStatus, EcuTargetId}
-import com.advancedtelematic.director.repo.DeviceRoleGeneration
+import com.advancedtelematic.director.data.DbDataType.{DeviceKnownStatus, EcuTargetId}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
@@ -23,10 +22,10 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       assignments <- Schema.assignments.filter(_.deviceId === deviceId).result
       processed <- Schema.processedAssignments.filter(_.deviceId === deviceId).result
       ecuStatus <- Schema.ecus.filter(_.deviceId === deviceId).map(ecu => ecu.ecuSerial -> ecu.installedTarget).result
-      primaryEcu <- Schema.devices.filter(_.id === deviceId).map(_.primaryEcu).result.head
+      device <- Schema.devices.filter(_.id === deviceId).result.head
       ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
       ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
-    } yield DeviceKnownStatus(deviceId, primaryEcu, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet)
+    } yield DeviceKnownStatus(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdaded)
 
     io
   }
@@ -37,7 +36,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       .filter(_.ecuSerial === ecuIdentifier).map(_.installedTarget).update(installedTarget).map(_ => ())
   }
 
-  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceNewStatus): DBIO[Unit] = {
+  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceKnownStatus): DBIO[Unit] = {
     assert(oldStatus.primaryEcu == newStatus.primaryEcu, "a device cannot change it's primary ecu")
 
     val assignmentsToDelete = (oldStatus.currentAssignments -- newStatus.currentAssignments).map(_.ecuId)
@@ -51,6 +50,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       _ <- DBIO.sequence(changedEcuStatus.map { case (ecu, target) => updateEcuAction(deviceId, ecu, target) })
       _ <- Schema.assignments.filter(_.deviceId === deviceId).filter(_.ecuId.inSet(assignmentsToDelete)).delete
       _ <- DBIO.sequence(newProcessedAssignments.map(Schema.processedAssignments += _).toList )
+      _ <- Schema.devices.filter(_.id === deviceId).map(_.generatedMetadataOutdated).update(newStatus.generatedMetadataOutdated)
     } yield ()
   }
 
@@ -59,7 +59,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
     case Failure(ex) => DBIO.failed(ex)
   }
 
-  def process(deviceId: DeviceId, compiledManifest: DeviceKnownStatus => Try[DeviceNewStatus]): Future[DeviceNewStatus] = {
+  def process(deviceId: DeviceId, compiledManifest: DeviceKnownStatus => Try[DeviceKnownStatus]): Future[DeviceKnownStatus] = {
     val io = for {
       initialStatus <- findStatusAction(deviceId)
       newStatus <- dbActionFromTry(compiledManifest.apply(initialStatus))

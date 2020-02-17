@@ -26,11 +26,12 @@ object Schema {
     def namespace = column[Namespace]("namespace")
     def id = column[DeviceId]("id")
     def primaryEcu = column[EcuIdentifier]("primary_ecu_id")
+    def generatedMetadataOutdated = column[Boolean]("generated_metadata_outdated")
     def createdAt = column[Instant]("created_at")
 
     def pk = primaryKey("devices_pk", id)
 
-    override def * = (namespace, id, primaryEcu) <> ((Device.apply _).tupled, Device.unapply)
+    override def * = (namespace, id, primaryEcu, generatedMetadataOutdated) <> ((Device.apply _).tupled, Device.unapply)
   }
 
   protected [db] val devices = TableQuery[DevicesTable]

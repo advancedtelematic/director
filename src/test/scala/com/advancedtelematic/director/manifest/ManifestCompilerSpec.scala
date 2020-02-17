@@ -40,9 +40,9 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val manifest = DeviceManifest(primary, ecuVersionManifest)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> Some(ecuTarget.id), secondary -> Some(ecuTarget.id)), Map(ecuTarget.id -> ecuTarget), Set.empty, Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> Some(ecuTarget.id), secondary -> Some(ecuTarget.id)), Map(ecuTarget.id -> ecuTarget), Set.empty, Set.empty, generatedMetadataOutdated = false)
 
-    ManifestCompiler(ns, manifest).apply(currentStatus).get shouldBe currentStatus.toNewStatus(false)
+    ManifestCompiler(ns, manifest).apply(currentStatus).get shouldBe currentStatus
   }
 
   test("manifest setting unknown ecu targets creates targets") {
@@ -51,7 +51,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val ecuVersionManifest = Map(primary -> SignedPayload(Seq.empty, ecuManifest, ecuManifest.asJson))
     val manifest = DeviceManifest(primary, ecuVersionManifest)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty, generatedMetadataOutdated = false)
 
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
@@ -74,7 +74,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val secondaryAssignment = Assignment(ns, deviceId, secondary, ecuTarget.id, GenCorrelationId.generate, inFlight = true)
 
     val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None, secondary -> None), Map(ecuTarget.id -> ecuTarget),
-                                          Set(assignment, secondaryAssignment), Set.empty)
+                                          Set(assignment, secondaryAssignment), Set.empty, generatedMetadataOutdated = false)
 
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
@@ -91,7 +91,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val manifest = DeviceManifest(primary, ecuVersionManifest)
     val otherAssignment = Assignment(ns, deviceId, secondary, ecuTarget.id, GenCorrelationId.generate, inFlight = true)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty, generatedMetadataOutdated = false)
 
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
@@ -110,7 +110,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val manifest = DeviceManifest(primary, ecuVersionManifest, installationReportEntity.some)
     val otherAssignment = Assignment(ns, deviceId, secondary, ecuTarget.id, GenCorrelationId.generate, inFlight = true)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty, generatedMetadataOutdated = false)
 
     val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
@@ -128,7 +128,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val manifest = DeviceManifest(primary, ecuVersionManifest, installationReportEntity.some)
 
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment), Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment), Set.empty, generatedMetadataOutdated = false)
 
     val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
 
@@ -142,7 +142,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val ecuManifest = EcuManifest(targetUpdate.toImage, primary, "")
     val ecuVersionManifest = Map(primary -> SignedPayload(Seq.empty, ecuManifest, ecuManifest.asJson))
     val manifest = DeviceManifest(primary, ecuVersionManifest)
-    val currentStatus = DeviceKnownStatus(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty)
+    val currentStatus = DeviceKnownStatus(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty, generatedMetadataOutdated = false)
 
     val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
     val newTarget = newStatus.ecuTargets.values.head

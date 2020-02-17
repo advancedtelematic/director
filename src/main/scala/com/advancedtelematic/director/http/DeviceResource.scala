@@ -95,15 +95,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
         val executor = new CompiledManifestExecutor()
 
         val f = async {
-          val newStatus = await(executor.process(device, validatedManifest))
-
-          // TODO: Must use way of doing this, otherwise if this fails, we'll never try to generate it again
-          // better idea would be to somehow save the version the device should be at, and when device GETs targets.json, serve that
-          if(newStatus.requiresMetadataRegeneration)
-            await(deviceRoleGeneration.forceRolesFullRegeneration(ns, repoId, device))
+          await(executor.process(device, validatedManifest))
 
           val msgO = ManifestReportMessages(ns, device, deviceManifest)
-
           if(msgO.isDefined)
             await(messageBusPublisher.publishSafe[DeviceUpdateEvent](msgO.get))
 

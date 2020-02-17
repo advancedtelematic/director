@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{HttpEntity, StatusCodes}
 import cats.syntax.option._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
@@ -171,7 +171,6 @@ class AdminResourceSpec extends DirectorSpec
 
     Put(apiUri(s"admin/devices/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
-      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
     }
 
     Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {

@@ -56,7 +56,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         }
     }
 
-  def devicePath(ns: Namespace, repoId: RepoId): Route =
+  def devicePath(ns: Namespace): Route =
     pathPrefix(DeviceId.Path) { device =>
       pathPrefix("ecus") {
         pathPrefix(EcuIdPath) { ecuId =>
@@ -84,7 +84,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           complete(f)
         } ~
       (path("targets.json") & put) {
-        complete(deviceRoleGeneration.forceTargetsRefresh(ns, repoId, device).map(StatusCodes.Created -> _))
+        complete(deviceRoleGeneration.forceTargetsRefresh(ns, device).map(StatusCodes.Created -> _))
       }
     }
 
@@ -117,7 +117,7 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   complete(f)
                 }
               } ~
-              devicePath(ns, repoId)
+              devicePath(ns)
           }
         }
     }

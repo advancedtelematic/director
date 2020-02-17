@@ -55,10 +55,24 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     val io = for {
       _ <- ecusDeleteIO.andThen(deviceDeleteIo) // This is a bad idea and will fail if device has assignments, see DeviceResourceSpec
       _ <- Schema.ecus ++= ecus
-      _ <- Schema.devices += Device(ns, deviceId, primaryEcuId)
+      _ <- Schema.devices += Device(ns, deviceId, primaryEcuId, generatedMetadataOutdaded = true)
     } yield ()
 
     db.run(io.transactionally)
+  }
+
+  protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {
+    Schema.devices.filter(_.id.inSet(deviceIds)).map(_.generatedMetadataOutdated).update(outdated)
+  }
+
+  def setMetadataOutdated(deviceId: DeviceId, outdated: Boolean): Future[Unit] = db.run {
+    setMetadataOutdatedAction(Set(deviceId), outdated)
+  }
+
+  def metadataIsOutdated(ns: Namespace, deviceId: DeviceId): Future[Boolean] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .filter(_.id === deviceId).map(_.generatedMetadataOutdated).result.headOption.map(_.exists(_ == true))
   }
 }
 
@@ -171,15 +185,18 @@ trait AssignmentsRepositorySupport extends DatabaseSupport {
 
 protected class AssignmentsRepository()(implicit val db: Database, val ec: ExecutionContext) {
 
-  def persistManyForEcuTarget(ecuTargetsRepository: EcuTargetsRepository)
+  def persistManyForEcuTarget(ecuTargetsRepository: EcuTargetsRepository, deviceRepository: DeviceRepository)
                              (ecuTarget: EcuTarget, assignments: Seq[Assignment]): Future[Unit] = db.run {
-    ecuTargetsRepository.persistAction(ecuTarget).andThen {
-      (Schema.assignments ++= assignments).map(_ => ())
-    }.transactionally
+    ecuTargetsRepository.persistAction(ecuTarget)
+      .andThen { (Schema.assignments ++= assignments).map(_ => ()) }
+      .andThen { deviceRepository.setMetadataOutdatedAction(assignments.map(_.deviceId).toSet, outdated = true) }
+      .transactionally
   }
 
-  def persistMany(assignments: Seq[Assignment]): Future[Unit] = db.run {
-    (Schema.assignments ++= assignments).map(_ => ())
+  def persistMany(deviceRepository: DeviceRepository)(assignments: Seq[Assignment]): Future[Unit] = db.run {
+    (Schema.assignments ++= assignments)
+      .andThen { deviceRepository.setMetadataOutdatedAction(assignments.map(_.deviceId).toSet, outdated = true) }
+      .transactionally
   }
 
   def findBy(deviceId: DeviceId): Future[Seq[Assignment]] = db.run {
@@ -202,8 +219,10 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
     Schema.assignments.filter(_.deviceId === deviceId).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption
   }
 
-  def setAllInFlight(deviceId: DeviceId): Future[Unit] = db.run {
+  def markRegenerated(deviceRepository: DeviceRepository)(deviceId: DeviceId): Future[Unit] = db.run {
     Schema.assignments.filter(_.deviceId === deviceId).map(_.inFlight).update(true).map(_ => ())
+      .andThen { deviceRepository.setMetadataOutdatedAction(Set(deviceId), outdated = false) }
+      .transactionally
   }
 
   def processCancellation(ns: Namespace, deviceIds: Seq[DeviceId]): Future[Seq[Assignment]] = {

@@ -18,7 +18,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport
-  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport {
+  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport with DeviceRepositorySupport {
 
   private val _log = LoggerFactory.getLogger(this.getClass)
 
@@ -96,7 +96,7 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     if(await(assignmentsRepository.existsFor(assignments.map(_.ecuId).toSet)))
       throw Errors.AssignmentExists
 
-    await(assignmentsRepository.persistMany(assignments))
+    await(assignmentsRepository.persistMany(deviceRepository)(assignments))
 
     assignments
   }

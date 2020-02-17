@@ -1,7 +1,7 @@
 package com.advancedtelematic.director.manifest
 
 import com.advancedtelematic.director.data.UptaneDataType.Image
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, DeviceNewStatus, EcuTarget, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
@@ -35,7 +35,7 @@ object ManifestCompiler {
     }
   }
 
-  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => Try[DeviceNewStatus] = {
+  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => Try[DeviceKnownStatus] = {
     validateManifest(ns, manifest, _).map { compileManifest(ns, manifest) }
   }
 
@@ -46,7 +46,7 @@ object ManifestCompiler {
       Success(deviceKnownStatus)
   }
 
-  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => DeviceNewStatus = (knownStatus: DeviceKnownStatus) => {
+  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => DeviceKnownStatus = (knownStatus: DeviceKnownStatus) => {
     _log.debug(s"CURRENT status for device: $knownStatus")
 
     val assignmentsProcessedInManifest = manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
@@ -70,14 +70,14 @@ object ManifestCompiler {
       newTargetO.map(_.id)
     }.filter(_._2.isDefined)
 
-    val status = DeviceNewStatus(
+    val status = DeviceKnownStatus(
       knownStatus.deviceId,
       knownStatus.primaryEcu,
       knownStatus.ecuStatus ++ statusInManifest,
       knownStatus.ecuTargets ++ newEcuTargets,
       currentAssignments = Set.empty,
       processedAssignments = Set.empty,
-      requiresMetadataRegeneration = false)
+      generatedMetadataOutdated = false)
 
     val installationReportFailed = manifest.installation_report.exists(!_.report.result.success)
 
@@ -91,7 +91,7 @@ object ManifestCompiler {
       status.copy(
         currentAssignments = Set.empty, // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
         processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
-        requiresMetadataRegeneration = true
+        generatedMetadataOutdated = true
       )
     } else if (installationReportFailed) {
       _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
@@ -102,7 +102,7 @@ object ManifestCompiler {
         status.copy(
           currentAssignments = Set.empty,
           processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
-          requiresMetadataRegeneration = true
+          generatedMetadataOutdated = true
         )
     } else {
       status.copy(

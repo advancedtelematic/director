@@ -29,26 +29,10 @@ object DbDataType {
                                      ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
                                      ecuTargets: Map[EcuTargetId, EcuTarget],
                                      currentAssignments: Set[Assignment],
-                                     processedAssignments: Set[ProcessedAssignment]) {
-    def toNewStatus(requiresMetadataRegeneration: Boolean) =
-      DeviceNewStatus(deviceId: DeviceId,
-        primaryEcu,
-        ecuStatus,
-        ecuTargets,
-        currentAssignments,
-        processedAssignments,
-        requiresMetadataRegeneration)
-  }
+                                     processedAssignments: Set[ProcessedAssignment],
+                                     generatedMetadataOutdated: Boolean)
 
-  final case class DeviceNewStatus(deviceId: DeviceId,
-                                   primaryEcu: EcuIdentifier,
-                                   ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
-                                   ecuTargets: Map[EcuTargetId, EcuTarget],
-                                   currentAssignments: Set[Assignment],
-                                   processedAssignments: Set[ProcessedAssignment],
-                                   requiresMetadataRegeneration: Boolean)
-
-  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier)
+  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdaded: Boolean)
 
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
                        hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])

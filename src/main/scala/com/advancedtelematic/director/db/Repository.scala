@@ -4,7 +4,7 @@ import java.time.Instant
 
 import akka.http.scaladsl.util.FastFuture
 import cats.Show
-import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, SHA256Checksum}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment, SHA256Checksum}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorCode, PaginationResult}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId, RawError}
@@ -235,6 +235,10 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
     } yield assignments
 
     db.run(action.transactionally)
+  }
+
+  def findProcessed(ns: Namespace, deviceId: DeviceId): Future[Seq[ProcessedAssignment]] = db.run {
+    Schema.processedAssignments.filter(_.namespace === ns).filter(_.deviceId === deviceId).result
   }
 }
 

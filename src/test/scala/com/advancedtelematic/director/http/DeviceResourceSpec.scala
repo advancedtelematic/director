@@ -1,6 +1,5 @@
 package com.advancedtelematic.director.http
 
-import akka.actor.FSM.->
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
@@ -10,7 +9,7 @@ import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
-import com.advancedtelematic.director.data.UptaneDataType.Hashes
+import com.advancedtelematic.director.db.AssignmentsRepositorySupport
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{Namespace, ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
@@ -18,7 +17,7 @@ import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.ClientDataType.{ClientTargetItem, RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
+import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -78,7 +77,7 @@ trait DeviceResources {
 
 class DeviceResourceSpec extends DirectorSpec
   with RouteResourceSpec with AdminResources with AssignmentResources
-  with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources {
+  with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources with AssignmentsRepositorySupport {
 
   override implicit val msgPub = new MockMessageBus
 
@@ -468,12 +467,7 @@ class DeviceResourceSpec extends DirectorSpec
     }
   }
 
-  // Should do nothing, will try again
-  test("device updates to same target we know it has installed but without install report") {
-    pending
-  }
-
-  testWithRepo("XXX device updates to same target we know it has installed with install report") { implicit ns =>
+  testWithRepo("device updates to same target we know it has installed but without install report") { implicit ns =>
     val regDev = registerAdminDeviceOk()
 
     val initialVersion = GenTargetUpdateRequest.generate
@@ -486,6 +480,26 @@ class DeviceResourceSpec extends DirectorSpec
 
     createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
 
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets shouldNot be(empty)
+    targetsAfter.targets.get(targetUpdate.to.target) shouldBe defined
+    targetsAfter.targets.get(targetUpdate.to.target).map(_.length) should contain(targetUpdate.to.targetLength)
+  }
+
+  testWithRepo("device updates to same target we know it has installed with install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
     getDeviceRoleOk[TargetsRole](regDev.deviceId).signed.targets shouldNot be(empty)
 
     val installItem = InstallationItem(regDev.primary.ecuSerial, InstallationResult(success = false, ResultCode("pk-somecode"), ResultDescription("pk-somedesc")))
@@ -497,14 +511,19 @@ class DeviceResourceSpec extends DirectorSpec
     val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
     targetsAfter.targets shouldBe empty
 
-    // TODO: Assignment moves to processed, possibly with error?
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed.head.result shouldNot be(empty)
+    processed.head.canceled  shouldBe false
+    processed.head.successful  shouldBe false
   }
 
-  test("device updates to some unknown target with or without report") {
+  test("device updates to some unknown target without an installation report") {
     pending
     // targets should remain the same
     // ignore what device tells us? Otherwise assignment wont make sense anymore
   }
 
-  // old director always clears targets.json on receiving FAILED install report, but we dont do that here. should we?
+  test("device updates to some unknown target with with an an installation report (fail/success?)") {
+    pending
+  }
 }

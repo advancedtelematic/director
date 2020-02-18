@@ -77,7 +77,7 @@ object ManifestCompiler {
       knownStatus.ecuTargets ++ newEcuTargets,
       currentAssignments = Set.empty,
       processedAssignments = Set.empty,
-      generatedMetadataOutdated = false)
+      generatedMetadataOutdated = knownStatus.generatedMetadataOutdated)
 
     val installationReportFailed = manifest.installation_report.exists(!_.report.result.success)
 
@@ -97,7 +97,7 @@ object ManifestCompiler {
       _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
 
       val report = manifest.installation_report.map(_.report.result).map(_.asJson.noSpaces)
-      val desc = s"Device reported installation error and no assignments were processed: ${report}"
+      val desc = s"Device reported installation error and no assignments were processed: $report"
 
         status.copy(
           currentAssignments = Set.empty,

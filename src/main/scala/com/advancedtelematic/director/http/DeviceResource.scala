@@ -1,12 +1,17 @@
 package com.advancedtelematic.director.http
 
+import java.time.Instant
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
+
 import scala.async.Async._
 import cats.data.Validated.{Invalid, Valid}
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.RegisterDevice
 import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.Messages._
+import com.advancedtelematic.director.data.Messages.DeviceManifestReported
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.manifest.{DeviceManifestProcess, ManifestCompiler, ManifestReportMessages}
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
@@ -58,7 +63,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
       put {
         path("manifest") {
           entity(as[SignedPayload[Json]]) { jsonDevMan =>
-            handleDeviceManifest(ns, repoId, device, jsonDevMan)
+            val msgF = messageBusPublisher.publishSafe(DeviceManifestReported(ns, device, jsonDevMan, Instant.now()))
+
+            onComplete(msgF) { _ =>
+              handleDeviceManifest(ns, repoId, device, jsonDevMan)
+            }
           }
         }
        } ~

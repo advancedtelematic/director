@@ -274,7 +274,7 @@ class AssignmentsResourceSpec extends DirectorSpec
     cancelAssignmentsOk(Seq(regDev.deviceId)) shouldBe Seq(regDev.deviceId)
 
     val t1 = getTargetsOk(regDev)
-    t1.signed.targets shouldBe 'empty
+    t1.signed.targets shouldBe empty
 
     createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 

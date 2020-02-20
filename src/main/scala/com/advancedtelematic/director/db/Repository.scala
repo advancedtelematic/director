@@ -6,8 +6,8 @@ import akka.http.scaladsl.util.FastFuture
 import cats.Show
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment, SHA256Checksum}
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorCode, PaginationResult}
-import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId, RawError}
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
@@ -17,14 +17,14 @@ import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
 import SlickMapping._
-import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
-import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import io.circe.Json
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -390,5 +390,20 @@ protected class AutoUpdateDefinitionRepository()(implicit db: Database, ec: Exec
 
   def findOnDevice(ns: Namespace, device: DeviceId, ecuId: EcuIdentifier): Future[Seq[AutoUpdateDefinition]] = db.run {
     nonDeleted.filter(_.namespace === ns).filter(_.deviceId === device).filter(_.ecuId === ecuId).result
+  }
+}
+
+trait DeviceManifestRepositorySupport {
+  def deviceManifestRepository(implicit db: Database, ec: ExecutionContext) = new DeviceManifestRepository()
+}
+
+protected class DeviceManifestRepository()(implicit db: Database, ec: ExecutionContext) {
+  def find(deviceId: DeviceId): Future[Option[(Json, Instant)]] = db.run {
+    Schema.deviceManifests.filter(_.deviceId === deviceId).result.headOption.map(_.map(r => r._2 -> r._4))
+  }
+
+  def createOrUpdate(device: DeviceId, jsonManifest: Json, receivedAt: Instant): Future[Unit] = db.run {
+    val checksum = Sha256Digest.digest(jsonManifest.canonical.getBytes).hash
+    Schema.deviceManifests.insertOrUpdate((device, jsonManifest, checksum, receivedAt)).map(_ => ())
   }
 }

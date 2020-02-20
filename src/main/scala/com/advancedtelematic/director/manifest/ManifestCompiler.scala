@@ -1,12 +1,11 @@
 package com.advancedtelematic.director.manifest
 
 import com.advancedtelematic.director.data.UptaneDataType.Image
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownStatus, EcuTarget, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownState, EcuTarget, EcuTargetId}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import org.slf4j.LoggerFactory
 import cats.syntax.option._
 import io.circe.syntax._
@@ -35,19 +34,19 @@ object ManifestCompiler {
     }
   }
 
-  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => Try[DeviceKnownStatus] = {
+  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownState => Try[DeviceKnownState] = {
     validateManifest(ns, manifest, _).map { compileManifest(ns, manifest) }
   }
 
-  private def validateManifest(ns: Namespace, manifest: DeviceManifest, deviceKnownStatus: DeviceKnownStatus): Try[DeviceKnownStatus] = {
+  private def validateManifest(ns: Namespace, manifest: DeviceManifest, deviceKnownStatus: DeviceKnownState): Try[DeviceKnownState] = {
     if(manifest.primary_ecu_serial != deviceKnownStatus.primaryEcu)
       Failure(Errors.Manifest.EcuNotPrimary)
     else
       Success(deviceKnownStatus)
   }
 
-  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownStatus => DeviceKnownStatus = (knownStatus: DeviceKnownStatus) => {
-    _log.debug(s"CURRENT status for device: $knownStatus")
+  private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownState => DeviceKnownState = (knownStatus: DeviceKnownState) => {
+    _log.debug(s"current device state: $knownStatus")
 
     val assignmentsProcessedInManifest = manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
       assignmentExists(knownStatus.currentAssignments, knownStatus.ecuTargets, ecuId, signedManifest.signed)
@@ -70,7 +69,7 @@ object ManifestCompiler {
       newTargetO.map(_.id)
     }.filter(_._2.isDefined)
 
-    val status = DeviceKnownStatus(
+    val status = DeviceKnownState(
       knownStatus.deviceId,
       knownStatus.primaryEcu,
       knownStatus.ecuStatus ++ statusInManifest,
@@ -83,28 +82,29 @@ object ManifestCompiler {
 
     if(installationReportFailed && assignmentsProcessedInManifest.isEmpty) {
       _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
-      _log.info(s"$DeviceId Received install report success = false, clearing assignments")
+      _log.info(s"${knownStatus.deviceId} Received install report success = false, clearing assignments")
 
       val report = manifest.installation_report.map(_.report.result).map(_.asJson.noSpaces)
       val desc = s"Device reported installation error and no assignments were processed: ${report}"
 
       status.copy(
-        currentAssignments = Set.empty, // TODO: Not this simple, we need to check if device tried to update to the expected assignment and failed, or was trying to do something else?
+        currentAssignments = Set.empty, // old director behavior is to set this to empty
         processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
         generatedMetadataOutdated = true
       )
     } else if (installationReportFailed) {
-      _log.debug(s"Received error installation report: ${manifest.installation_report.map(_.report)}")
-
       val report = manifest.installation_report.map(_.report.result).map(_.asJson.noSpaces)
       val desc = s"Device reported installation error and no assignments were processed: $report"
+      _log.info(s"${knownStatus.deviceId} Received error installation report: $desc")
 
-        status.copy(
-          currentAssignments = Set.empty,
-          processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
-          generatedMetadataOutdated = true
-        )
+      status.copy(
+        currentAssignments = Set.empty,  // old director behavior is to set this to empty
+        processedAssignments = knownStatus.processedAssignments ++ knownStatus.currentAssignments.map(_.toProcessedAssignment(successful = false, result = desc.some)),
+        generatedMetadataOutdated = true
+      )
     } else {
+      _log.info(s"${knownStatus.deviceId} No failed installation report received, assignments processed = $assignmentsProcessedInManifest")
+
       status.copy(
         currentAssignments = knownStatus.currentAssignments -- assignmentsProcessedInManifest,
         processedAssignments = knownStatus.processedAssignments ++ assignmentsProcessedInManifest.map(_.toProcessedAssignment(successful = true))

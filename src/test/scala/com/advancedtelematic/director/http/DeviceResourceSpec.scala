@@ -8,6 +8,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.data.Messages.DeviceManifestReported
 import com.advancedtelematic.director.db.AssignmentsRepositorySupport
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.ErrorRepresentation
@@ -44,9 +45,7 @@ class DeviceResourceSpec extends DirectorSpec
   // TODO: Legacy, this should not be possible
   // https://saeljira.it.here.com/browse/OTA-441
   // https://saeljira.it.here.com/browse/OTA-2517
-  testWithNamespace("registering the same device id with different ecus works") { implicit ns =>
-    createRepoOk()
-
+  testWithRepo("registering the same device id with different ecus works") { implicit ns =>
     val deviceId = DeviceId.generate()
     val ecus = GenRegisterEcu.generate
     val primaryEcu = ecus.ecu_serial
@@ -523,7 +522,7 @@ class DeviceResourceSpec extends DirectorSpec
   }
 
   // Keep old behavior, leaving targets/assignments unchanged and publish message if this happens
-  testWithRepo("device updates to some unknown target with a success installation report leaves assingnments unchanged") { implicit ns =>
+  testWithRepo("device updates to some unknown target with a success installation report leaves assignments unchanged") { implicit ns =>
     val regDev = registerAdminDeviceOk()
 
     val initialVersion = GenTargetUpdateRequest.generate
@@ -556,8 +555,16 @@ class DeviceResourceSpec extends DirectorSpec
     reportMsg.value.result shouldBe deviceReport.result
   }
 
-  // Old director always updates current images, so same as here
-  test("what happens to knownStatus.ecuTargets in all these cases? Should we change state if device reported error? ") (pending)
+  testWithRepo("publishes bus message when manifest is received") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
 
-  test("manifests are saved to db") (pending)
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val msg = msgPub.wasReceived[DeviceManifestReported](regDev.deviceId.show)
+
+    msg.value.manifest.asJsonSignedPayload shouldBe deviceManifest.asJsonSignedPayload
+  }
 }

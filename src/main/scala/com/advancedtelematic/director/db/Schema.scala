@@ -8,8 +8,11 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Name
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, SignedPayload, TargetFilename, TargetName, TufKey}
+import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
+import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+
 
 object Schema {
   import SlickMapping._
@@ -150,4 +153,18 @@ object Schema {
   }
 
   protected [db] val autoUpdates = TableQuery[AutoUpdateDefinitionTable]
+
+  class DeviceManifestsTable(tag: Tag) extends Table[(DeviceId, Json, SHA256Checksum, Instant)](tag, "device_manifests") {
+    def deviceId = column[DeviceId]("device_id")
+    def targetName = column[TargetName]("target_name")
+    def receivedAt = column[Instant]("received_at")
+    def sha256 = column[SHA256Checksum]("sha256")
+    def manifest = column[Json]("manifest")
+
+    def pk = primaryKey("device-manifests-pk", (deviceId, sha256))
+
+    override def * = (deviceId, manifest, sha256, receivedAt)
+  }
+
+  protected [db] val deviceManifests = TableQuery[DeviceManifestsTable]
 }

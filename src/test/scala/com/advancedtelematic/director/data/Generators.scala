@@ -5,12 +5,14 @@ import org.scalacheck.Gen
 import GeneratorOps._
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, RegisterEcu, TargetUpdate, TargetUpdateRequest}
-import com.advancedtelematic.director.data.DeviceRequest.{EcuManifest, InstallationItem, InstallationReport, InstallationReportEntity}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, InstallationItem, InstallationReport, InstallationReportEntity}
 import com.advancedtelematic.director.data.UptaneDataType._
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, MultiTargetUpdateId, ResultCode, ResultDescription, ValidChecksum}
 import com.advancedtelematic.libats.messaging_datatype.DataType.InstallationResult
-import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, KeyType, RsaKeyType, TufKey, TufKeyPair, ValidTargetFilename}
+import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, HardwareIdentifier, KeyType, RsaKeyType, SignedPayload, TufKey, TufKeyPair, ValidTargetFilename}
 import eu.timepit.refined.api.Refined
+import io.circe.Json
+import Codecs._
 
 trait Generators {
   lazy val GenHexChar: Gen[Char] = Gen.oneOf(('0' to '9') ++ ('a' to 'f'))
@@ -45,6 +47,11 @@ trait Generators {
 
   def GenEcuManifest(ecuId: EcuIdentifier): Gen[EcuManifest] =
     GenImage.flatMap(GenEcuManifestWithImage(ecuId, _))
+
+  lazy val GenDeviceManifest: Gen[DeviceManifest] = for {
+   primaryEcu <- GenEcuIdentifier
+   ecuManifest <- GenEcuManifest(primaryEcu)
+  } yield DeviceManifest(primaryEcu, Map(primaryEcu -> SignedPayload(Seq.empty, ecuManifest, Json.Null)), installation_report = None)
 
   def genIdentifier(maxLen: Int): Gen[String] = for {
     //use a minimum length of 10 to reduce possibility of naming conflicts

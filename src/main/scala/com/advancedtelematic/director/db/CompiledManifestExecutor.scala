@@ -1,6 +1,6 @@
 package com.advancedtelematic.director.db
 
-import com.advancedtelematic.director.data.DbDataType.{DeviceKnownStatus, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{DeviceKnownState, EcuTargetId}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 
@@ -17,7 +17,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
 
   private val _log = LoggerFactory.getLogger(this.getClass)
 
-  private def findStatusAction(deviceId: DeviceId): DBIO[DeviceKnownStatus] = {
+  private def findStateAction(deviceId: DeviceId): DBIO[DeviceKnownState] = {
     val io = for {
       assignments <- Schema.assignments.filter(_.deviceId === deviceId).result
       processed <- Schema.processedAssignments.filter(_.deviceId === deviceId).result
@@ -25,7 +25,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       device <- Schema.devices.filter(_.id === deviceId).result.head
       ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
       ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
-    } yield DeviceKnownStatus(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdaded)
+    } yield DeviceKnownState(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdaded)
 
     io
   }
@@ -36,7 +36,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       .filter(_.ecuSerial === ecuIdentifier).map(_.installedTarget).update(installedTarget).map(_ => ())
   }
 
-  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownStatus, newStatus: DeviceKnownStatus): DBIO[Unit] = {
+  private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownState, newStatus: DeviceKnownState): DBIO[Unit] = {
     assert(oldStatus.primaryEcu == newStatus.primaryEcu, "a device cannot change it's primary ecu")
 
     val assignmentsToDelete = (oldStatus.currentAssignments -- newStatus.currentAssignments).map(_.ecuId)
@@ -50,8 +50,18 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       _ <- DBIO.sequence(changedEcuStatus.map { case (ecu, target) => updateEcuAction(deviceId, ecu, target) })
       _ <- Schema.assignments.filter(_.deviceId === deviceId).filter(_.ecuId.inSet(assignmentsToDelete)).delete
       _ <- DBIO.sequence(newProcessedAssignments.map(Schema.processedAssignments += _).toList )
-      _ <- Schema.devices.filter(_.id === deviceId).map(_.generatedMetadataOutdated).update(newStatus.generatedMetadataOutdated)
+      _ <- updateMetadataOutdatedFlagAction(deviceId, oldStatus, newStatus)
     } yield ()
+  }
+
+  private def updateMetadataOutdatedFlagAction(deviceId: DeviceId, old: DeviceKnownState, newStatus: DeviceKnownState): DBIO[Unit] = {
+    if(old.generatedMetadataOutdated != newStatus.generatedMetadataOutdated)
+      Schema.devices.filter(_.id === deviceId)
+        .map(_.generatedMetadataOutdated)
+        .update(newStatus.generatedMetadataOutdated)
+        .map(_ => ())
+    else
+      DBIO.successful(())
   }
 
   private def dbActionFromTry[T](t: Try[T]): DBIO[T] = t match {
@@ -59,9 +69,9 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
     case Failure(ex) => DBIO.failed(ex)
   }
 
-  def process(deviceId: DeviceId, compiledManifest: DeviceKnownStatus => Try[DeviceKnownStatus]): Future[DeviceKnownStatus] = {
+  def process(deviceId: DeviceId, compiledManifest: DeviceKnownState => Try[DeviceKnownState]): Future[DeviceKnownState] = {
     val io = for {
-      initialStatus <- findStatusAction(deviceId)
+      initialStatus <- findStateAction(deviceId)
       newStatus <- dbActionFromTry(compiledManifest.apply(initialStatus))
       _ = _log.debug(s"Updating device status to $newStatus")
       _ <- updateStatusAction(deviceId, initialStatus, newStatus)

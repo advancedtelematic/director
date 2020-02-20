@@ -2,7 +2,7 @@ CREATE TABLE `ecu_targets` (
   `namespace` varchar(200) NOT NULL,
   `id` char(36) NOT NULL,
   `filename` varchar(4096) NOT NULL,
-  `length` mediumtext NOT NULL,
+  `length` BIGINT NOT NULL,
   `checksum` varchar(254) NOT NULL,
   `sha256` char(64) NOT NULL,
   `uri` varchar(255) NULL,
@@ -47,7 +47,7 @@ CREATE TABLE `signed_roles` (
   `version` int(11) NOT NULL,
   `device_id` char(36) NOT NULL,
   `checksum` varchar(254) NOT NULL,
-  `length` bigint(20) NOT NULL,
+  `length` bigint NOT NULL,
   `content` longtext NOT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
@@ -146,5 +146,16 @@ CREATE TABLE `auto_update_definitions` (
   CONSTRAINT `auto_update_definitions_ecu_fk` FOREIGN KEY (`device_id`, `ecu_serial`) REFERENCES ecus(`device_id`, `ecu_serial`),
   CONSTRAINT `auto_update_definitions_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
 
+)
+;
+
+CREATE TABLE `device_manifests` (
+  `device_id` char(36) NOT NULL,
+  `sha256` char(64) NOT NULL,
+  `manifest` longtext NOT NULL,
+  `received_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+  PRIMARY KEY (`device_id`, `sha256`)
 )
 ;

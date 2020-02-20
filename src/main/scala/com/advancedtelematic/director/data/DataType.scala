@@ -12,11 +12,13 @@ import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Hash
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.MessageLike
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
+import io.circe.Json
 
 object DbDataType {
   case class AutoUpdateDefinitionId(uuid: UUID) extends UUIDKey
@@ -24,13 +26,13 @@ object DbDataType {
 
   final case class AutoUpdateDefinition(id: AutoUpdateDefinitionId, namespace: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName)
 
-  final case class DeviceKnownStatus(deviceId: DeviceId,
-                                     primaryEcu: EcuIdentifier,
-                                     ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
-                                     ecuTargets: Map[EcuTargetId, EcuTarget],
-                                     currentAssignments: Set[Assignment],
-                                     processedAssignments: Set[ProcessedAssignment],
-                                     generatedMetadataOutdated: Boolean)
+  final case class DeviceKnownState(deviceId: DeviceId,
+                                    primaryEcu: EcuIdentifier,
+                                    ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
+                                    ecuTargets: Map[EcuTargetId, EcuTarget],
+                                    currentAssignments: Set[Assignment],
+                                    processedAssignments: Set[ProcessedAssignment],
+                                    generatedMetadataOutdated: Boolean)
 
   final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdaded: Boolean)
 
@@ -130,6 +132,21 @@ object UptaneDataType {
       Hashes(checksum.hash)
     }
   }
+}
+
+// Move to libats-messaging if some service needs these messages
+object Messages {
+  import DeviceId._
+  import cats.syntax.show._
+  import com.advancedtelematic.libtuf.data.TufCodecs._
+  import com.advancedtelematic.libats.codecs.CirceCodecs._
+  import com.advancedtelematic.libtuf.data.TufCodecs._
+
+  case class DeviceManifestReported(namespace: Namespace, deviceId: DeviceId, manifest: SignedPayload[Json], receivedAt: Instant)
+
+  implicit val deviceManifestReportedCodecs = io.circe.generic.semiauto.deriveCodec[DeviceManifestReported]
+
+  implicit val msgLike = MessageLike[DeviceManifestReported](_.deviceId.show)
 }
 
 object DataType {

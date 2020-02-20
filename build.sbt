@@ -9,13 +9,13 @@ resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/
 resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.20"
-  val akkaHttpV = "10.1.7"
-  val scalaTestV = "3.0.5"
+  val akkaV = "2.5.25"
+  val akkaHttpV = "10.1.10"
+  val scalaTestV = "3.0.8"
   val bouncyCastleV = "1.57"
-  val tufV = "0.7.0-35-g80e9488"
-  val libatsV = "0.3.0-39-g8132920"
-  val circeConfigV = "0.0.2"
+  val tufV = "0.7.0-68-g13c41f1"
+  val libatsV = "0.3.0-84-g0a0b0ab"
+//  val circeConfigV = "0.0.2"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -40,7 +40,7 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-auth" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,
-    "com.advancedtelematic" %% "circe-config" % circeConfigV,
+//    "com.advancedtelematic" %% "circe-config" % circeConfigV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,
     "org.bouncycastle" % "bcpkix-jdk15on" % bouncyCastleV,

@@ -11,6 +11,7 @@ import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEnt
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
@@ -399,7 +400,11 @@ trait DeviceManifestRepositorySupport {
 
 protected class DeviceManifestRepository()(implicit db: Database, ec: ExecutionContext) {
   def find(deviceId: DeviceId): Future[Option[(Json, Instant)]] = db.run {
-    Schema.deviceManifests.filter(_.deviceId === deviceId).result.headOption.map(_.map(r => r._2 -> r._4))
+    Schema.deviceManifests.filter(_.deviceId === deviceId).map(r => r.manifest -> r.receivedAt).result.headOption
+  }
+
+  def findAll(deviceId: DeviceId): Future[Seq[(Json, Instant)]] = db.run {
+    Schema.deviceManifests.filter(_.deviceId === deviceId).map(r => r.manifest -> r.receivedAt).result
   }
 
   def createOrUpdate(device: DeviceId, jsonManifest: Json, receivedAt: Instant): Future[Unit] = db.run {

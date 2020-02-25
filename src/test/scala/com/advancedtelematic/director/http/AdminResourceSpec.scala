@@ -1,5 +1,8 @@
 package com.advancedtelematic.director.http
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
 import akka.http.scaladsl.model.{HttpEntity, StatusCodes}
 import cats.syntax.option._
 import cats.syntax.show._
@@ -22,6 +25,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, Signed
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.scalactic.source.Position
 import org.scalatest.Assertion
+import io.circe.syntax._
 
 object AdminResources {
   case class RegisterDeviceResult(deviceId: DeviceId,
@@ -178,4 +182,61 @@ class AdminResourceSpec extends DirectorSpec
       responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
     }
   }
+
+  testWithNamespace("delegates root upload to keyserver") { implicit ns =>
+    createRepoOk()
+
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val root = RootRole(Map.empty, Map.empty, 2, Instant.now().truncatedTo(ChronoUnit.SECONDS))
+    val signedRoot = SignedPayload(Seq.empty, root, root.asJson)
+
+    Put(apiUri("admin/repo/root"), signedRoot).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val savedRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    savedRoot.signed shouldNot be(oldRoot.signed)
+    savedRoot.signed shouldBe signedRoot.signed
+  }
+
+  testWithRepo("delegates to keyserver to fetch key pair") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val keyPair = responseAs[TufKeyPair]
+      keyPair.pubkey.id shouldBe keyId
+    }
+  }
+
+  testWithRepo("delegates delete key pair to keyserver") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Delete(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.NotFound
+    }
+  }
+
 }

@@ -52,7 +52,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
       (pathPrefix("root") & pathEnd & entity(as[SignedPayload[RootRole]]) & UserRepoId(ns)) { (signedPayload, repoId) =>
         complete {
           keyserverClient.updateRoot(repoId, signedPayload)
-        } ~
+        }
+      } ~
       get {
         path("root.json") {
           complete(fetchRoot(ns, version = None))

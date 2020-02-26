@@ -37,7 +37,7 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Dat
     extractNamespace { ns =>
       path("admin" / "devices" / DeviceId.Path / "multi_target_update" / UpdateId.Path) { (deviceId, updateId) =>
         put {
-          val f = createDeviceAssignment(ns, deviceId, updateId).map(_ => StatusCodes.Created)
+          val f = createDeviceAssignment(ns, deviceId, updateId).map(_ => StatusCodes.OK)
           complete(f)
         }
       } ~

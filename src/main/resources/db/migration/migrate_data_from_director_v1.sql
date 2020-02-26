@@ -71,11 +71,12 @@ on duplicate key update
 -- select count(*), current_target is null from director.ecus e join director.current_images ci ON (namespace, ecu_serial) group by 2;
 
 -- devices
-insert into director_v2.devices (namespace, id, primary_ecu_id, created_at, updated_at)
-select namespace, device, ecu_serial, created_at, updated_at
+insert into director_v2.devices (namespace, id, primary_ecu_id, generated_metadata_outdated, created_at, updated_at)
+select namespace, device, ecu_serial, 0, created_at, updated_at
 from director.ecus e
 where e.primary = 1
-on duplicate key update primary_ecu_id = e.ecu_serial, created_at = e.created_at, updated_at = e.updated_at;
+on duplicate
+key update primary_ecu_id = e.ecu_serial, created_at = e.created_at, updated_at = e.updated_at;
 
 -- select count(*) from director.ecus where `primary` = 1 ;
 
@@ -113,7 +114,7 @@ JOIN director.device_update_assignments dua ON dua.namespace = eua.namespace AND
 -- Before running this make sure this is what you want to do
 SELECT count(*) FROM director_v2.assignments a JOIN assignments_v1 USING (device_id, ecu_serial)
 ;
-DELETE FROM director_v2.assignments a JOIN assignments_v1 USING (device_id, ecu_serial)
+DELETE FROM director_v2.assignments where (device_id, ecu_serial) in (select device_id, ecu_serial from assignments_v1)
 ;
 
 -- RUNNING assignments
@@ -128,6 +129,16 @@ insert into director_v2.processed_assignments (namespace, device_id, ecu_serial,
 select namespace, device_id, ecu_serial, ecu_target_id, correlation_id, 1, 0, created_at, updated_at
 FROM assignments_v1
 WHERE running = 0
+;
+
+-- force metadata regeneration if there is a assignment with created_at > that the latest targets created_at
+UPDATE director_v2.devices SET generated_metadata_outdated = 1 where id in (
+  SELECT device_id FROM (
+    (select device_id, a.created_at assignment_created_at, fc.created_at targets_created_at, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY version DESC) version_rank FROM
+    assignments_v1 a JOIN director.file_cache fc ON a.device_id = fc.device where fc.role = 'TARGETS')
+  ) fc_ranked
+  WHERE version_rank = 1 AND fc_ranked.assignment_created_at > targets_created_at
+)
 ;
 
 -- control counts

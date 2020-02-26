@@ -1,14 +1,15 @@
 package com.advancedtelematic.director.daemon
 
+
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives
 import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.libats.http.BootApp
-import com.advancedtelematic.libats.http.monitoring.MetricsSupport
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageListenerSupport, MetricsBusMonitor}
-import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.DbHealthResource
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
+import com.advancedtelematic.metrics.MetricsSupport
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 
 object DaemonBoot extends BootApp

@@ -36,7 +36,7 @@ class LegacyApiResourceSpec extends DirectorSpec
     }
 
     Put(apiUri(s"admin/devices/${regDev.deviceId.show}/multi_target_update/${mtuId.show}")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.Created
+      status shouldBe StatusCodes.OK
     }
 
     val queue = Get(apiUri(s"assignments/${regDev.deviceId.show}")).namespaced ~> routes ~> check {

@@ -1,4 +1,4 @@
-name := "director"
+name := "director-lite"
 organization := "com.advancedtelematic"
 scalaVersion := "2.12.8"
 

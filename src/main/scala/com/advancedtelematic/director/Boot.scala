@@ -14,11 +14,11 @@ import com.advancedtelematic.libats.http.monitoring.ServiceHealthCheck
 import com.advancedtelematic.libats.http.tracing.Tracing
 import com.advancedtelematic.libats.http.tracing.Tracing.ServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
-import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics,MetricsSupport}
+import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, MetricsSupport}
 import com.typesafe.config.Config
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
@@ -52,7 +52,7 @@ object Boot extends BootApp
   with DatabaseMetrics
   with AkkaHttpRequestMetrics
   with PrometheusMetricsSupport
-  with BootMigrations {
+  with CheckMigrations {
 
   implicit val _db = db
 

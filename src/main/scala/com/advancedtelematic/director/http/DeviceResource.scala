@@ -68,7 +68,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace],
       } ~
       get {
         path(IntNumber ~ ".root.json") { version =>
-          fetchRoot(ns, version)
+          logDevice(ns, device) {
+            fetchRoot(ns, version)
+          }
         } ~
         path(JsonRoleTypeMetaPath) {
           case RoleType.ROOT =>  logDevice(ns, device) { fetchRoot(ns) }

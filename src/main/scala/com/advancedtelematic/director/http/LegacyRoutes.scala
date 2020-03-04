@@ -17,10 +17,41 @@ import scala.concurrent.{ExecutionContext, Future}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import PaginationParametersDirectives._
 import com.advancedtelematic.director.db.EcuRepositorySupport
+import com.advancedtelematic.libats.messaging_datatype.MessageLike
+import io.circe.{Codec, Decoder, Encoder, Json}
+
+object LegacyRoutes {
+  sealed trait Director
+  case object DirectorV1 extends Director
+  case object DirectorV2 extends Director
+
+  case class NamespaceDirectorChanged(namespace: Namespace, director: Director)
+
+  import com.advancedtelematic.libats.codecs.CirceCodecs.{namespaceDecoder, namespaceEncoder}
+
+  implicit val directorEncoder: Encoder[Director] = Encoder.instance {
+    case DirectorV1 => Json.fromString("directorV1")
+    case DirectorV2 => Json.fromString("directorV2")
+  }
+  implicit val directorDecoder: Decoder[Director] = Decoder.decodeString.map(_.toLowerCase).flatMap {
+    case "directorv1" => Decoder.const(DirectorV1)
+    case "directorv2" => Decoder.const(DirectorV2)
+    case other => Decoder.failedWithMessage("Invalid value for `director`: " + other)
+  }
+
+  implicit val namespaceDirectorChangedCodec: Codec[NamespaceDirectorChanged] = io.circe.generic.semiauto.deriveCodec
+  implicit val namespaceDirectorChangedMessageLike = MessageLike[NamespaceDirectorChanged](_.namespace.get)
+
+  case class NamespaceDirectorChangeRequest(version: Director)
+
+  implicit val namespaceDirectorChangeRequestCodec: Codec[NamespaceDirectorChangeRequest] = io.circe.generic.semiauto.deriveCodec
+}
 
 // Implements routes provided by old director that ota-web-app still uses
 class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
   extends EcuRepositorySupport {
+  import LegacyRoutes._
+
   private val deviceAssignments = new DeviceAssignments()
 
   private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Unit] = {
@@ -51,6 +82,10 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Dat
         get {
           complete(ecuRepository.findAllDeviceIds(ns, offset, limit))
         }
+      } ~
+      (path("admin" / "director") & entity(as[NamespaceDirectorChangeRequest])) { req =>
+        val f = messageBusPublisher.publishSafe(NamespaceDirectorChanged(ns, req.version)).map(_ => StatusCodes.Accepted)
+        complete(f)
       }
     }
 }

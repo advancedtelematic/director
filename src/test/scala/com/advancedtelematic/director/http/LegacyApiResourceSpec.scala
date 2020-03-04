@@ -5,15 +5,18 @@ import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, Que
 import com.advancedtelematic.director.util.{DirectorSpec, MockMessageBus, RepositorySpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.Generators._
-import com.advancedtelematic.libats.data.DataType.MultiTargetUpdateId
+import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
+import com.advancedtelematic.director.http.LegacyRoutes.{DirectorV2, NamespaceDirectorChanged}
 import com.advancedtelematic.libats.data.PaginationResult
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
+import io.circe.Json
+import io.circe.syntax._
 import org.scalatest.LoneElement._
 
 class LegacyApiResourceSpec extends DirectorSpec
@@ -89,5 +92,18 @@ class LegacyApiResourceSpec extends DirectorSpec
       devices.limit shouldBe 50
       devices.values.loneElement shouldBe regDev.deviceId
     }
+  }
+
+  // Legacy: Only supported during director v1 to v2 migration
+  testWithNamespace("pushes event to bus when setting namespace director version") { implicit ns =>
+    Post(apiUri("admin/director"), Json.obj("version" -> "directorV2".asJson)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Accepted
+    }
+
+    val msg = msgPub.wasReceived[NamespaceDirectorChanged] { msg: NamespaceDirectorChanged =>
+      msg.namespace == ns
+    }
+
+    msg.value.director shouldBe DirectorV2
   }
 }

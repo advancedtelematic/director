@@ -1,6 +1,6 @@
 name := "director-v2"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.8"
+scalaVersion := "2.12.10"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 
@@ -62,12 +62,11 @@ testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-oDS")
 )
 
-enablePlugins(BuildInfoPlugin)
+enablePlugins(BuildInfoPlugin, GitVersioning, JavaAppPackaging)
 
 buildInfoOptions += BuildInfoOption.ToMap
 
 buildInfoOptions += BuildInfoOption.BuildTime
-
 
 mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 
@@ -81,6 +80,8 @@ dockerUpdateLatest := true
 
 defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
 
+dockerAliases ++= Seq(dockerAlias.value.withTag(git.gitHeadCommit.value))
+
 dockerCommands := Seq(
   Cmd("FROM", "advancedtelematic/alpine-jre:8u191-jre-alpine3.9"),
   Cmd("RUN", "apk update && apk add --update bash coreutils"),
@@ -93,13 +94,7 @@ dockerCommands := Seq(
   Cmd("USER", "daemon")
 )
 
-enablePlugins(JavaAppPackaging)
-
-
-Versioning.settings
 
 Release.settings
-
-enablePlugins(Versioning.Plugin)
 
 fork := true

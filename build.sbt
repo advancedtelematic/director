@@ -1,4 +1,4 @@
-name := "director-lite"
+name := "director-v2"
 organization := "com.advancedtelematic"
 scalaVersion := "2.12.8"
 
@@ -53,14 +53,9 @@ scalacOptions in Compile ++= Seq(
   "-deprecation",
     "-feature",
   "-Xlog-reflective-calls",
-//  "-Xlint",
-//  "-Ywarn-unused-import",
-//  "-Ywarn-dead-code",
   "-Yno-adapted-args",
   "-Ypartial-unification"
 )
-
-// scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
 
 testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),

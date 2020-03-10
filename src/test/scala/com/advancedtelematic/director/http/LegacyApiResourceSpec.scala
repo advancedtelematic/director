@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, QueueResponse}
 import com.advancedtelematic.director.util.{DirectorSpec, MockMessageBus, RepositorySpec, RouteResourceSpec}
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DirectorV2, UpdateId}
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -11,7 +11,6 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
-import com.advancedtelematic.director.http.LegacyRoutes.{DirectorV2, NamespaceDirectorChanged}
 import com.advancedtelematic.libats.data.PaginationResult
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._

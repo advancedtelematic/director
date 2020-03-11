@@ -6,9 +6,9 @@ import com.advancedtelematic.director.data.AdminRequest._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.DataType.{FileCacheRequest, TargetsCustom}
 import com.advancedtelematic.director.data.Codecs.targetsCustomEncoder
-import com.advancedtelematic.director.db.{FileCacheDB, SetTargets}
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
 import com.advancedtelematic.director.repo.DirectorRepo
-import com.advancedtelematic.director.util.DirectorSpec
+import com.advancedtelematic.director.util.{DirectorSpec, NamespaceTag}
 import com.advancedtelematic.libats.data.DataType.{CampaignId, MultiTargetUpdateId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.test.DatabaseSpec
@@ -23,14 +23,20 @@ import java.time.Instant
 
 import org.scalatest.OptionValues._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.{EdGenerators, FileCacheRequestStatus, KeyGenerators, RsaGenerators}
+import com.advancedtelematic.director.data.{DeviceRequest, EdGenerators, FileCacheRequestStatus, KeyGenerators, RsaGenerators}
+import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
+import com.advancedtelematic.libats.data.EcuIdentifier
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.matchers.{MatchResult, Matcher}
+import org.scalatest.matchers.{Matcher, MatchResult}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.time.{Milliseconds, Seconds, Span}
 
 import scala.concurrent.Future
+
+object FileCacheSpec {
+  private[FileCacheSpec] final case class Device(deviceId: DeviceId, primaryEcu: EcuIdentifier)
+}
 
 trait FileCacheSpec extends DirectorSpec
     with KeyGenerators
@@ -38,9 +44,10 @@ trait FileCacheSpec extends DirectorSpec
     with BeforeAndAfterAll
     with Eventually
     with FileCacheDB
+    with DeviceRepositorySupport
     with Requests {
 
-  private val timeout = Timeout(Span(5, Seconds))
+  private val timeout = Timeout(Span(50, Seconds))
   private val interval = Interval(Span(200, Milliseconds))
 
   def isAvailable[T : Decoder : Encoder](device: DeviceId, file: String): SignedPayload[T] =
@@ -57,6 +64,7 @@ trait FileCacheSpec extends DirectorSpec
   }
 
   val directorRepo = new DirectorRepo(keyserverClient)
+  val deviceRepo = deviceRepository
   override def beforeAll() {
     super.beforeAll()
     directorRepo.findOrCreate(defaultNs, testKeyType).futureValue
@@ -183,47 +191,79 @@ trait FileCacheSpec extends DirectorSpec
     }.futureValue
   }
 
-  test("expired requests are re-generating") {
-    val device = DeviceId.generate
+
+  import FileCacheSpec.Device
+  private[this] def registerDevice(): Device = {
+    val deviceId = DeviceId.generate
 
     val primEcuReg = GenRegisterEcu.generate
     val primEcu = primEcuReg.ecu_serial
 
-    val regDev = RegisterDevice(device, primEcu, Seq(primEcuReg))
+    val regDev = RegisterDevice(deviceId, primEcu, Seq(primEcuReg))
     registerDeviceOk(regDev)
+    Device(deviceId, primEcu)
+  }
 
-    val ecuManifest = Seq(GenSignedEcuManifest(primEcu).generate)
-    val devManifest = GenSignedDeviceManifest(primEcu, ecuManifest).generate
+  private[this] def updateManifest(device: Device): Unit = {
+    val ecuManifest = Seq(GenSignedEcuManifest(device.primaryEcu).generate)
+    val devManifest = GenSignedDeviceManifest(device.primaryEcu, ecuManifest).generate
 
-    updateManifestOk(device, devManifest)
+    updateManifestOk(device.deviceId, devManifest)
+  }
+
+  test("expired requests are re-generating") {
+    val device @ Device(deviceId, primEcu) = registerDevice()
+    updateManifest(device)
 
     val targetImage = GenCustomImage.generate.copy(diffFormat = None)
     val target = SetTarget(Map(primEcu -> targetImage))
 
     val correlationId = CampaignId(java.util.UUID.randomUUID())
-    SetTargets.setTargets(defaultNs, Seq(device -> target), Some(correlationId)).futureValue
+    SetTargets.setTargets(defaultNs, Seq(deviceId -> target), Some(correlationId)).futureValue
 
-    val oldTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
-    isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe oldTime
-    val oldTargets = isAvailable[TargetsRole](device, "targets.json")
+    val oldTime = isAvailable[TimestampRole](deviceId, "timestamp.json").signed.expires
+    isAvailable[SnapshotRole](deviceId, "snapshot.json").signed.expires shouldBe oldTime
+    val oldTargets = isAvailable[TargetsRole](deviceId, "targets.json")
     oldTargets.signed.expires shouldBe oldTime
     oldTargets.signed.custom.value.as[TargetsCustom].toOption.flatMap(_.correlationId).value should be(correlationId)
-    isAvailable[RootRole](device, "root.json")
+    isAvailable[RootRole](deviceId, "root.json")
 
-    makeFilesExpire(device).futureValue
+    makeFilesExpire(deviceId).futureValue
 
     Future { Thread.sleep(1100) }.futureValue
 
-    val newTime = isAvailable[TimestampRole](device, "timestamp.json").signed.expires
+    val newTime = isAvailable[TimestampRole](deviceId, "timestamp.json").signed.expires
     newTime should beAfter(oldTime)
-    isAvailable[SnapshotRole](device, "snapshot.json").signed.expires shouldBe newTime
+    isAvailable[SnapshotRole](deviceId, "snapshot.json").signed.expires shouldBe newTime
 
-    val newTargets = isAvailable[TargetsRole](device, "targets.json")
+    val newTargets = isAvailable[TargetsRole](deviceId, "targets.json")
     newTargets.signed.expires shouldBe newTime
     newTargets.signed.version shouldBe oldTargets.signed.version + 1
     newTargets.signed.targets shouldNot be(empty)
     newTargets.signed.targets shouldBe oldTargets.signed.targets
     newTargets.signed.custom.value.as[TargetsCustom].toOption.flatMap(_.correlationId).value should be(correlationId)
+  }
+
+  test("handle difference between current version and update assignment > 1") {
+    val device @ Device(deviceId, primEcu) = registerDevice()
+    updateManifest(device)
+    isAvailable[TargetsRole](deviceId, "targets.json").signed.version should equal(0)
+    makeFilesExpire(deviceId).futureValue
+    isAvailable[TargetsRole](deviceId, "targets.json").signed.version should equal(1)
+
+    val targetImage = GenCustomImage.generate.copy(diffFormat = None)
+    val target = SetTarget(Map(primEcu -> targetImage))
+
+    val correlationId = CampaignId(java.util.UUID.randomUUID())
+    SetTargets.setTargets(defaultNs, Seq(deviceId -> target), Some(correlationId)).futureValue
+    generateAllPendingFiles(Some(deviceId))(new NamespaceTag { val value = "default" }).futureValue.head.device should equal(deviceId)
+    deviceRepo.getCurrentVersion(deviceId).futureValue should equal(0)
+    isAvailable[TargetsRole](deviceId, "targets.json").signed.version should equal(2)
+
+    val ecuManifest: SignedPayload[DeviceRequest.EcuManifest] = GenSignedEcuManifestWithImage(primEcu, targetImage.image).generate
+    val devManifest = GenSignedDeviceManifest(primEcu, Map(primEcu -> ecuManifest)).generate
+    updateManifestOk(device.deviceId, devManifest)
+    deviceRepo.getCurrentVersion(deviceId).futureValue should equal(2)
   }
 
   // https://saeljira.it.here.com/browse/OTA-4539

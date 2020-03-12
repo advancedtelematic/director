@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import akka.Done
+import com.advancedtelematic.director.data.DataType
 import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
 import com.advancedtelematic.director.util.RouteResourceSpec
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -23,9 +24,9 @@ trait FileCacheDB extends FileCacheRequestRepositorySupport {
       .update(Instant.now.minus(10, ChronoUnit.DAYS))
   }.map(_ => Done)
 
-  def generateAllPendingFiles(deviceId: Option[DeviceId] = None)(implicit ns: NamespaceTag): Future[Unit] = for {
+  def generateAllPendingFiles(deviceId: Option[DeviceId] = None)(implicit ns: NamespaceTag): Future[Seq[DataType.FileCacheRequest]] = for {
     allPending <- fileCacheRequestRepository.findPending(limit = Int.MaxValue)
     devicePending = allPending.filter(p => deviceId.isEmpty || deviceId.contains(p.device)).filter(p => p.namespace == ns.get)
     _ <- Future.traverse(devicePending){fcr => rolesGeneration.processFileCacheRequest(fcr)}
-  } yield ()
+  } yield devicePending
 }

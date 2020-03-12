@@ -38,16 +38,16 @@ object DeviceUpdate extends AdminRepositorySupport
 
   def checkAgainstTarget(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest])
                         (implicit db: Database, ec: ExecutionContext): Future[DeviceUpdateResult] = {
+    val dbAction = for {
+      currentVersion          <- deviceRepository.getCurrentVersionSetIfInitialAction(device)
+      latestAssignmentVersion <- deviceUpdateAssignmentRepository.fetchLatestAction(namespace, device)
+      updateResult            <- if( latestAssignmentVersion > currentVersion)
+                                   handleUpdate(namespace, device, ecuManifests, latestAssignmentVersion)
+                                 else DBIO.successful(NoUpdate)
+      _                       <- deviceRepository.persistAllAction(namespace, ecuManifests)
+    } yield updateResult
 
-    val dbAct = deviceRepository.getCurrentVersionSetIfInitialAction(device).flatMap { currentVersion =>
-      val nextVersion = currentVersion + 1
-      deviceUpdateAssignmentRepository.existsAction(namespace, device, nextVersion).flatMap {
-        case true => handleUpdate(namespace, device, ecuManifests, nextVersion)
-        case false => DBIO.successful(NoUpdate)
-      }
-    }.flatMap(x => deviceRepository.persistAllAction(namespace, ecuManifests).map(_ => x))
-
-    db.run(dbAct.transactionally)
+    db.run(dbAction.transactionally)
   }
 
   private def handleUpdate(namespace: Namespace, device: DeviceId, ecuManifests: Seq[EcuManifest], nextVersion: Int)

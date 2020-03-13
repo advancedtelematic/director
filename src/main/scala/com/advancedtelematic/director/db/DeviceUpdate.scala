@@ -40,7 +40,7 @@ object DeviceUpdate extends AdminRepositorySupport
                         (implicit db: Database, ec: ExecutionContext): Future[DeviceUpdateResult] = {
     val dbAction = for {
       currentVersion          <- deviceRepository.getCurrentVersionSetIfInitialAction(device)
-      latestAssignmentVersion <- deviceUpdateAssignmentRepository.fetchLatestAction(namespace, device)
+      latestAssignmentVersion <- deviceUpdateAssignmentRepository.fetchLatestNoLock(device)
       updateResult            <- if( latestAssignmentVersion > currentVersion)
                                    handleUpdate(namespace, device, ecuManifests, latestAssignmentVersion)
                                  else DBIO.successful(NoUpdate)

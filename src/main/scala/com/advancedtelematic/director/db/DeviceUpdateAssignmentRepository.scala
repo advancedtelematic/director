@@ -67,8 +67,9 @@ protected class DeviceUpdateAssignmentRepository()(implicit db: Database, ec: Ex
     _ <- persistAction(namespace, deviceId, correlationId, updateId, newVersion)
   } yield newVersion
 
-  protected [db] def fetchLatestNoLock(deviceId: DeviceId): DBIO[Int] = {
+  protected [db] def fetchLatestNoLock(namespace: Namespace, deviceId: DeviceId): DBIO[Int] = {
     deviceUpdateAssignments
+      .filter(_.namespace === namespace)
       .filter(_.deviceId === deviceId)
       .map(_.version)
       .max

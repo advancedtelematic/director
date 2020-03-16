@@ -16,9 +16,15 @@ import com.advancedtelematic.libats.messaging_datatype.MessageLike
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
 import io.circe.Json
+import io.circe.syntax._
+import cats.syntax._
+import cats.implicits._
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
 object DbDataType {
   case class AutoUpdateDefinitionId(uuid: UUID) extends UUIDKey
@@ -39,16 +45,24 @@ object DbDataType {
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
                        hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])
 
-  final case class DbSignedRole(role: RoleType, device: DeviceId, checksum: Checksum, length: Long, version: Int, expires: Instant, content: JsonSignedPayload)
+  final case class DbSignedRole(role: RoleType, device: DeviceId, checksum: Option[Checksum], length: Option[Long], version: Int, expires: Instant, content: JsonSignedPayload)
 
   implicit class DbDSignedRoleToSignedPayload(value: DbSignedRole) {
-    def toSignedRole[T : TufRole]: SignedRole[T] =
-      SignedRole[T](value.content, value.checksum, value.length, value.version, value.expires)
+    def toSignedRole[T : TufRole]: SignedRole[T] = {
+      val (checksum, length) = value.checksum.product(value.length).getOrElse {
+        val canonicalJson = value.content.asJson.canonical
+        val checksum = Sha256Digest.digest(canonicalJson.getBytes)
+        val length = canonicalJson.length
+        checksum -> length.toLong
+      }
+
+      SignedRole[T](value.content, checksum, length, value.version, value.expires)
+    }
   }
 
   implicit class SignedPayloadToDbSignedRole[_](value: SignedRole[_]) {
     def toDbSignedRole(deviceId: DeviceId): DbSignedRole =
-      DbDataType.DbSignedRole(value.tufRole.roleType, deviceId, value.checksum, value.length, value.version, value.expiresAt, value.content)
+      DbDataType.DbSignedRole(value.tufRole.roleType, deviceId, value.checksum.some, value.length.some, value.version, value.expiresAt, value.content)
   }
 
   final case class HardwareUpdate(namespace: Namespace,

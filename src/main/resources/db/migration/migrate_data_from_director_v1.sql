@@ -163,4 +163,9 @@ select uuid(), namespace, device, ecu_serial, target_name, 0, '1970-01-01 00:00:
 FROM director.auto_updates
 ;
 
+insert into director_v2.signed_roles (role, version, device_id, content, created_at, updated_at, expires_at, checksum, `length`)
+select role, version, device, file_entity, created_at, updated_at, expires, NULL, NULL from director.file_cache fc
+on duplicate key update checksum=null,`length`= null, content = file_entity, created_at=fc.created_at, updated_at=fc.updated_at,expires_at=expires
+;
+
 -- select count(*) from director.auto_updates ;

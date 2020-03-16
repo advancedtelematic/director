@@ -12,6 +12,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSi
 import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 
 
 object Schema {
@@ -76,8 +77,8 @@ object Schema {
     def content = column[JsonSignedPayload]("content")
     def expires = column[Instant]("expires_at")
     def createdAt = column[Instant]("created_at")
-    def checksum = column[Checksum]("checksum")
-    def length = column[Long]("length")
+    def checksum = column[Option[Checksum]]("checksum")
+    def length = column[Option[Long]]("length")
 
     def primKey = primaryKey("signed_roles_pk", (role, version, device))
 

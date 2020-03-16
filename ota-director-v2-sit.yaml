@@ -1,0 +1,183 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: ota-director-v2
+    release: ota-director-v2
+  name: ota-director-v2
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: ota-director-v2
+      release: ota-director-v2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+      labels:
+        app: ota-director-v2
+        release: ota-director-v2
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: ota-director-v2
+        - secretRef:
+            name: ota-director
+        image: advancedtelematic/director-v2:671b60f05b5982276508e7a5b70d42b8c0cabf2f-SNAPSHOT-sm
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 9001
+            scheme: HTTP
+          initialDelaySeconds: 300
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: ota-director-v2
+        ports:
+        - containerPort: 9001
+          name: http
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 1
+            memory: 2Gi
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: docker-registry-key
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: ota-director-v2
+    release: ota-director-v2
+  name: ota-director-v2
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: ota-director-v2
+    release: ota-director-v2
+  sessionAffinity: None
+---
+kind: ConfigMap
+apiVersion: v1
+data:
+  AKKA_HTTP_CLIENT_MAX_CONNECTIONS: "1024"
+  AKKA_HTTP_CLIENT_MAX_OPEN_REQUESTS: "2048"
+  AKKA_HTTP_MAX_CONNECTIONS: "2048"
+  ATS_HTTP_TRACING: "true"
+  BIND_HOST: 0.0.0.0
+  BIND_PORT: "9001"
+  DB_MIGRATE: "true"
+  DB_NUM_THREADS: "20"
+  DB_URL: jdbc:mariadb://db-sit.sit-ota.aws.in.here.com:3306/director_v2
+  DB_USER: director
+  ENV_PREFIX: sit_
+  JAVA_OPTS: -XshowSettings:vm -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -Xmx1500m
+  KAFKA_BOOTSTRAP_SERVERS: kafka0.sit-ota.aws.in.here.com:9092
+  KAFKA_HOST: kafka0.sit-ota.aws.in.here.com:9092
+  KAFKA_TOPIC_SUFFIX: sit
+  LOG_APPENDER: async_json
+  REPORT_METRICS: "false"
+  TUF_KEYSERVER_HOST: ota-tuf-keyserver
+  TUF_KEYSERVER_PORT: "80"
+  TUF_REPOSERVER_HOST: ota-tuf-reposerver-internal
+  TUF_REPOSERVER_PORT: "80"
+  ZIPKIN_URI: http://ota-zipkin:9411
+metadata:
+  labels:
+    app: ota-director-v2
+    release: ota-director-v2
+  name: ota-director-v2
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  labels:
+    app: ota-director-v2-daemon
+    release: ota-director-v2
+  name: ota-director-v2-daemon
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: ota-director-v2-daemon
+      release: ota-director-v2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ota-director-v2-daemon
+        release: ota-director-v2
+    spec:
+      containers:
+      - args:
+        - -main
+        - com.advancedtelematic.director.daemon.DaemonBoot
+        envFrom:
+        - configMapRef:
+            name: ota-director-v2
+        - secretRef:
+            name: ota-director
+        image: advancedtelematic/director-v2:671b60f05b5982276508e7a5b70d42b8c0cabf2f-SNAPSHOT-sm        
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 9001
+            scheme: HTTP
+          initialDelaySeconds: 300
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: ota-director-v2-daemon
+        ports:
+        - containerPort: 9001
+          name: http
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 2Gi
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: docker-registry-key
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30

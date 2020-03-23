@@ -41,9 +41,8 @@ class Roles(rolesGeneration: RolesGeneration)
 
   private def shouldBeRegenerated(ns: Namespace, device: DeviceId, version: Int, correlationId: Option[CorrelationId]): Future[Boolean] = async {
     val isExpired = await(fileCacheRepository.haveExpired(device, version))
-    val wasUpdated = await(fileCacheRepository.roleWasUpdated(device, version, RoleType.TARGETS))
     val lastTargets = await(fileCacheRepository.fetchTarget(device, version))
-    isExpired || wasUpdated || correlationIdMissing(lastTargets, correlationId)
+    isExpired || correlationIdMissing(lastTargets, correlationId)
   }
 
   private def updateCacheIfExpired(ns: Namespace, device: DeviceId, latestTargetsVersion: Int, assignment: Option[DeviceUpdateAssignment]): Future[Int] = async {

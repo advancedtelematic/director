@@ -334,17 +334,6 @@ protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContex
       .result
   }
 
-  def roleWasUpdated(deviceId: DeviceId, version: Int, roleType: RoleType): Future[Boolean] = db.run {
-    Schema.fileCache.filter(_.device === deviceId)
-      .filter(_.version === version)
-      .map(row => row.createdAt -> row.updatedAt)
-      .result
-      .headOption.map {
-      case Some((createdAt, updatedAt)) => updatedAt.minusSeconds(5).isAfter(createdAt)
-      case None => false
-    }
-  }
-
   def fetchLatestVersion(deviceId: DeviceId): Future[Option[Int]] = db.run {
     fetchLatestVersionAction(deviceId)
   }

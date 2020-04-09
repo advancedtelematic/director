@@ -18,7 +18,7 @@ import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, D
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
-import com.advancedtelematic.metrics.{AkkaHttpRequestMetrics, MetricsSupport}
+import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
 import com.typesafe.config.Config
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
@@ -51,6 +51,7 @@ object Boot extends BootApp
   with MetricsSupport
   with DatabaseMetrics
   with AkkaHttpRequestMetrics
+  with AkkaHttpConnectionMetrics
   with PrometheusMetricsSupport
   with CheckMigrations {
 
@@ -72,5 +73,5 @@ object Boot extends BootApp
         new DirectorRoutes(keyserverClient).routes
     }
 
-  Http().bindAndHandle(routes, host, port)
+  Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port)
 }

@@ -1,9 +1,14 @@
 --SET @@sql_mode = CONCAT(@@sql_mode, ',', 'ONLY_FULL_GROUP_BY');
 --SET @@sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
 
+SET collation_connection = 'utf8_unicode_ci';
+
 -- move this to old director code
 create index if not exists ecu_serial_idx on director.ecus (`ecu_serial`);
 create index if not exists ecu_update_assignments_target_v1_idx on director.ecu_update_assignments (`filepath`(500), `length`(254), checksum);
+create index if not exists file_cache_device_version_role on director.file_cache (`device`, `role`, `version`) ;
+create index if not exists file_cache_device_created_at on director.file_cache(`device`,`created_at`);
+create index if not exists file_cache_device_version on director.file_cache(`device`,`version`);
 
 -- repo_namespaces
 INSERT director_v2.repo_namespaces
@@ -99,8 +104,7 @@ DROP TEMPORARY TABLE IF EXISTS assignments_v1;
 create temporary table assignments_v1 AS
 select
   eua.namespace, eua.device_id, eua.ecu_id ecu_serial, et.id ecu_target_id, dua.correlation_id, dua.served in_flight, eua.created_at, eua.updated_at,
-   (ranked_eua.rank = 1 AND dct.device_current_target < eua.version) running,
-   eua.version ecu_version, ranked_eua.rank version_rank, dct.device_current_target
+   (ranked_eua.rank = 1 AND dct.device_current_target < eua.version) running, ranked_eua.rank version_rank, dct.device_current_target
 FROM director.ecu_update_assignments eua
 JOIN
   (select namespace, ecu_id, version, device_id, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY version DESC) rank from director.ecu_update_assignments) ranked_eua
@@ -109,6 +113,8 @@ JOIN ecu_targets_v1 et ON et.namespace = eua.namespace and et.filename = eua.fil
 JOIN director.device_current_target dct ON dct.device = eua.device_id
 JOIN director.device_update_assignments dua ON dua.namespace = eua.namespace AND dua.version = eua.version AND dua.device_id = eua.device_id
 ;
+
+create index if not exists assignments_v1_device_id_ecu_serial_idx on assignments_v1 (device_id, ecu_serial);
 
 -- WARNING: This makes the migration idempotent, however it might delete important data from director v2
 -- Before running this make sure this is what you want to do
@@ -159,8 +165,9 @@ UPDATE director_v2.devices SET generated_metadata_outdated = 1 where id in (
 -- select count(distinct correlation_id) from (select correlation_id from assignments a UNION select correlation_id from processed_assignments p) _t;
 
 insert into director_v2.auto_update_definitions (id, namespace, device_id, ecu_serial, target_name, deleted, created_at)
-select uuid(), namespace, device, ecu_serial, target_name, 0, '1970-01-01 00:00:00'
+select uuid() uuid, namespace, device, ecu_serial, target_name, 0, '1970-01-01 00:00:00'
 FROM director.auto_updates
+on duplicate key update device_id = device
 ;
 
 insert into director_v2.signed_roles (role, version, device_id, content, created_at, updated_at, expires_at, checksum, `length`)

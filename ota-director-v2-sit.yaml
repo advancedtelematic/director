@@ -33,7 +33,7 @@ spec:
             name: ota-director-v2
         - secretRef:
             name: ota-director
-        image: advancedtelematic/director-v2:671b60f05b5982276508e7a5b70d42b8c0cabf2f-SNAPSHOT-sm
+        image: advancedtelematic/director-v2:d8c09fb88cefaa9e6eca83a7dc9ada84f0d21ef9-SNAPSHOT
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
@@ -52,10 +52,10 @@ spec:
           protocol: TCP
         resources:
           limits:
-            cpu: 1
+            cpu: 4
             memory: 2Gi
           requests:
-            cpu: 1
+            cpu: 4
             memory: 2Gi
       dnsPolicy: ClusterFirst
       imagePullSecrets:
@@ -90,12 +90,12 @@ data:
   AKKA_HTTP_CLIENT_MAX_CONNECTIONS: "1024"
   AKKA_HTTP_CLIENT_MAX_OPEN_REQUESTS: "2048"
   AKKA_HTTP_MAX_CONNECTIONS: "2048"
-  ATS_HTTP_TRACING: "true"
+  ATS_HTTP_TRACING: "false"
   BIND_HOST: 0.0.0.0
   BIND_PORT: "9001"
   DB_MIGRATE: "true"
-  DB_NUM_THREADS: "20"
-  DB_URL: jdbc:mariadb://db-sit.sit-ota.aws.in.here.com:3306/director_v2
+  DB_NUM_THREADS: "50"
+  DB_URL: jdbc:mariadb://db_director.sit-ota.aws.in.here.com:3306/director_v2
   DB_USER: director
   ENV_PREFIX: sit_
   JAVA_OPTS: -XshowSettings:vm -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -Xmx1500m
@@ -104,10 +104,8 @@ data:
   KAFKA_TOPIC_SUFFIX: sit
   LOG_APPENDER: async_json
   REPORT_METRICS: "false"
-  TUF_KEYSERVER_HOST: ota-tuf-keyserver
+  TUF_KEYSERVER_HOST: ota-tuf-keyserver-lt
   TUF_KEYSERVER_PORT: "80"
-  TUF_REPOSERVER_HOST: ota-tuf-reposerver-internal
-  TUF_REPOSERVER_PORT: "80"
   ZIPKIN_URI: http://ota-zipkin:9411
 metadata:
   labels:
@@ -169,10 +167,10 @@ spec:
           protocol: TCP
         resources:
           limits:
-            cpu: 500m
+            cpu: 2
             memory: 2Gi
           requests:
-            cpu: 500m
+            cpu: 2
             memory: 2Gi
       dnsPolicy: ClusterFirst
       imagePullSecrets:
@@ -181,3 +179,49 @@ spec:
       schedulerName: default-scheduler
       securityContext: {}
       terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: ota-director-v2-elb-sit.borg-rd.nw.ops.here.com
+  labels:
+    app: ota-director-v2
+    release: ota-director-v2
+  name: ota-director-v2-elb
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+  selector:
+    app: ota-director-v2
+    release: ota-director-v2
+---
+apiVersion: extensions/v1beta1
+kind: NetworkPolicy
+metadata:
+  annotations:
+  creationTimestamp: "2019-12-05T15:13:18Z"
+  name: ota-director-elb-allow-traffic
+spec:
+  ingress:
+  - from:
+    - ipBlock:
+        cidr: 10.0.0.0/0
+    ports:
+    - port: 9001
+      protocol: TCP
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - ota-director
+      - ota-director-lt
+      - ota-director-v2
+  policyTypes:
+  - Ingress

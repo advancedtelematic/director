@@ -4,7 +4,6 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType._
-import com.advancedtelematic.director.data.AssignmentDataType.CancelAssignments
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType.TargetItemCustom
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -81,7 +80,7 @@ trait AssignmentResources {
   }
 
   def cancelAssignmentsOk(deviceIds: Seq[DeviceId])(implicit ns: Namespace): Seq[DeviceId] = {
-    Patch(apiUri("assignments"), CancelAssignments(deviceIds)).namespaced ~> routes ~> check {
+    Patch(apiUri("assignments"), deviceIds).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       responseAs[Seq[DeviceId]]
     }

@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling.PredefinedFromStringUnmarshallers.CsvSeq
 import com.advancedtelematic.director.data.AdminDataType.AssignUpdateRequest
-import com.advancedtelematic.director.data.AssignmentDataType.CancelAssignments
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
@@ -60,8 +59,8 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
           }
         } ~
         patch {
-          entity(as[CancelAssignments]) { cancelAssignments =>
-            val a = deviceAssignments.cancel(ns, cancelAssignments.cancelAssignments)
+          entity(as[Seq[DeviceId]]) { devices =>
+            val a = deviceAssignments.cancel(ns, devices)
             complete(a.map(_.map(_.deviceId)))
           }
         }

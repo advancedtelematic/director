@@ -1,5 +1,5 @@
---SET @@sql_mode = CONCAT(@@sql_mode, ',', 'ONLY_FULL_GROUP_BY');
---SET @@sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
+-- SET @@sql_mode = CONCAT(@@sql_mode, ',', 'ONLY_FULL_GROUP_BY');
+-- SET @@sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
 
 SET collation_connection = 'utf8_unicode_ci';
 
@@ -48,14 +48,14 @@ select namespace, id, filename, length, checksum, sha256, uri, created_at, updat
 WHERE (namespace, filename, sha256) NOT IN (select namespace, filename, sha256 from ecu_targets)
 ;
 
---select count(*) FROM (SELECT * from (
---select namespace, filepath, json_unquote(json_extract(checksum, '$.hash')) checksum, length from director.current_images
---UNION
---select namespace, target, target_hash, target_size from director.multi_target_updates
---UNION
---select namespace, from_target, from_target_hash, from_target_size from director.multi_target_updates  WHERE from_target is not null and from_target_hash is not null
---) _t1 GROUP by 1, 2, 3, 4) _t2
---;
+-- select count(*) FROM (SELECT * from (
+-- select namespace, filepath, json_unquote(json_extract(checksum, '$.hash')) checksum, length from director.current_images
+-- UNION
+-- select namespace, target, target_hash, target_size from director.multi_target_updates
+-- UNION
+-- select namespace, from_target, from_target_hash, from_target_size from director.multi_target_updates  WHERE from_target is not null and from_target_hash is not null
+-- ) _t1 GROUP by 1, 2, 3, 4) _t2
+-- ;
 
 -- ecus
 insert into director_v2.ecus (namespace, ecu_serial, device_id, public_key, hardware_identifier, current_target, created_at, updated_at)

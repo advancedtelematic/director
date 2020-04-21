@@ -127,10 +127,6 @@ object AdminDataType {
   final case class FindImageCount(filepaths: Seq[TargetFilename])
 }
 
-object AssignmentDataType {
-  final case class CancelAssignments(cancelAssignments: Seq[DeviceId])
-}
-
 object UptaneDataType {
   final case class Hashes(sha256: Refined[String, ValidChecksum]) {
     def toClientHashes: ClientHashes = Map(HashMethod.SHA256 -> sha256)

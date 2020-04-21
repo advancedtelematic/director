@@ -48,7 +48,7 @@ protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) e
         .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
         .joinLeft(devUpdateAssignments).on(_._1 === _._1)
         .map{case ((devId, curTarg), devUpdate) => (devId, curTarg, devUpdate.map(_._2).getOrElse(curTarg))}
-        .filter{ case(_, cur, lastScheduled) => cur === lastScheduled}
+        .filter{ case(_, cur, lastScheduled) => cur >= lastScheduled}
         .map(_._1)
 
       val notReported = query.filterNot(dev => dev.in(Schema.deviceCurrentTarget.map(_.device)))

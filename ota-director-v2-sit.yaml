@@ -94,7 +94,7 @@ data:
   BIND_HOST: 0.0.0.0
   BIND_PORT: "9001"
   DB_MIGRATE: "true"
-  DB_NUM_THREADS: "50"
+  DB_NUM_THREADS: "100"
   DB_URL: jdbc:mariadb://db_director.sit-ota.aws.in.here.com:3306/director_v2
   DB_USER: director
   ENV_PREFIX: sit_

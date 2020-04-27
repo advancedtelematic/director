@@ -66,7 +66,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
             val msgF = messageBusPublisher.publishSafe(DeviceManifestReported(ns, device, jsonDevMan, Instant.now()))
 
             onComplete(msgF) { _ =>
-              handleDeviceManifest(ns, repoId, device, jsonDevMan)
+              handleDeviceManifest(ns, device, jsonDevMan)
             }
           }
         }
@@ -96,7 +96,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
     }
   }
 
-  private def handleDeviceManifest(ns: Namespace, repoId: RepoId, device: DeviceId, jsonDevMan: SignedPayload[Json]): Route = {
+  private def handleDeviceManifest(ns: Namespace, device: DeviceId, jsonDevMan: SignedPayload[Json]): Route = {
     onSuccess(deviceManifestProcess.validateManifestSignatures(ns, device, jsonDevMan)) {
       case Valid(deviceManifest) =>
         val validatedManifest = ManifestCompiler(ns, deviceManifest)

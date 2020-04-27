@@ -66,10 +66,10 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
 
       if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
         if(installedTarget.exists(_.matches(updateTo))) {
-          _log.info("not affected")
+          _log.debug(s"Ecu ${ecu.ecuSerial} not affected for $hwUpdate")
           None
         } else {
-          _log.info(s"AFFECTED: ${hwUpdate} ${ecu.installedTarget}")
+          _log.info(s"${ecu.ecuSerial} affected for $hwUpdate")
           Some(ecu -> hwUpdate.toTarget)
         }
       } else {
@@ -93,8 +93,9 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false) :: acc
     }
 
-    if(await(assignmentsRepository.existsFor(assignments.map(_.ecuId).toSet)))
-      throw Errors.AssignmentExists
+    val ecusWithAssignments = await(assignmentsRepository.withAssignments(assignments.map(_.ecuId).toSet))
+    if(ecusWithAssignments.nonEmpty)
+      throw Errors.AssignmentExists(ecusWithAssignments)
 
     await(assignmentsRepository.persistMany(deviceRepository)(assignments))
 

@@ -212,8 +212,8 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
       .map { existing => deviceIds.map(_ -> false).toMap ++ existing.toMap }
   }
 
-  def existsFor(ecus: Set[EcuIdentifier]): Future[Boolean] = db.run {
-    Schema.assignments.filter(_.ecuId.inSet(ecus)).exists.result
+  def withAssignments(ecus: Set[EcuIdentifier]): Future[Seq[EcuIdentifier]] = db.run {
+    Schema.assignments.filter(_.ecuId.inSet(ecus)).map(_.ecuId).result
   }
 
   def findLastCreated(deviceId: DeviceId): Future[Option[Instant]] = db.run {
@@ -300,7 +300,7 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
 
   def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {
     Schema.devices.filter(_.id === deviceId).filter(_.namespace === ns)
-      .join(Schema.ecus).on { case (d, e) => d.primaryEcu === e.ecuSerial }
+      .join(Schema.ecus).on { case (d, e) => d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
       .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu)
   }
 }

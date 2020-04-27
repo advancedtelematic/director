@@ -17,7 +17,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api.Database
 
 import scala.concurrent.{ExecutionContext, Future}
-
+import cats.implicits._
 
 class AssignmentsResource(extractNamespace: Directive1[Namespace])
                          (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
@@ -26,14 +26,14 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
 
   val deviceAssignments = new DeviceAssignments()
 
-  private def createAssignments(ns: Namespace, req: AssignUpdateRequest): Future[Unit] = {
+  private def createAssignments(ns: Namespace, req: AssignUpdateRequest): Future[Seq[DeviceId]] = {
     val assignments = deviceAssignments.createForDevices(ns, req.correlationId, req.devices, req.mtuId)
 
-    assignments.map {
-      _.foreach { a =>
+    assignments.flatMap { assignments =>
+      assignments.toList.traverse_ { a =>
         val msg: DeviceUpdateEvent = DeviceUpdateAssigned(ns, Instant.now(), req.correlationId, a.deviceId)
         messageBusPublisher.publishSafe(msg)
-      }
+      }.map(_ => assignments.map(_.deviceId))
     }
   }
 
@@ -53,7 +53,7 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
               val f = deviceAssignments.findAffectedDevices(ns, req.devices, req.mtuId)
               complete(f)
             } else {
-              val f = createAssignments(ns, req).map(_ => StatusCodes.Created)
+              val f = createAssignments(ns, req).map(StatusCodes.Created -> _)
               complete(f)
             }
           }

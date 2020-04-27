@@ -7,7 +7,7 @@ import com.advancedtelematic.director.data.AdminDataType.MultiTargetUpdate
 import com.advancedtelematic.director.data.DataType.DeviceUpdateTarget
 import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.ErrorCode
+import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorCode}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId, RawError}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
@@ -36,7 +36,7 @@ object Errors {
 
   val NoDevicesAffected = RawError(ErrorCodes.NoDevicesAffected, StatusCodes.BadRequest, "No devices affected by assignment")
 
-  val AssignmentExists = RawError(ErrorCodes.AssignmentExists, StatusCodes.Conflict, "described assignment already exists")
+  def AssignmentExists(ecuIds: Seq[EcuIdentifier]) = RawError(ErrorCodes.AssignmentExists, StatusCodes.Conflict, s"""an assignment already exists for ecus: ${ecuIds.mkString(",")}""")
 
   def InvalidVersionBumpError(oldVersion: Int, newVersion: Int, roleType: RoleType) =
     RawError(ErrorCode("invalid_version_bump"), StatusCodes.Conflict, s"Cannot bump version from $oldVersion to $newVersion for $roleType")

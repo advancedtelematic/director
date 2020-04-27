@@ -1,29 +1,31 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.util._
-import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.director.data.Generators._
-import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.Codecs._
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import org.scalatest.Assertion
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+import akka.http.scaladsl.model.{HttpEntity, StatusCodes}
 import cats.syntax.option._
-import com.advancedtelematic.director.data.DbDataType.Ecu
-import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
-import com.advancedtelematic.director.http.AdminResources.RegisterDeviceResult
-import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
-import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetFilename, TufKey, TufKeyPair}
-import com.advancedtelematic.libtuf.data.ClientCodecs._
-import com.advancedtelematic.libtuf.data.TufCodecs._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
-import org.scalactic.source.Position
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, InstallationReportEntity}
+import com.advancedtelematic.director.data.DbDataType.Ecu
+import com.advancedtelematic.director.data.GeneratorOps._
+import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
+import com.advancedtelematic.director.http.AdminResources.RegisterDeviceResult
+import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole}
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetFilename, TufKey, TufKeyPair}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import org.scalactic.source.Position
+import org.scalatest.Assertion
+import io.circe.syntax._
 
 object AdminResources {
   case class RegisterDeviceResult(deviceId: DeviceId,
@@ -57,11 +59,12 @@ trait AdminResources {
     RegisterDeviceResult(regDev.deviceId.get, primary, primaryEcuKey, ecus, Map(primary.ecuSerial -> primaryEcuKey, regSecondaryEcu.ecu_serial -> secondaryEcuKey))
   }
 
-  def registerAdminDeviceOk()(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
+  def registerAdminDeviceOk(hardwareIdentifier: Option[HardwareIdentifier] = None)(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
     val device = DeviceId.generate
     val (regEcu, ecuKey) = GenRegisterEcuKeys.generate
 
-    val regDev = RegisterDevice(device.some, regEcu.ecu_serial, List(regEcu))
+    val hwId = hardwareIdentifier.getOrElse(regEcu.hardware_identifier)
+    val regDev = RegisterDevice(device.some, regEcu.ecu_serial, List(regEcu.copy(hardware_identifier = hwId)))
 
     Post(apiUri("admin/devices"), regDev).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
@@ -161,4 +164,79 @@ class AdminResourceSpec extends DirectorSpec
       resp.head.image.filepath shouldBe targetUpdate.target
     }
   }
+
+  testWithRepo("PUT devices/id/targets.json forces refresh of devices targets.json") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 1
+    }
+
+    Put(apiUri(s"admin/devices/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
+    }
+  }
+
+  testWithNamespace("delegates root upload to keyserver") { implicit ns =>
+    createRepoOk()
+
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val root = RootRole(Map.empty, Map.empty, 2, Instant.now().truncatedTo(ChronoUnit.SECONDS))
+    val signedRoot = SignedPayload(Seq.empty, root, root.asJson)
+
+    Put(apiUri("admin/repo/root"), signedRoot).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val savedRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    savedRoot.signed shouldNot be(oldRoot.signed)
+    savedRoot.signed shouldBe signedRoot.signed
+  }
+
+  testWithRepo("delegates to keyserver to fetch key pair") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val keyPair = responseAs[TufKeyPair]
+      keyPair.pubkey.id shouldBe keyId
+    }
+  }
+
+  testWithRepo("delegates delete key pair to keyserver") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Delete(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.NotFound
+    }
+  }
+
 }

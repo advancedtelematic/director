@@ -2,6 +2,7 @@ package com.advancedtelematic.director.http
 
 import java.time.Instant
 
+import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.QueueResponse
 import com.advancedtelematic.director.data.DbDataType.Assignment
@@ -17,7 +18,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport
-  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport {
+  with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport with DeviceRepositorySupport {
 
   private val _log = LoggerFactory.getLogger(this.getClass)
 
@@ -50,19 +51,36 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     findAffectedEcus(ns, deviceIds, mtuId).map { _.map(_._1.deviceId) }
   }
 
+  import cats.syntax.option._
+
   private def findAffectedEcus(ns: Namespace, devices: Seq[DeviceId], mtuId: UpdateId) = async {
     val hardwareUpdates = await(hardwareUpdateRepository.findBy(ns, mtuId))
 
-    await(ecuRepository.findFor(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { ecu =>
-      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+    val allTargetIds = hardwareUpdates.values.flatMap(v => List(v.toTarget.some, v.fromTarget).flatten)
+    val hh = await(ecuTargetsRepository.findAll(ns, allTargetIds.toSeq))
 
-      if (hwUpdate.fromTarget.isEmpty || ecu.installedTarget.contains(hwUpdate.fromTarget.get))
-        Some(ecu -> hwUpdate.toTarget)
-      else {
+    await(ecuRepository.findEcuWithTargets(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { case (ecu, installedTarget) =>
+      val hwUpdate = hardwareUpdates(ecu.hardwareId)
+      val updateFrom = hwUpdate.fromTarget.flatMap(hh.get)
+      val updateTo = hh(hwUpdate.toTarget)
+
+      if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
+        if(installedTarget.exists(_.matches(updateTo))) {
+          _log.debug(s"Ecu ${ecu.ecuSerial} not affected for $hwUpdate")
+          None
+        } else {
+          _log.info(s"${ecu.ecuSerial} affected for $hwUpdate")
+          Some(ecu -> hwUpdate.toTarget)
+        }
+      } else {
         _log.debug(s"ecu ${ecu.ecuSerial} not affected by $mtuId")
         None
       }
     }
+  }
+
+  def createForDevice(ns: Namespace, correlationId: CorrelationId, deviceId: DeviceId, mtuId: UpdateId): Future[Assignment] = {
+    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.head)
   }
 
   def createForDevices(ns: Namespace, correlationId: CorrelationId, devices: Seq[DeviceId], mtuId: UpdateId): Future[Seq[Assignment]] = async {
@@ -75,10 +93,11 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false) :: acc
     }
 
-    if(await(assignmentsRepository.existsFor(assignments.map(_.ecuId).toSet)))
-      throw Errors.AssignmentExists
+    val ecusWithAssignments = await(assignmentsRepository.withAssignments(assignments.map(_.ecuId).toSet))
+    if(ecusWithAssignments.nonEmpty)
+      throw Errors.AssignmentExists(ecusWithAssignments)
 
-    await(assignmentsRepository.persistMany(assignments))
+    await(assignmentsRepository.persistMany(deviceRepository)(assignments))
 
     assignments
   }

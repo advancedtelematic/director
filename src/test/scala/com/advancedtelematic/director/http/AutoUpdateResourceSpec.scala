@@ -1,12 +1,11 @@
 package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
-import com.advancedtelematic.director.util.{DeviceManifestSpec, DirectorSpec, RepositorySpec, RouteResourceSpec}
-import com.advancedtelematic.libtuf.data.TufDataType.TargetName
 import cats.syntax.show._
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RepositorySpec, RouteResourceSpec}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.TargetName
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
 class AutoUpdateResourceSpec extends DirectorSpec
   with RouteResourceSpec

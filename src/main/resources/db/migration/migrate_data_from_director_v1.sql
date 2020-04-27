@@ -1,9 +1,14 @@
---SET @@sql_mode = CONCAT(@@sql_mode, ',', 'ONLY_FULL_GROUP_BY');
---SET @@sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
+-- SET @@sql_mode = CONCAT(@@sql_mode, ',', 'ONLY_FULL_GROUP_BY');
+-- SET @@sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
+
+SET collation_connection = 'utf8_unicode_ci';
 
 -- move this to old director code
 create index if not exists ecu_serial_idx on director.ecus (`ecu_serial`);
 create index if not exists ecu_update_assignments_target_v1_idx on director.ecu_update_assignments (`filepath`(500), `length`(254), checksum);
+create index if not exists file_cache_device_version_role on director.file_cache (`device`, `role`, `version`) ;
+create index if not exists file_cache_device_created_at on director.file_cache(`device`,`created_at`);
+create index if not exists file_cache_device_version on director.file_cache(`device`,`version`);
 
 -- repo_namespaces
 INSERT director_v2.repo_namespaces
@@ -43,14 +48,14 @@ select namespace, id, filename, length, checksum, sha256, uri, created_at, updat
 WHERE (namespace, filename, sha256) NOT IN (select namespace, filename, sha256 from ecu_targets)
 ;
 
---select count(*) FROM (SELECT * from (
---select namespace, filepath, json_unquote(json_extract(checksum, '$.hash')) checksum, length from director.current_images
---UNION
---select namespace, target, target_hash, target_size from director.multi_target_updates
---UNION
---select namespace, from_target, from_target_hash, from_target_size from director.multi_target_updates  WHERE from_target is not null and from_target_hash is not null
---) _t1 GROUP by 1, 2, 3, 4) _t2
---;
+-- select count(*) FROM (SELECT * from (
+-- select namespace, filepath, json_unquote(json_extract(checksum, '$.hash')) checksum, length from director.current_images
+-- UNION
+-- select namespace, target, target_hash, target_size from director.multi_target_updates
+-- UNION
+-- select namespace, from_target, from_target_hash, from_target_size from director.multi_target_updates  WHERE from_target is not null and from_target_hash is not null
+-- ) _t1 GROUP by 1, 2, 3, 4) _t2
+-- ;
 
 -- ecus
 insert into director_v2.ecus (namespace, ecu_serial, device_id, public_key, hardware_identifier, current_target, created_at, updated_at)
@@ -71,11 +76,12 @@ on duplicate key update
 -- select count(*), current_target is null from director.ecus e join director.current_images ci ON (namespace, ecu_serial) group by 2;
 
 -- devices
-insert into director_v2.devices (namespace, id, primary_ecu_id, created_at, updated_at)
-select namespace, device, ecu_serial, created_at, updated_at
+insert into director_v2.devices (namespace, id, primary_ecu_id, generated_metadata_outdated, created_at, updated_at)
+select namespace, device, ecu_serial, 0, created_at, updated_at
 from director.ecus e
 where e.primary = 1
-on duplicate key update primary_ecu_id = e.ecu_serial, created_at = e.created_at, updated_at = e.updated_at;
+on duplicate
+key update primary_ecu_id = e.ecu_serial, created_at = e.created_at, updated_at = e.updated_at;
 
 -- select count(*) from director.ecus where `primary` = 1 ;
 
@@ -98,8 +104,7 @@ DROP TEMPORARY TABLE IF EXISTS assignments_v1;
 create temporary table assignments_v1 AS
 select
   eua.namespace, eua.device_id, eua.ecu_id ecu_serial, et.id ecu_target_id, dua.correlation_id, dua.served in_flight, eua.created_at, eua.updated_at,
-   (ranked_eua.rank = 1 AND dct.device_current_target < eua.version) running,
-   eua.version ecu_version, ranked_eua.rank version_rank, dct.device_current_target
+   (ranked_eua.rank = 1 AND dct.device_current_target < eua.version) running, ranked_eua.rank version_rank, dct.device_current_target
 FROM director.ecu_update_assignments eua
 JOIN
   (select namespace, ecu_id, version, device_id, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY version DESC) rank from director.ecu_update_assignments) ranked_eua
@@ -109,11 +114,13 @@ JOIN director.device_current_target dct ON dct.device = eua.device_id
 JOIN director.device_update_assignments dua ON dua.namespace = eua.namespace AND dua.version = eua.version AND dua.device_id = eua.device_id
 ;
 
+create index if not exists assignments_v1_device_id_ecu_serial_idx on assignments_v1 (device_id, ecu_serial);
+
 -- WARNING: This makes the migration idempotent, however it might delete important data from director v2
 -- Before running this make sure this is what you want to do
 SELECT count(*) FROM director_v2.assignments a JOIN assignments_v1 USING (device_id, ecu_serial)
 ;
-DELETE FROM director_v2.assignments a JOIN assignments_v1 USING (device_id, ecu_serial)
+DELETE FROM director_v2.assignments where (device_id, ecu_serial) in (select device_id, ecu_serial from assignments_v1)
 ;
 
 -- RUNNING assignments
@@ -124,10 +131,20 @@ WHERE running = 1
 ;
 
 -- PROCESSED Assignments
-insert into director_v2.processed_assignments (namespace, device_id, ecu_serial, ecu_target_id, correlation_id, canceled, created_at, updated_at)
-select namespace, device_id, ecu_serial, ecu_target_id, correlation_id, 0, created_at, updated_at
+insert into director_v2.processed_assignments (namespace, device_id, ecu_serial, ecu_target_id, correlation_id, successful, canceled, created_at, updated_at)
+select namespace, device_id, ecu_serial, ecu_target_id, correlation_id, 1, 0, created_at, updated_at
 FROM assignments_v1
 WHERE running = 0
+;
+
+-- force metadata regeneration if there is a assignment with created_at > that the latest targets created_at
+UPDATE director_v2.devices SET generated_metadata_outdated = 1 where id in (
+  SELECT device_id FROM (
+    (select device_id, a.created_at assignment_created_at, fc.created_at targets_created_at, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY version DESC) version_rank FROM
+    assignments_v1 a JOIN director.file_cache fc ON a.device_id = fc.device where fc.role = 'TARGETS')
+  ) fc_ranked
+  WHERE version_rank = 1 AND fc_ranked.assignment_created_at > targets_created_at
+)
 ;
 
 -- control counts
@@ -148,8 +165,14 @@ WHERE running = 0
 -- select count(distinct correlation_id) from (select correlation_id from assignments a UNION select correlation_id from processed_assignments p) _t;
 
 insert into director_v2.auto_update_definitions (id, namespace, device_id, ecu_serial, target_name, deleted, created_at)
-select uuid(), namespace, device, ecu_serial, target_name, 0, '1970-01-01 00:00:00'
+select uuid() uuid, namespace, device, ecu_serial, target_name, 0, '1970-01-01 00:00:00'
 FROM director.auto_updates
+on duplicate key update device_id = device
+;
+
+insert into director_v2.signed_roles (role, version, device_id, content, created_at, updated_at, expires_at, checksum, `length`)
+select role, version, device, file_entity, created_at, updated_at, expires, NULL, NULL from director.file_cache fc
+on duplicate key update checksum=null,`length`= null, content = file_entity, created_at=fc.created_at, updated_at=fc.updated_at,expires_at=expires
 ;
 
 -- select count(*) from director.auto_updates ;

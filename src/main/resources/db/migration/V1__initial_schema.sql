@@ -2,7 +2,7 @@ CREATE TABLE `ecu_targets` (
   `namespace` varchar(200) NOT NULL,
   `id` char(36) NOT NULL,
   `filename` varchar(4096) NOT NULL,
-  `length` mediumtext NOT NULL,
+  `length` BIGINT NOT NULL,
   `checksum` varchar(254) NOT NULL,
   `sha256` char(64) NOT NULL,
   `uri` varchar(255) NULL,
@@ -10,7 +10,7 @@ CREATE TABLE `ecu_targets` (
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   PRIMARY KEY (`id`),
   INDEX ecu_targets_file_sha256_idx(namespace, `filename`(500), sha256)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 CREATE TABLE `ecus` (
@@ -25,7 +25,7 @@ CREATE TABLE `ecus` (
   INDEX `ecu_namespace_idx` (`namespace`),
   PRIMARY KEY (`device_id`,`ecu_serial`),
   CONSTRAINT `ecu_current_target_fk` FOREIGN KEY (`current_target`) REFERENCES ecu_targets(`id`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 CREATE TABLE `devices` (
@@ -34,10 +34,11 @@ CREATE TABLE `devices` (
   `primary_ecu_id` varchar(64) NOT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+  `generated_metadata_outdated` BOOLEAN NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `devices_unique_id` UNIQUE (`id`),
   CONSTRAINT `primary_ecu_fk` FOREIGN KEY (`id`, `primary_ecu_id`) REFERENCES ecus(`device_id`, `ecu_serial`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 
@@ -45,14 +46,14 @@ CREATE TABLE `signed_roles` (
   `role` enum('ROOT','SNAPSHOT','TARGETS','TIMESTAMP') NOT NULL,
   `version` int(11) NOT NULL,
   `device_id` char(36) NOT NULL,
-  `checksum` varchar(254) NOT NULL,
-  `length` bigint(20) NOT NULL,
+  `checksum` varchar(254) NULL,
+  `length` bigint NULL,
   `content` longtext NOT NULL,
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   `expires_at` datetime(3) NOT NULL,
   PRIMARY KEY (`device_id`, `role`,`version`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 CREATE TABLE `hardware_updates` (
@@ -67,7 +68,7 @@ CREATE TABLE `hardware_updates` (
   PRIMARY KEY (`id`,`hardware_identifier`),
   CONSTRAINT `hardware_updates_to_target_fk` FOREIGN KEY (`to_target_id`) REFERENCES ecu_targets(`id`),
   CONSTRAINT `hardware_updates_from_target_fk` FOREIGN KEY (`from_target_id`) REFERENCES ecu_targets(`id`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 
@@ -77,7 +78,7 @@ CREATE TABLE `repo_namespaces` (
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
   PRIMARY KEY (`namespace`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 
@@ -100,7 +101,7 @@ CREATE TABLE `assignments` (
   INDEX `assignments_ecu_serial_idx` (`ecu_serial`),
 
   PRIMARY KEY (`device_id`, `ecu_serial`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 CREATE TABLE `processed_assignments` (
@@ -110,6 +111,8 @@ CREATE TABLE `processed_assignments` (
   `ecu_target_id` char(36) NOT NULL,
   `correlation_id` varchar(255) NOT NULL,
   `canceled` BOOLEAN NOT NULL,
+  `successful` BOOLEAN NOT NULL,
+  `result_desc` TEXT NULL,
 
   `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
   `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
@@ -119,7 +122,7 @@ CREATE TABLE `processed_assignments` (
   CONSTRAINT `p_assignments_ecu_target_fk` FOREIGN KEY (`ecu_target_id`) REFERENCES ecu_targets(`id`),
   CONSTRAINT `p_assignments_ecu_fk` FOREIGN KEY (`device_id`, `ecu_serial`) REFERENCES ecus(`device_id`, `ecu_serial`),
   CONSTRAINT `p_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;
 
 CREATE TABLE `auto_update_definitions` (
@@ -143,5 +146,16 @@ CREATE TABLE `auto_update_definitions` (
   CONSTRAINT `auto_update_definitions_ecu_fk` FOREIGN KEY (`device_id`, `ecu_serial`) REFERENCES ecus(`device_id`, `ecu_serial`),
   CONSTRAINT `auto_update_definitions_assignments_device_fk` FOREIGN KEY (`device_id`) REFERENCES devices(`id`)
 
-)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+;
+
+CREATE TABLE `device_manifests` (
+  `device_id` char(36) NOT NULL,
+  `sha256` char(64) NOT NULL,
+  `manifest` longtext NOT NULL,
+  `received_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `created_at` datetime(3) NOT NULL DEFAULT current_timestamp(3),
+  `updated_at` datetime(3) NOT NULL DEFAULT current_timestamp(3) ON UPDATE current_timestamp(3),
+  PRIMARY KEY (`device_id`, `sha256`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 ;

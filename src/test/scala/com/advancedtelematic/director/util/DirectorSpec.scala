@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.{HttpRequest, headers}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.http.AdminResources
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.test.InstantMatchers
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.scalacheck.Gen
 import org.scalactic.source.Position
@@ -13,9 +14,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FunSuite, Matchers, Tag}
 
 trait NamespacedTests {
-//  def withNamespace[T](ns: String)(fn: Namespace => T): T =
-//    fn(Namespace(ns))
-
   def withRandomNamespace[T](fn: Namespace => T): T =
     fn(Namespace(Gen.alphaChar.listBetween(100,150).generate.mkString))
 
@@ -30,7 +28,9 @@ object NamespacedTests extends NamespacedTests
 abstract class DirectorSpec extends FunSuite
   with Matchers
   with ScalaFutures
-  with NamespacedTests {
+  with NamespacedTests
+  with InstantMatchers
+  with DefaultPatience {
 
   Security.addProvider(new BouncyCastleProvider())
 

@@ -1,6 +1,6 @@
-name := "director"
+name := "director-v2"
 organization := "com.advancedtelematic"
-scalaVersion := "2.12.8"
+scalaVersion := "2.12.10"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 
@@ -9,13 +9,12 @@ resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/
 resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.20"
-  val akkaHttpV = "10.1.7"
-  val scalaTestV = "3.0.5"
+  val akkaV = "2.5.25"
+  val akkaHttpV = "10.1.10"
+  val scalaTestV = "3.0.8"
   val bouncyCastleV = "1.57"
-  val tufV = "0.7.0-35-g80e9488"
-  val libatsV = "0.3.0-39-g8132920"
-  val circeConfigV = "0.0.2"
+  val tufV = "0.7.0-68-g13c41f1"
+  val libatsV = "0.3.0-96-g53c7429"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -24,11 +23,10 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV,
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
-    "org.scalatest"     %% "scalatest" % scalaTestV % "test",
+    "org.scalatest"     %% "scalatest" % scalaTestV % Test,
+    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
     "ch.qos.logback" % "logback-classic" % "1.1.3",
-
-    "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
     "com.advancedtelematic" %% "libats" % libatsV,
     "com.advancedtelematic" %% "libats-messaging" % libatsV,
@@ -41,7 +39,6 @@ libraryDependencies ++= {
     "com.advancedtelematic" %% "libats-auth" % libatsV,
     "com.advancedtelematic" %% "libtuf" % tufV,
     "com.advancedtelematic" %% "libtuf-server" % tufV,
-    "com.advancedtelematic" %% "circe-config" % circeConfigV,
 
     "org.bouncycastle" % "bcprov-jdk15on" % bouncyCastleV,
     "org.bouncycastle" % "bcpkix-jdk15on" % bouncyCastleV,
@@ -56,26 +53,20 @@ scalacOptions in Compile ++= Seq(
   "-deprecation",
     "-feature",
   "-Xlog-reflective-calls",
-//  "-Xlint",
-//  "-Ywarn-unused-import",
-//  "-Ywarn-dead-code",
   "-Yno-adapted-args",
   "-Ypartial-unification"
 )
-
-// scalacOptions in (Compile, console) ~= (_.filterNot(_ == "-Ywarn-unused-import"))
 
 testOptions in Test ++= Seq(
   Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
   Tests.Argument(TestFrameworks.ScalaTest, "-oDS")
 )
 
-enablePlugins(BuildInfoPlugin)
+enablePlugins(BuildInfoPlugin, GitVersioning, JavaAppPackaging)
 
 buildInfoOptions += BuildInfoOption.ToMap
 
 buildInfoOptions += BuildInfoOption.BuildTime
-
 
 mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 
@@ -89,6 +80,8 @@ dockerUpdateLatest := true
 
 defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
 
+dockerAliases ++= Seq(dockerAlias.value.withTag(git.gitHeadCommit.value))
+
 dockerCommands := Seq(
   Cmd("FROM", "advancedtelematic/alpine-jre:8u191-jre-alpine3.9"),
   Cmd("RUN", "apk update && apk add --update bash coreutils"),
@@ -101,14 +94,7 @@ dockerCommands := Seq(
   Cmd("USER", "daemon")
 )
 
-enablePlugins(JavaAppPackaging)
-
-Revolver.settings
-
-Versioning.settings
 
 Release.settings
-
-enablePlugins(Versioning.Plugin)
 
 fork := true

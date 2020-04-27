@@ -8,10 +8,6 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import UptaneDataType._
 import io.circe._
 import AdminDataType._
-import DbDataType.Assignment
-import com.advancedtelematic.director.data.AssignmentDataType.CancelAssignments
-import com.advancedtelematic.libats.data.DataType.HashMethod
-import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
 
 object Codecs {
   import DeviceRequest._
@@ -83,8 +79,5 @@ object Codecs {
 
   implicit val targetsCustomEncoder: Encoder[DeviceTargetsCustom] = deriveEncoder
   implicit val targetsCustomDecoder: Decoder[DeviceTargetsCustom] = deriveDecoder
-
-  implicit val cancelDevicesEncoder: Encoder[CancelAssignments] = deriveEncoder
-  implicit val cancelDevicesDecoder: Decoder[CancelAssignments] = deriveDecoder
 }
 

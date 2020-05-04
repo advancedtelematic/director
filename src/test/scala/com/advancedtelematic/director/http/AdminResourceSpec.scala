@@ -174,7 +174,7 @@ class AdminResourceSpec extends DirectorSpec
     }
 
     Put(apiUri(s"admin/devices/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.Created
+      status shouldBe StatusCodes.Accepted
     }
 
     Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {

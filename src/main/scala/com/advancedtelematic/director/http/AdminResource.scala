@@ -106,13 +106,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
           complete(f)
         } ~
       (path("targets.json") & put) {
-        complete(deviceRoleGeneration.forceTargetsRefresh(ns, device).map(StatusCodes.Created -> _))
+        complete(deviceRoleGeneration.forceTargetsRefresh(ns, device).map(_ => StatusCodes.Accepted))
       }
     }
 
   val route: Route = extractNamespace { ns =>
     pathPrefix("admin") {
-      repoRoute(ns) ~
+      concat(
+        repoRoute(ns),
         pathPrefix("images") {
           (post & path("installed_count")) { // this is post because front-end can't send
             entity(as[FindImageCount]) { findImageReq =>
@@ -120,28 +121,30 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
               complete(f)
             }
           }
-        } ~
+        },
         pathPrefix("devices") {
           UserRepoId(ns) { repoId =>
-            pathEnd {
-              (post & entity(as[RegisterDevice])) { regDev =>
-                if (regDev.deviceId.isEmpty)
-                  reject(ValidationRejection("deviceId is required to register a device"))
-                else {
-                  val f = deviceRegistration.register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
-                  complete(f.map(_ => StatusCodes.Created))
+            concat(
+              pathEnd {
+                (post & entity(as[RegisterDevice])) { regDev =>
+                  if (regDev.deviceId.isEmpty)
+                    reject(ValidationRejection("deviceId is required to register a device"))
+                  else {
+                    val f = deviceRegistration.register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
+                    complete(f.map(_ => StatusCodes.Created))
+                  }
                 }
-              }
-            } ~
+              },
               (get & path("hardware_identifiers")) {
                 PaginationParameters { (limit, offset) =>
                   val f = ecuRepository.findAllHardwareIdentifiers(ns, offset, limit)
                   complete(f)
                 }
-              } ~
+              },
               devicePath(ns)
+            )
           }
-        }
+        })
     }
   }
 }

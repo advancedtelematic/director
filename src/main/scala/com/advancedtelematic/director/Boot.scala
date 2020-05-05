@@ -3,6 +3,8 @@ package com.advancedtelematic.director
 
 import java.security.Security
 
+import akka.event.Logging
+import akka.event.Logging.LogLevel
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
@@ -68,7 +70,7 @@ object Boot extends BootApp
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
+    (logRequestResult("directorv2-request-result" -> Logging.DebugLevel) & versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
         new DirectorRoutes(keyserverClient).routes
     }

@@ -166,14 +166,15 @@ and fc.role = sr.role and fc.version = sr.version where fc.expires <> sr.expires
 
 -- depending on above query, use `on duplicate key` or `where` to make this idempotent
 -- on duplicate key update checksum=null,`length`= null, content = file_entity, created_at=fc.created_at, updated_at=fc.updated_at,expires_at=expires
+-- where (device, role, version) not in (select device_id, role, version from signed_roles)
 insert into director_v2.signed_roles (role, version, device_id, content, created_at, updated_at, expires_at, checksum, `length`)
 select role, version, device, file_entity, created_at, updated_at, expires, NULL, NULL from director.file_cache fc
-where (device, role, version) not in (select device_id, role, version from signed_roles)
+on duplicate key update checksum=null,`length`= null, content = file_entity, created_at=fc.created_at, updated_at=fc.updated_at,expires_at=expires
 ;
 
 -- select count(*) from director.auto_updates ;
 
--- force metadata regeneration if there is a assignment with created_at > that the latest targets created_at
+-- force metadata regeneration if there is a assignment with created_at > than the latest targets created_at
 UPDATE director_v2.devices SET generated_metadata_outdated = 1 where id in (
   SELECT device_id FROM (
     (select device_id, a.created_at assignment_created_at, fc.created_at targets_created_at, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY version DESC) version_rank FROM

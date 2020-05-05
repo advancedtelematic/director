@@ -1,6 +1,4 @@
-# director-lite
-
-Like director, but lighter.
+# director
 
 This is part of the ATS open-source over-the-air (OTA) server software
 available on [Github](https://github.com/advancedtelematic),

@@ -3,8 +3,6 @@ package com.advancedtelematic.director
 
 import java.security.Security
 
-import akka.event.Logging
-import akka.event.Logging.LogLevel
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
@@ -16,7 +14,7 @@ import com.advancedtelematic.libats.http.monitoring.ServiceHealthCheck
 import com.advancedtelematic.libats.http.tracing.Tracing
 import com.advancedtelematic.libats.http.tracing.Tracing.ServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
-import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.slick.db.{CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
@@ -70,7 +68,7 @@ object Boot extends BootApp
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-    (logRequestResult("directorv2-request-result" -> Logging.DebugLevel) & versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
+    (logRequestResult("directorv2-request-result" -> requestLogLevel) & versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
         new DirectorRoutes(keyserverClient).routes
     }

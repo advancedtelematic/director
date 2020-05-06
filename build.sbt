@@ -4,17 +4,17 @@ scalaVersion := "2.12.10"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8", "-Ypartial-unification")
 
-resolvers += "ATS Releases" at "http://nexus.advancedtelematic.com:8081/content/repositories/releases"
+resolvers += "ATS Releases" at "https://nexus.ota.here.com/content/repositories/releases"
 
-resolvers += "ATS Snapshots" at "http://nexus.advancedtelematic.com:8081/content/repositories/snapshots"
+resolvers += "ATS Snapshots" at "https://nexus.ota.here.com/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.25"
-  val akkaHttpV = "10.1.10"
+  val akkaV = "2.5.26"
+  val akkaHttpV = "10.1.11"
   val scalaTestV = "3.0.8"
-  val bouncyCastleV = "1.57"
-  val tufV = "0.7.0-68-g13c41f1"
-  val libatsV = "0.3.0-96-g53c7429"
+  val bouncyCastleV = "1.59"
+  val tufV = "0.7.1"
+  val libatsV = "0.3.0-102-g4f219de"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -25,8 +25,6 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "org.scalatest"     %% "scalatest" % scalaTestV % Test,
     "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
-
-    "ch.qos.logback" % "logback-classic" % "1.1.3",
 
     "com.advancedtelematic" %% "libats" % libatsV,
     "com.advancedtelematic" %% "libats-messaging" % libatsV,
@@ -71,20 +69,25 @@ buildInfoOptions += BuildInfoOption.BuildTime
 mainClass in Compile := Some("com.advancedtelematic.director.Boot")
 
 import com.typesafe.sbt.packager.docker._
+import sbt.Keys._
+import com.typesafe.sbt.SbtNativePackager.Docker
+import DockerPlugin.autoImport._
+import com.typesafe.sbt.SbtGit.git
+import com.typesafe.sbt.SbtNativePackager.autoImport._
+import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 
-dockerRepository := Some("advancedtelematic")
+dockerRepository in Docker := Some("advancedtelematic")
 
 packageName in Docker := packageName.value
 
 dockerUpdateLatest := true
 
-defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
-
 dockerAliases ++= Seq(dockerAlias.value.withTag(git.gitHeadCommit.value))
 
+defaultLinuxInstallLocation in Docker := s"/opt/${moduleName.value}"
+
 dockerCommands := Seq(
-  Cmd("FROM", "advancedtelematic/alpine-jre:8u191-jre-alpine3.9"),
-  Cmd("RUN", "apk update && apk add --update bash coreutils"),
+  Cmd("FROM", "advancedtelematic/alpine-jre:adoptopenjdk-jdk8u222"),
   ExecCmd("RUN", "mkdir", "-p", s"/var/log/${moduleName.value}"),
   Cmd("ADD", "opt /opt"),
   Cmd("WORKDIR", s"/opt/${moduleName.value}"),
@@ -93,8 +96,5 @@ dockerCommands := Seq(
   Cmd("RUN", s"chown -R daemon:daemon /var/log/${moduleName.value}"),
   Cmd("USER", "daemon")
 )
-
-
-Release.settings
 
 fork := true

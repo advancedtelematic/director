@@ -18,7 +18,6 @@ object ErrorCodes {
 
   val DeviceMissingPrimaryEcu = ErrorCode("device_missing_primary_ecu")
   val NoRepoForNamespace = ErrorCode("no_repo_for_namespace")
-  val NoDevicesAffected = ErrorCode("no_devices_affected_by_assignment")
 
   object Manifest {
     val EcuNotPrimary = ErrorCode("ecu_not_primary")
@@ -33,10 +32,6 @@ object Errors {
   val PrimaryIsNotListedForDevice = RawError(ErrorCodes.PrimaryIsNotListedForDevice, StatusCodes.BadRequest, "The given primary ecu isn't part of ecus for the device")
 
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
-
-  val NoDevicesAffected = RawError(ErrorCodes.NoDevicesAffected, StatusCodes.BadRequest, "No devices affected by assignment")
-
-  def AssignmentExists(ecuIds: Seq[EcuIdentifier]) = RawError(ErrorCodes.AssignmentExists, StatusCodes.Conflict, s"""an assignment already exists for ecus: ${ecuIds.mkString(",")}""")
 
   def InvalidVersionBumpError(oldVersion: Int, newVersion: Int, roleType: RoleType) =
     RawError(ErrorCode("invalid_version_bump"), StatusCodes.Conflict, s"Cannot bump version from $oldVersion to $newVersion for $roleType")

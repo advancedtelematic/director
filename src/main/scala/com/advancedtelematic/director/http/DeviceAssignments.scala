@@ -2,7 +2,6 @@ package com.advancedtelematic.director.http
 
 import java.time.Instant
 
-import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.QueueResponse
 import com.advancedtelematic.director.data.DbDataType.Assignment
@@ -57,25 +56,35 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
     val hardwareUpdates = await(hardwareUpdateRepository.findBy(ns, mtuId))
 
     val allTargetIds = hardwareUpdates.values.flatMap(v => List(v.toTarget.some, v.fromTarget).flatten)
-    val hh = await(ecuTargetsRepository.findAll(ns, allTargetIds.toSeq))
+    val allTargets = await(ecuTargetsRepository.findAll(ns, allTargetIds.toSeq))
 
-    await(ecuRepository.findEcuWithTargets(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { case (ecu, installedTarget) =>
+    val ecus = await(ecuRepository.findEcuWithTargets(devices.toSet, hardwareUpdates.keys.toSet)).flatMap { case (ecu, installedTarget) =>
       val hwUpdate = hardwareUpdates(ecu.hardwareId)
-      val updateFrom = hwUpdate.fromTarget.flatMap(hh.get)
-      val updateTo = hh(hwUpdate.toTarget)
+      val updateFrom = hwUpdate.fromTarget.flatMap(allTargets.get)
+      val updateTo = allTargets(hwUpdate.toTarget)
 
       if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
         if(installedTarget.exists(_.matches(updateTo))) {
-          _log.debug(s"Ecu ${ecu.ecuSerial} not affected for $hwUpdate")
+          _log.debug(s"Ecu ${ecu.deviceId}/${ecu.ecuSerial} not affected for $hwUpdate, installed target is already the target update")
           None
         } else {
-          _log.info(s"${ecu.ecuSerial} affected for $hwUpdate")
+          _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} affected for $hwUpdate")
           Some(ecu -> hwUpdate.toTarget)
         }
       } else {
-        _log.debug(s"ecu ${ecu.ecuSerial} not affected by $mtuId")
+        _log.debug(s"ecu ${ecu.deviceId}${ecu.ecuSerial} not affected by $mtuId")
         None
       }
+    }
+
+    val ecusWithAssignments = await(assignmentsRepository.withAssignments(ecus.map(_._1.ecuSerial).toSet))
+
+    ecus.flatMap {
+      case (ecu, _) if ecusWithAssignments.contains(ecu.ecuSerial) =>
+        _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} not affected because it has a running assignment")
+        None
+      case other =>
+        Some(other)
     }
   }
 
@@ -86,20 +95,20 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
   def createForDevices(ns: Namespace, correlationId: CorrelationId, devices: Seq[DeviceId], mtuId: UpdateId): Future[Seq[Assignment]] = async {
     val ecus = await(findAffectedEcus(ns, devices, mtuId))
 
-    if(ecus.isEmpty)
-      throw Errors.NoDevicesAffected
+    _log.debug(s"$ns $correlationId $devices $mtuId")
 
-    val assignments = ecus.foldLeft(List.empty[Assignment]) { case (acc, (ecu, toTargetId)) =>
-      Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false) :: acc
+    if(ecus.isEmpty) {
+      _log.warn(s"No devices affected for this assignment: $ns, $correlationId, $devices, $mtuId")
+      Seq.empty[Assignment]
+    } else {
+      val assignments = ecus.foldLeft(List.empty[Assignment]) { case (acc, (ecu, toTargetId)) =>
+        Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false) :: acc
+      }
+
+      await(assignmentsRepository.persistMany(deviceRepository)(assignments))
+
+      assignments
     }
-
-    val ecusWithAssignments = await(assignmentsRepository.withAssignments(assignments.map(_.ecuId).toSet))
-    if(ecusWithAssignments.nonEmpty)
-      throw Errors.AssignmentExists(ecusWithAssignments)
-
-    await(assignmentsRepository.persistMany(deviceRepository)(assignments))
-
-    assignments
   }
 
   def cancel(namespace: Namespace, devices: Seq[DeviceId])(implicit messageBusPublisher: MessageBusPublisher): Future[Seq[Assignment]] = {

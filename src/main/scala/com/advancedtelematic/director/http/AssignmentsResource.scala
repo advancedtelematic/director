@@ -53,7 +53,10 @@ class AssignmentsResource(extractNamespace: Directive1[Namespace])
               val f = deviceAssignments.findAffectedDevices(ns, req.devices, req.mtuId)
               complete(f)
             } else {
-              val f = createAssignments(ns, req).map(StatusCodes.Created -> _)
+              val f = createAssignments(ns, req).map {
+                case affected if affected.nonEmpty => StatusCodes.Created -> affected
+                case affected => StatusCodes.OK -> affected
+              }
               complete(f)
             }
           }

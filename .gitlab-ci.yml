@@ -1,7 +1,10 @@
 stages:
+  - prepare
   - test
   - build image
   - trigger deploy
+  - update deployment
+  - integration test
   - veracode scan
   - deps scan
   - generate pages
@@ -9,8 +12,8 @@ stages:
 variables:
   MYSQL_ROOT_PASSWORD: "root"
   MYSQL_DATABASE: "director_test"
-  MYSQL_USER: "director"
-  MYSQL_PASSWORD: "director"
+  MYSQL_USER: "director_v2"
+  MYSQL_PASSWORD: "director_v2"
   VAULT_ADDR: "http://vault.sit-ota.aws.in.here.com"
   SERVICE_IMAGE: "advancedtelematic/director"
 
@@ -25,6 +28,8 @@ default:
 
 test:
   stage: test
+  tags:
+    - docker-sock
   image: advancedtelematic/gitlab-jobs:0.2.3
   except:
     refs:
@@ -32,11 +37,11 @@ test:
   variables:
     DB_URL: "jdbc:mariadb://db:3306/$MYSQL_DATABASE"
   before_script:
-    - echo "GRANT ALL PRIVILEGES ON \`director_test%\`.* TO 'director'@'%'; FLUSH PRIVILEGES; " > db_user.sql
+    - echo "GRANT ALL PRIVILEGES ON \`director%\`.* TO 'director_v2'@'%'; FLUSH PRIVILEGES; " > db_user.sql
     - mysqladmin ping --protocol=TCP -h db -P 3306 -u root -proot
     - mysql -v -h db -u root -proot < db_user.sql
   script:
-    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 clean compile coverage test coverageReport sonarScan
+    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 clean coverage compile test coverageReport
   cache:
     paths:
       - .ivy2/
@@ -60,7 +65,7 @@ build docker image:
     - env | sort
     - export VAULT_TOKEN=$(cat /opt/vault/token)
     - gitlab-docker-login $VAULT_ADDR
-    - sbt -x -sbt-dir ./.sbt -ivy ./.ivy2 -batch "release with-defaults"
+    - sbt -x -sbt-dir ./.sbt -ivy ./.ivy2 -batch docker:publish
   cache:
     paths:
       - .ivy2/
@@ -140,3 +145,6 @@ pages:
       - public
     expire_in: 64 days
 
+include:
+  - project: olp/edge/ota/testing/dynamic-hats
+    file: /.gitlab-ci.yml

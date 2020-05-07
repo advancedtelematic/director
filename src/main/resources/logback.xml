@@ -1,4 +1,4 @@
 <configuration>
-    <logger name="com.advancedtelematic.director.manifest" level="debug" />
+    <logger name="com.advancedtelematic.director.manifest" level="${MANIFEST_COMPILER_LOG_LEVEL:-info}" />
     <include resource="logback-libats.xml"/>
 </configuration>

@@ -1,117 +1,171 @@
 package com.advancedtelematic.director.data
 
+import java.security.PublicKey
+import java.time.Instant
+import java.util.UUID
+
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
+import com.advancedtelematic.director.data.UptaneDataType._
+import com.advancedtelematic.director.data.DbDataType.Ecu
+import com.advancedtelematic.director.data.UptaneDataType.{Hashes, TargetImage}
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libtuf.data.ClientDataType.ClientHashes
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName, TufKey}
-import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
+import com.advancedtelematic.libats.messaging_datatype.MessageLike
+import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
+import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
 import io.circe.Json
-import java.time.Instant
+import io.circe.syntax._
+import cats.syntax._
+import cats.implicits._
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
-import com.advancedtelematic.libats.data.EcuIdentifier
+object DbDataType {
+  case class AutoUpdateDefinitionId(uuid: UUID) extends UUIDKey
+  object AutoUpdateDefinitionId extends UUIDKeyObj[AutoUpdateDefinitionId]
 
+  final case class AutoUpdateDefinition(id: AutoUpdateDefinitionId, namespace: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName)
 
-object FileCacheRequestStatus extends Enumeration {
-  type FileCacheRequestStatus = Value
+  final case class DeviceKnownState(deviceId: DeviceId,
+                                    primaryEcu: EcuIdentifier,
+                                    ecuStatus: Map[EcuIdentifier, Option[EcuTargetId]],
+                                    ecuTargets: Map[EcuTargetId, EcuTarget],
+                                    currentAssignments: Set[Assignment],
+                                    processedAssignments: Set[ProcessedAssignment],
+                                    generatedMetadataOutdated: Boolean)
 
-  val SUCCESS, ERROR, PENDING = Value
+  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdaded: Boolean)
+
+  final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
+                       hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])
+
+  final case class DbSignedRole(role: RoleType, device: DeviceId, checksum: Option[Checksum], length: Option[Long], version: Int, expires: Instant, content: JsonSignedPayload)
+
+  implicit class DbDSignedRoleToSignedPayload(value: DbSignedRole) {
+    def toSignedRole[T : TufRole]: SignedRole[T] = {
+      val (checksum, length) = value.checksum.product(value.length).getOrElse {
+        val canonicalJson = value.content.asJson.canonical
+        val checksum = Sha256Digest.digest(canonicalJson.getBytes)
+        val length = canonicalJson.length
+        checksum -> length.toLong
+      }
+
+      SignedRole[T](value.content, checksum, length, value.version, value.expires)
+    }
+  }
+
+  implicit class SignedPayloadToDbSignedRole[_](value: SignedRole[_]) {
+    def toDbSignedRole(deviceId: DeviceId): DbSignedRole =
+      DbDataType.DbSignedRole(value.tufRole.roleType, deviceId, value.checksum.some, value.length.some, value.version, value.expiresAt, value.content)
+  }
+
+  final case class HardwareUpdate(namespace: Namespace,
+                                  id: UpdateId,
+                                  hardwareId: HardwareIdentifier,
+                                  fromTarget: Option[EcuTargetId],
+                                  toTarget: EcuTargetId)
+
+  case class EcuTargetId(uuid: UUID) extends UUIDKey
+  object EcuTargetId extends UUIDKeyObj[EcuTargetId]
+
+  case class EcuTarget(ns: Namespace, id: EcuTargetId, filename: TargetFilename, length: Long,
+                       checksum: Checksum,
+                       sha256: SHA256Checksum,
+                       uri: Option[Uri]) {
+    def matches(other: EcuTarget): Boolean = {
+      filename == other.filename &&
+        length == other.length &&
+        sha256 == other.sha256
+    }
+  }
+
+  case class Assignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
+                        correlationId: CorrelationId, inFlight: Boolean) {
+
+    def toProcessedAssignment(successful: Boolean, canceled: Boolean = false, result: Option[String] = None): ProcessedAssignment =
+      ProcessedAssignment(ns, deviceId, ecuId, ecuTargetId, correlationId, successful, result, canceled)
+  }
+
+  case class ProcessedAssignment(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, ecuTargetId: EcuTargetId,
+                                 correlationId: CorrelationId, successful: Boolean, result: Option[String], canceled: Boolean)
+
+  type SHA256Checksum = Refined[String, ValidChecksum]
 }
 
-object DataType {
-  import RoleType.RoleType
+object AdminDataType {
+  final case class EcuInfoImage(filepath: TargetFilename, size: Long, hash: Hashes)
+  final case class EcuInfoResponse(id: EcuIdentifier, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
 
-  // we need to figure out a better way to generalise this, but
-  // Map[HashMethod, Refined[String, ValidChecksum]] dosen't work
-  // for two reasons:
-  //   1. The standard decoder don't ignore unknown HashMethods
-  //   2. The ValidChecksum contains a length
+  final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate)
+
+  final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long, uri: Option[Uri])
+
+  final case class MultiTargetUpdate(targets: Map[HardwareIdentifier, TargetUpdateRequest])
+
+  final case class RegisterEcu(ecu_serial: EcuIdentifier, hardware_identifier: HardwareIdentifier, clientKey: TufKey) {
+    def keyType: KeyType = clientKey.keytype
+    def publicKey: PublicKey = clientKey.keyval
+
+    def toEcu(ns: Namespace, deviceId: DeviceId): Ecu = Ecu(ecu_serial, deviceId, ns, hardware_identifier, clientKey, installedTarget = None)
+  }
+
+  final case class RegisterDevice(deviceId: Option[DeviceId], primary_ecu_serial: EcuIdentifier, ecus: Seq[RegisterEcu])
+
+  final case class AssignUpdateRequest(correlationId: CorrelationId,
+                                       devices: Seq[DeviceId],
+                                       mtuId: UpdateId,
+                                       dryRun: Option[Boolean] = None)
+
+  final case class QueueResponse(correlationId: CorrelationId, targets: Map[EcuIdentifier, TargetImage], inFlight: Boolean)
+
+  final case class FindImageCount(filepaths: Seq[TargetFilename])
+}
+
+object UptaneDataType {
   final case class Hashes(sha256: Refined[String, ValidChecksum]) {
     def toClientHashes: ClientHashes = Map(HashMethod.SHA256 -> sha256)
   }
 
   final case class FileInfo(hashes: Hashes, length: Long)
-  final case class Image(filepath: TargetFilename, fileinfo: FileInfo) {
-    @deprecated("0.7.1", "decoder that uses this method is deprecated")
-    def toTargetUpdate: TargetUpdate = {
-      val checksum = Checksum(HashMethod.SHA256, fileinfo.hashes.sha256)
-      TargetUpdate(filepath, checksum, fileinfo.length, uri = None)
+  final case class Image(filepath: TargetFilename, fileinfo: FileInfo)
+  final case class TargetImage(image: Image, uri: Option[Uri])
+
+  object Hashes {
+    def apply(checksum: Checksum): Hashes = {
+      require(checksum.method == HashMethod.SHA256)
+      Hashes(checksum.hash)
     }
   }
+}
 
-  final case class CustomImage(image: Image, uri: Option[Uri], diffFormat: Option[TargetFormat])
-  final case class TargetCustomImage(image: Image, hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
+// Move to libats-messaging if some service needs these messages
+object Messages {
+  import DeviceId._
+  import cats.syntax.show._
+  import com.advancedtelematic.libtuf.data.TufCodecs._
+  import com.advancedtelematic.libats.codecs.CirceCodecs._
+  import com.advancedtelematic.libtuf.data.TufCodecs._
 
-  final case class DiffInfo(checksum: Checksum, size: Long, url: Uri)
+  case class DeviceManifestReported(namespace: Namespace, deviceId: DeviceId, manifest: SignedPayload[Json], receivedAt: Instant)
 
-  final case class TargetCustomUri(hardwareId: HardwareIdentifier, uri: Option[Uri], diff: Option[DiffInfo])
-  final case class TargetCustom(@deprecated("use ecuIdentifiers", "") ecuIdentifier: EcuIdentifier,
-                                hardwareId: HardwareIdentifier,
-                                uri: Option[Uri], diff: Option[DiffInfo],
-                                ecuIdentifiers: Map[EcuIdentifier, TargetCustomUri])
+  implicit val deviceManifestReportedCodecs = io.circe.generic.semiauto.deriveCodec[DeviceManifestReported]
 
-  final case class Ecu(ecuSerial: EcuIdentifier, device: DeviceId, namespace: Namespace, primary: Boolean,
-                       hardwareId: HardwareIdentifier, tufKey: TufKey)
+  implicit val msgLike = MessageLike[DeviceManifestReported](_.deviceId.show)
+}
 
-  final case class CurrentImage (namespace: Namespace, ecuSerial: EcuIdentifier, image: Image, attacksDetected: String)
+object DataType {
+  final case class TargetItemCustomEcuData(hardwareId: HardwareIdentifier)
 
-  final case class EcuTarget(namespace: Namespace, version: Int, ecuIdentifier: EcuIdentifier, customImage: CustomImage)
-
-  final case class EcuUpdateAssignment(namespace: Namespace,
-                                   deviceId: DeviceId,
-                                   ecuIdentifier: EcuIdentifier,
-                                   version: Int,
-                                   customImage: CustomImage)
-
-  final case class DeviceUpdateAssignment(
-    namespace: Namespace,
-    deviceId: DeviceId,
-    correlationId: Option[CorrelationId],
-    updateId: Option[UpdateId],
-    version: Int,
-    served: Boolean)
+  final case class TargetItemCustom(uri: Option[Uri],
+                                    ecuIdentifiers: Map[EcuIdentifier, TargetItemCustomEcuData])
 
   final case class DeviceUpdateTarget(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], targetVersion: Int, inFlight: Boolean)
 
-  final case class DeviceCurrentTarget(device: DeviceId, targetVersion: Int)
-
-  final case class FileCache(role: RoleType, version: Int, device: DeviceId, expires: Instant, file: Json)
-
-  final case class FileCacheRequest(namespace: Namespace, targetVersion: Int, device: DeviceId,
-                                    status: FileCacheRequestStatus, timestampVersion: Int,
-                                    correlationId: Option[CorrelationId] = None)
-
-  final case class RepoName(namespace: Namespace, repoId: RepoId)
-
-  final case class MultiTargetUpdateRow(id: UpdateId, hardwareId: HardwareIdentifier, fromTarget: Option[TargetUpdate],
-                                        toTarget: TargetUpdate, targetFormat: TargetFormat, generateDiff: Boolean,
-                                        namespace: Namespace) {
-    lazy val targetUpdateRequest: TargetUpdateRequest = TargetUpdateRequest(fromTarget, toTarget, targetFormat, generateDiff)
-  }
-
-  final case class TargetUpdate(target: TargetFilename, checksum: Checksum, targetLength: Long, uri: Option[Uri]) {
-    lazy val image: Image = {
-      val hashes = Hashes(checksum.hash)
-      Image(target, FileInfo(hashes, targetLength))
-    }
-  }
-
-  final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate, targetFormat: TargetFormat,
-                                       generateDiff: Boolean)
-
-  final case class MultiTargetUpdateRequest(targets: Map[HardwareIdentifier, TargetUpdateRequest]) {
-    def multiTargetUpdateRows(id: UpdateId, namespace: Namespace): Seq[MultiTargetUpdateRow] =
-      targets.toSeq.map { case (hardwareId, TargetUpdateRequest(from, target, format, diff)) =>
-        MultiTargetUpdateRow(id = id, hardwareId = hardwareId, fromTarget = from,
-                             toTarget = target, targetFormat = format, generateDiff = diff,
-                             namespace = namespace)
-      }
-  }
-
-  final case class AutoUpdate(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier, targetName: TargetName)
-
-  final case class TargetsCustom(correlationId: Option[CorrelationId])
-
+  final case class DeviceTargetsCustom(correlationId: Option[CorrelationId])
 }

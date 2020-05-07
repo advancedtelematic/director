@@ -1,0 +1,70 @@
+package com.advancedtelematic.director.http
+
+import java.time.Instant
+
+import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{Directive1, Route}
+import com.advancedtelematic.director.db.EcuRepositorySupport
+import com.advancedtelematic.director.http.PaginationParametersDirectives._
+import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
+import com.advancedtelematic.libats.http.UUIDKeyAkka._
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DirectorVersion, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent, NamespaceDirectorChanged}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.Codec
+import slick.jdbc.MySQLProfile.api._
+import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+object LegacyRoutes {
+  case class NamespaceDirectorChangeRequest(version: DirectorVersion)
+  implicit val namespaceDirectorChangeRequestCodec: Codec[NamespaceDirectorChangeRequest] = io.circe.generic.semiauto.deriveCodec
+}
+
+// Implements routes provided by old director that ota-web-app still uses
+class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+  extends EcuRepositorySupport {
+  import LegacyRoutes._
+
+  private val deviceAssignments = new DeviceAssignments()
+
+  private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Unit] = {
+    val correlationId = MultiTargetUpdateId(mtuId.uuid)
+    val assignment = deviceAssignments.createForDevice(ns, correlationId, deviceId, mtuId)
+
+    assignment.map { a =>
+      val msg: DeviceUpdateEvent = DeviceUpdateAssigned(ns, Instant.now(), correlationId, a.deviceId)
+      messageBusPublisher.publishSafe(msg)
+    }
+  }
+
+  val route: Route =
+    extractNamespace { ns =>
+      concat(
+        path("admin" / "devices" / DeviceId.Path / "multi_target_update" / UpdateId.Path) { (deviceId, updateId) =>
+          put {
+            val f = createDeviceAssignment(ns, deviceId, updateId).map(_ => StatusCodes.OK)
+            complete(f)
+          }
+        },
+        path("assignments" / DeviceId.Path) { deviceId =>
+          delete {
+            val a = deviceAssignments.cancel(ns, List(deviceId))
+            complete(a.map(_.map(_.deviceId)))
+          }
+        },
+        (path("admin" / "devices") & PaginationParameters) { (limit, offset) =>
+          get {
+            complete(ecuRepository.findAllDeviceIds(ns, offset, limit))
+          }
+        },
+        (path("admin" / "director") & entity(as[NamespaceDirectorChangeRequest])) { req =>
+          val f = messageBusPublisher.publishSafe(NamespaceDirectorChanged(ns, req.version)).map(_ => StatusCodes.Accepted)
+          complete(f)
+        }
+      )
+    }
+}

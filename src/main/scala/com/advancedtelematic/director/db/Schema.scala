@@ -3,208 +3,169 @@ package com.advancedtelematic.director.db
 import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
-import cats.implicits._
-import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.FileCacheRequestStatus.FileCacheRequestStatus
-import com.advancedtelematic.libats.data.DataType.HashMethod.HashMethod
-import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
+import com.advancedtelematic.director.data.DbDataType._
+import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.TargetFormat.TargetFormat
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, TargetFilename, TargetName, TufKey}
-import eu.timepit.refined.api.Refined
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, SignedPayload, TargetFilename, TargetName, TufKey}
 import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
+import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 
 
 object Schema {
   import SlickMapping._
   import com.advancedtelematic.libats.slick.codecs.SlickRefined._
   import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
   import com.advancedtelematic.libats.slick.db.SlickExtensions.javaInstantMapping
   import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-  import com.advancedtelematic.libats.slick.db.SlickUriMapper._
   import com.advancedtelematic.libats.slick.db.SlickUrnMapper._
-  import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
+  import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
   import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
+  import com.advancedtelematic.libats.slick.db.SlickUriMapper._
+
+  class DevicesTable(tag: Tag) extends Table[Device](tag, "devices") {
+    def namespace = column[Namespace]("namespace")
+    def id = column[DeviceId]("id")
+    def primaryEcu = column[EcuIdentifier]("primary_ecu_id")
+    def generatedMetadataOutdated = column[Boolean]("generated_metadata_outdated")
+    def createdAt = column[Instant]("created_at")
+
+    def pk = primaryKey("devices_pk", id)
+
+    override def * = (namespace, id, primaryEcu, generatedMetadataOutdated) <> ((Device.apply _).tupled, Device.unapply)
+  }
+
+  protected [db] val devices = TableQuery[DevicesTable]
 
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
-    def ecuSerial = column[EcuIdentifier]("ecu_serial")
-    def device = column[DeviceId]("device")
     def namespace = column[Namespace]("namespace")
-    def primary = column[Boolean]("primary")
+    def ecuSerial = column[EcuIdentifier]("ecu_serial")
+    def deviceId = column[DeviceId]("device_id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def publicKey = column[TufKey]("public_key")
+    def installedTarget = column[Option[EcuTargetId]]("current_target")
 
-    def createdAt = column[Instant]("created_at")
+    def primKey = primaryKey("ecus_pk", (deviceId, ecuSerial))
 
-    def primKey = primaryKey("ecus_pk", (namespace, device, ecuSerial))
-
-    override def * = (ecuSerial, device, namespace, primary, hardwareId, publicKey) <> ((Ecu.apply _).tupled, Ecu.unapply)
+    override def * = (ecuSerial, deviceId, namespace, hardwareId, publicKey, installedTarget) <> ((Ecu.apply _).tupled, Ecu.unapply)
   }
-  protected [db] val ecu = TableQuery[EcusTable]
+  protected [db] val ecus = TableQuery[EcusTable]
 
-  type CurrentImageRow = (Namespace, EcuIdentifier, TargetFilename, Long, Checksum, String)
-  class CurrentImagesTable(tag: Tag) extends Table[CurrentImage](tag, "current_images") {
+  class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
+    def id = column[EcuTargetId]("id")
     def namespace = column[Namespace]("namespace")
-    def id = column[EcuIdentifier]("ecu_serial")
-    def filepath = column[TargetFilename]("filepath")
+    def filename = column[TargetFilename]("filename")
     def length = column[Long]("length")
     def checksum = column[Checksum]("checksum")
-    def attacksDetected = column[String]("attacks_detected")
-
-    def primKey = primaryKey("current_image_pk", (namespace, id))
-
-    def ecuFK = foreignKey("ECU_FK", id, ecu)(_.ecuSerial)
-
-    def fileInfo = (checksum, length) <>
-      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
-        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
-      )
-    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
-
-    override def * = (namespace, id, image, attacksDetected) <> ((CurrentImage.apply _).tupled, CurrentImage.unapply)
-  }
-
-  protected [db] val currentImage = TableQuery[CurrentImagesTable]
-
-  class RepoNameTable(tag: Tag) extends Table[RepoName](tag, "repo_names") {
-    def ns = column[Namespace]("namespace", O.PrimaryKey)
-    def repo = column[RepoId]("repo_id")
-
-    override def * = (ns, repo) <> ((RepoName.apply _).tupled, RepoName.unapply)
-  }
-  protected [db] val repoNames = TableQuery[RepoNameTable]
-
-  class EcuUpdateAssignmentTable(tag: Tag) extends Table[EcuUpdateAssignment](tag, "ecu_update_assignments") {
-    def namespace = column[Namespace]("namespace")
-    def deviceId = column[DeviceId]("device_id")
-    def ecuId = column[EcuIdentifier]("ecu_id")
-    def version = column[Int]("version")
-    def filepath = column[TargetFilename]("filepath")
-    def length = column[Long]("length")
-    def checksum = column[Checksum]("checksum")
+    def sha256 = column[SHA256Checksum]("sha256")
     def uri = column[Option[Uri]]("uri")
-    def diffFormat = column[Option[TargetFormat]]("diff_format")
 
-    def primKey = primaryKey("ecu_update_assignment_pk", (namespace, deviceId, ecuId, version))
+    def primKey = primaryKey("ecu_targets_pk", id)
 
-    def fileInfo = (checksum, length) <>
-      ( { case (checksum, length) => FileInfo(Hashes(checksum.hash), length)},
-        (x: FileInfo) => Some((Checksum(HashMethod.SHA256, x.hashes.sha256), x.length))
-      )
-
-    def image = (filepath, fileInfo) <> ((Image.apply _).tupled, Image.unapply)
-
-    def customImage = (image, uri, diffFormat) <> ((CustomImage.apply _).tupled, CustomImage.unapply)
-
-    override def * = (namespace, deviceId, ecuId, version, customImage) <> ((EcuUpdateAssignment.apply _).tupled, EcuUpdateAssignment.unapply)
+    override def * = (namespace, id, filename, length, checksum, sha256, uri) <> ((EcuTarget.apply _).tupled, EcuTarget.unapply)
   }
-  protected [db] val ecuUpdateAssignments = TableQuery[EcuUpdateAssignmentTable]
 
-  class DeviceUpdateAssignmentTable(tag: Tag) extends Table[DeviceUpdateAssignment](tag, "device_update_assignments") {
+  protected [db] val ecuTargets = TableQuery[EcuTargetsTable]
+
+  class SignedRolesTable(tag: Tag) extends Table[DbSignedRole](tag, "signed_roles") {
+    def role = column[RoleType]("role")
+    def device  = column[DeviceId]("device_id")
+    def version = column[Int]("version")
+    def content = column[JsonSignedPayload]("content")
+    def expires = column[Instant]("expires_at")
+    def createdAt = column[Instant]("created_at")
+    def checksum = column[Option[Checksum]]("checksum")
+    def length = column[Option[Long]]("length")
+
+    def primKey = primaryKey("signed_roles_pk", (role, version, device))
+
+    override def * = (role, device, checksum, length, version, expires, content) <> ((DbSignedRole.apply _).tupled, DbSignedRole.unapply)
+  }
+
+  protected [db] val signedRoles = TableQuery[SignedRolesTable]
+
+  class AssignmentsTable(tag: Tag) extends Table[Assignment](tag, "assignments") {
     def namespace = column[Namespace]("namespace")
     def deviceId = column[DeviceId]("device_id")
-    def correlationId = column[Option[CorrelationId]]("correlation_id")
-    def updateId = column[Option[UpdateId]]("update_uuid")
-    def version = column[Int]("version")
-    def served = column[Boolean]("served")
-
-    def primKey = primaryKey("device_update_assignment_pk", (namespace, deviceId, version))
-
-    override def * = (namespace, deviceId, correlationId, updateId, version, served) <> ((DeviceUpdateAssignment.apply _).tupled, DeviceUpdateAssignment.unapply)
-  }
-  protected [db] val deviceUpdateAssignments = TableQuery[DeviceUpdateAssignmentTable]
-
-  class DeviceCurrentTargetTable(tag: Tag) extends Table[DeviceCurrentTarget](tag, "device_current_target") {
-    def device = column[DeviceId]("device", O.PrimaryKey)
-    def deviceCurrentTarget = column[Int]("device_current_target")
-
-    override def * = (device, deviceCurrentTarget) <> ((DeviceCurrentTarget.apply _).tupled, DeviceCurrentTarget.unapply)
-  }
-  protected [db] val deviceCurrentTarget = TableQuery[DeviceCurrentTargetTable]
-
-  class FileCacheTable(tag: Tag) extends Table[FileCache](tag, "file_cache") {
-    def role    = column[RoleType]("role")
-    def version = column[Int]("version")
-    def device  = column[DeviceId]("device")
-    def fileEntity = column[Json]("file_entity")
-    def expires = column[Instant]("expires")
+    def ecuId = column[EcuIdentifier]("ecu_serial")
+    def ecuTargetId = column[EcuTargetId]("ecu_target_id")
+    def correlationId = column[CorrelationId]("correlation_id")
     def createdAt = column[Instant]("created_at")
-    def updatedAt = column[Instant]("updated_at")
+    def inFlight = column[Boolean]("in_flight")
 
-    def primKey = primaryKey("file_cache_pk", (role, version, device))
+    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, inFlight) <> ((Assignment.apply _).tupled, Assignment.unapply)
 
-    override def * = (role, version, device, expires, fileEntity) <> ((FileCache.apply _).tupled, FileCache.unapply)
+    def pk = primaryKey("assignments_pk", (deviceId, ecuId))
   }
-  protected [db] val fileCache = TableQuery[FileCacheTable]
 
-  class FileCacheRequestsTable(tag: Tag) extends Table[FileCacheRequest](tag, "file_cache_requests") {
+  protected [db] val assignments = TableQuery[AssignmentsTable]
+
+  class ProcessedAssignmentsTable(tag: Tag) extends Table[ProcessedAssignment](tag, "processed_assignments") {
     def namespace = column[Namespace]("namespace")
-    def targetVersion = column[Int]("target_version")
-    def device = column[DeviceId]("device")
-    def status = column[FileCacheRequestStatus]("status")
-    def timestampVersion = column[Int]("timestamp_version")
-    def correlationId = column[Option[CorrelationId]]("correlation_id")
+    def deviceId = column[DeviceId]("device_id")
+    def ecuId = column[EcuIdentifier]("ecu_serial")
+    def ecuTargetId = column[EcuTargetId]("ecu_target_id")
+    def correlationId = column[CorrelationId]("correlation_id")
+    def canceled = column[Boolean]("canceled")
+    def successful = column[Boolean]("successful")
+    def resultDesc = column[Option[String]]("result_desc")
+    def createdAt = column[Instant]("created_at")
 
-    def primKey = primaryKey("file_cache_request_pk", (timestampVersion, device))
-
-    override def * = (namespace, targetVersion, device, status, timestampVersion, correlationId) <>
-      ((FileCacheRequest.apply _).tupled, FileCacheRequest.unapply)
+    def * = (namespace, deviceId, ecuId, ecuTargetId, correlationId, successful, resultDesc, canceled) <> ((ProcessedAssignment.apply _).tupled, ProcessedAssignment.unapply)
   }
-  protected [db] val fileCacheRequest = TableQuery[FileCacheRequestsTable]
 
-  class MultiTargetUpdates(tag: Tag) extends Table[MultiTargetUpdateRow](tag, "multi_target_updates") {
+  protected [db] val processedAssignments = TableQuery[ProcessedAssignmentsTable]
+
+  class HardwareUpdatesTable(tag: Tag) extends Table[HardwareUpdate](tag, "hardware_updates") {
+    def namespace = column[Namespace]("namespace")
     def id = column[UpdateId]("id")
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
-    def toTarget = column[TargetFilename]("target")
-    def toHashMethod = column[HashMethod]("hash_method")
-    def toTargetHash = column[Refined[String, ValidChecksum]]("target_hash")
-    def toTargetSize = column[Long]("target_size")
-    def fromTarget = column[Option[TargetFilename]]("from_target")
-    def fromHashMethod = column[Option[HashMethod]]("from_hash_method")
-    def fromTargetHash = column[Option[Refined[String, ValidChecksum]]]("from_target_hash")
-    def fromTargetSize = column[Option[Long]]("from_target_size")
-    def targetFormat = column[TargetFormat]("target_format")
-    def generateDiff = column[Boolean]("generate_diff")
-    def namespace = column[Namespace]("namespace")
-    def toTargetUri = column[Option[Uri]]("target_uri")
-    def fromTargetUri = column[Option[Uri]]("from_target_uri")
+    def toTarget = column[EcuTargetId]("to_target_id")
+    def fromTarget = column[Option[EcuTargetId]]("from_target_id")
 
-    def fromTargetChecksum: Rep[Option[Checksum]] = (fromHashMethod, fromTargetHash) <> (
-      { case (hashMethod, hash) => (hashMethod, hash).mapN(Checksum)},
-      (x: Option[Checksum]) => Some((x.map(_.method), x.map(_.hash)))
-      )
-
-    def fromTargetUpdate = (fromTarget, fromTargetChecksum, fromTargetSize, fromTargetUri) <> (
-      { case (target, checksum, size, uri) => (target, checksum, size, Option(uri)).mapN(TargetUpdate.apply)},
-      (x : Option[TargetUpdate]) => Some((x.map(_.target), x.map(_.checksum), x.map(_.targetLength), x.flatMap(_.uri)))
-    )
-
-    def toTargetChecksum: Rep[Checksum] = (toHashMethod, toTargetHash) <>
-      ((Checksum.apply _).tupled, Checksum.unapply)
-
-    def toTargetUpdate = (toTarget, toTargetChecksum, toTargetSize, toTargetUri) <>
-      ((TargetUpdate.apply _).tupled, TargetUpdate.unapply)
-
-    def * = (id, hardwareId, fromTargetUpdate, toTargetUpdate, targetFormat, generateDiff, namespace) <>
-      ((MultiTargetUpdateRow.apply _).tupled, MultiTargetUpdateRow.unapply)
+    def * = (namespace, id, hardwareId, fromTarget, toTarget) <> ((HardwareUpdate.apply _).tupled, HardwareUpdate.unapply)
 
     def pk = primaryKey("mtu_pk", (id, hardwareId))
   }
 
-  protected [db] val multiTargets = TableQuery[MultiTargetUpdates]
+  protected [db] val hardwareUpdates = TableQuery[HardwareUpdatesTable]
 
-  class AutoUpdates(tag: Tag) extends Table[AutoUpdate](tag, "auto_updates") {
-    def namespace = column[Namespace]("namespace")
-    def device = column[DeviceId]("device")
-    def ecuSerial = column[EcuIdentifier]("ecu_serial")
-    def targetName = column[TargetName]("target_name")
+  class RepoNameTable(tag: Tag) extends Table[(RepoId, Namespace)](tag, "repo_namespaces") {
+    def namespace = column[Namespace]("namespace", O.PrimaryKey)
+    def repoId = column[RepoId]("repo_id")
 
-    override def * = (namespace, device, ecuSerial, targetName) <>
-      ((AutoUpdate.apply _).tupled, AutoUpdate.unapply)
+    override def * = (repoId, namespace)
   }
-  protected [db] val autoUpdates = TableQuery[AutoUpdates]
+
+  protected [db] val repoNamespaces = TableQuery[RepoNameTable]
+
+  class AutoUpdateDefinitionTable(tag: Tag) extends Table[AutoUpdateDefinition](tag, "auto_update_definitions") {
+    def namespace = column[Namespace]("namespace")
+    def id = column[AutoUpdateDefinitionId]("id")
+    def deviceId = column[DeviceId]("device_id")
+    def ecuId = column[EcuIdentifier]("ecu_serial")
+    def targetName = column[TargetName]("target_name")
+    def deleted = column[Boolean]("deleted")
+
+    override def * = (id, namespace, deviceId, ecuId, targetName) <> ((AutoUpdateDefinition.apply _).tupled, AutoUpdateDefinition.unapply)
+  }
+
+  protected [db] val autoUpdates = TableQuery[AutoUpdateDefinitionTable]
+
+  class DeviceManifestsTable(tag: Tag) extends Table[(DeviceId, Json, SHA256Checksum, Instant)](tag, "device_manifests") {
+    def deviceId = column[DeviceId]("device_id")
+    def targetName = column[TargetName]("target_name")
+    def receivedAt = column[Instant]("received_at")
+    def sha256 = column[SHA256Checksum]("sha256")
+    def manifest = column[Json]("manifest")
+
+    def pk = primaryKey("device-manifests-pk", (deviceId, sha256))
+
+    override def * = (deviceId, manifest, sha256, receivedAt)
+  }
+
+  protected [db] val deviceManifests = TableQuery[DeviceManifestsTable]
 }

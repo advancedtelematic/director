@@ -1,214 +1,242 @@
 package com.advancedtelematic.director.http
 
-import com.advancedtelematic.director.data.AdminRequest._
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+import akka.http.scaladsl.model.{HttpEntity, StatusCodes}
+import cats.syntax.option._
+import cats.syntax.show._
+import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
+import com.advancedtelematic.director.data.Codecs._
+import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.director.db.{FileCacheDB, FileCacheRequestRepositorySupport, SetVersion}
-import com.advancedtelematic.director.util.{DirectorSpec, RouteResourceSpec}
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNamespaceRepositorySupport}
+import com.advancedtelematic.director.http.AdminResources.RegisterDeviceResult
+import com.advancedtelematic.director.util._
+import com.advancedtelematic.libats.codecs.CirceCodecs._
+import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole}
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetFilename, TufKey, TufKeyPair}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import org.scalactic.source.Position
+import org.scalatest.Assertion
+import io.circe.syntax._
 
-trait AdminResourceSpec extends DirectorSpec with KeyGenerators with DeviceRegistrationUtils
-  with FileCacheDB with RouteResourceSpec with NamespacedRequests with SetVersion with FileCacheRequestRepositorySupport {
-  testWithNamespace("images/affected Can get devices with an installed image filename") { implicit ns =>
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn, cfn)
-    registerNSDeviceOk(dfn)
-
-    val pag = getAffectedByImage("a")()
-    pag.total shouldBe 2
-    pag.values.toSet shouldBe Set(device1, device2)
-  }
-
-  testWithNamespace("images/affected Don't count devices multiple times") { implicit ns =>
-    val device = registerNSDeviceOk(afn, afn, cfn)
-
-    val pag = getAffectedByImage("a")()
-    pag.total shouldBe 1
-    pag.values shouldBe Seq(device)
-  }
-
-  testWithNamespace("images/affected Pagination works") { implicit ns =>
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn, cfn)
-    val device3 = registerNSDeviceOk(afn)
-
-    val pag1 = getAffectedByImage("a")(limit = Some(2))
-    val pag2 = getAffectedByImage("a")(offset = Some(2))
-
-    pag1.total shouldBe 3
-    pag2.total shouldBe 3
-
-    (pag1.values ++ pag2.values).length shouldBe 3
-    (pag1.values ++ pag2.values).toSet shouldBe Set(device1, device2, device3)
-  }
-
-  testWithNamespace("images/affected Ignores devices in a campaign") { implicit ns =>
-    createRepo
-
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn)
-
-    setCampaign(ns.get, device1, 1).futureValue
-    generateAllPendingFiles().futureValue
-
-    val pag = getAffectedByImage("a")()
-    pag.total shouldBe 1
-    pag.values shouldBe Seq(device2)
-  }
-
-  testWithNamespace("images/affected Includes devices that are at the latest target") { implicit ns =>
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn)
-
-    setCampaign(ns.get, device1, 1).futureValue
-    setDeviceVersion(device1, 1).futureValue
-
-    val pag = getAffectedByImage("a")()
-    pag.total shouldBe 2
-    pag.values.toSet shouldBe Set(device1, device2)
-  }
-
-  testWithNamespace("images/installed_count returns the count of ECUs a given image is installed on") { implicit ns =>
-    registerNSDeviceOk(afn, bfn)
-    registerNSDeviceOk(afn)
-    registerNSDeviceOk(cfn, cfn)
-
-    getCountInstalledImages(Seq(afn)) shouldBe Map(afn -> 2)
-    getCountInstalledImages(Seq(afn, bfn)) shouldBe Map(afn -> 2, bfn -> 1)
-    getCountInstalledImages(Seq(cfn)) shouldBe Map(cfn -> 2)
-    getCountInstalledImages(Seq(dfn)) shouldBe Map()
-    getCountInstalledImages(Seq(afn, dfn)) shouldBe Map(afn -> 2)
-  }
-
-  testWithNamespace("devices/hardware_identifiers returns all hardware_ids") { implicit ns =>
-    registerHWDeviceOk(ahw, bhw)
-    registerHWDeviceOk(bhw)
-
-    val pag = getHw()
-    pag.total shouldBe 2
-    pag.values.toSet shouldBe Set(ahw,bhw)
-  }
-
-  testWithNamespace("devices/id/ecus/public_key can get public key") { implicit ns =>
-    val device = DeviceId.generate
-
-    val ecuIds = GenEcuIdentifier.listBetween(2, 5).generate
-    val primEcu = ecuIds.head
-
-    val regEcus = ecuIds.map{ ecu => GenRegisterEcu.generate.copy(ecu_serial = ecu)}
-    val regDev = RegisterDevice(device, primEcu, regEcus)
-
-    registerDeviceOk(regDev)
-
-    regEcus.foreach { regEcu =>
-      findPublicKeyOk(device, regEcu.ecu_serial) shouldBe regEcu.clientKey
-    }
-  }
-
-  testWithNamespace("devices/id gives a list of ecuresponses") { implicit ns =>
-    val images = Seq(afn, bfn)
-    val (device, primEcu, ecusSerials) = createDeviceWithImages(images : _*)
-    val ecus = ecusSerials.zip(images).toMap
-
-    val ecuInfos = findDeviceOk(device)
-
-    ecuInfos.length shouldBe ecus.size
-    ecuInfos.map(_.id).toSet shouldBe ecus.keys.toSet
-    ecuInfos.filter(_.primary).map(_.id) shouldBe Seq(primEcu)
-    ecuInfos.foreach {ecuInfo =>
-      ecuInfo.image.filepath shouldBe ecus(ecuInfo.id)
-    }
-  }
-
-  testWithNamespace("device/queue (device not reported)") { implicit ns =>
-    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
-    val targets = setRandomTargets(device, ecuIds)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets)
-  }
-
-  testWithNamespace("device/queue (device reported)") { implicit ns =>
-    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
-
-    val reportedVersions = 42
-    setCampaign(ns.get, device, reportedVersions).futureValue
-    setDeviceVersion(device, reportedVersions).futureValue
-
-    val targets = setRandomTargets(device, ecuIds)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets)
-  }
-
-  testWithNamespace("device/queue (device reported) with bigger queue") { implicit ns =>
-    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
-
-    val reportedVersions = 42
-    setCampaign(ns.get, device, reportedVersions).futureValue
-    setDeviceVersion(device, reportedVersions).futureValue
-
-    val targets = setRandomTargets(device, ecuIds)
-    val targets2 = setRandomTargets(device, ecuIds)
-
-    val q = deviceQueueOk(device)
-    q.map(_.targets) shouldBe Seq(targets, targets2)
-  }
-
-  testWithNamespace("device/queue inFlight updates if the targets.json have been downloaded") { implicit ns =>
-    createRepoOk(testKeyType)
-    val (device, _, ecuIds) = createDeviceWithImages(afn, bfn)
-    setRandomTargets(device, ecuIds, diffFormat = None)
-
-    val q = deviceQueueOk(device)
-    q.map(_.inFlight) shouldBe Seq(false)
-
-    fetchTargetsFor(device)
-
-    val q2 = deviceQueueOk(device)
-    q2.map(_.inFlight) shouldBe Seq(true)
-  }
-
-  testWithNamespace("there can be multiple ECUs per image/filename") { implicit ns =>
-    import com.advancedtelematic.director.data.Codecs.decoderTargetCustom
-
-    createRepoOk(testKeyType)
-    val (device, primaryEcuId, ecuIds) = createDeviceWithImages(afn, bfn)
-    setRandomTargetsToSameImage(device, ecuIds, diffFormat = None)
-
-    val targets = fetchTargetsFor(device)
-    val targetEcus = targets.signed.targets.head._2.customParsed.get.ecuIdentifiers
-    // sanity check to see we are testing the right thing:
-    targetEcus.size shouldBe >= (2)
-    targetEcus.keySet shouldBe ecuIds.toSet
-  }
-
-  testWithNamespace("devices gives all devices in the namespace") { implicit ns =>
-    val device1 = registerNSDeviceOk(afn, bfn)
-    val device2 = registerNSDeviceOk(afn, cfn)
-    val device3 = registerNSDeviceOk(afn)
-
-    val pag = findDevices()
-
-    // we use Seq here instead of Set, since they are ordered by creation time
-    pag.values shouldBe Seq(device1, device2, device3)
-  }
-
-  testWithNamespace("versioned root") { implicit ns =>
-    createRepo
-
-    fetchRootOk(1).signed shouldBe fetchRootOk.signed
-  }
-
-  testWithNamespace("multi_target_update/updateId gives all the MTUs in the namespace") { implicit ns =>
-    val newMTU = GenMultiTargetUpdateRequest.generate
-    val updateId = createMultiTargetUpdateOK(newMTU)
-
-    val foundMTU = findByUpdate(updateId)
-    foundMTU shouldBe newMTU
+object AdminResources {
+  case class RegisterDeviceResult(deviceId: DeviceId,
+                                  primary: Ecu,
+                                  primaryKey: TufKeyPair,
+                                  ecus: Map[EcuIdentifier, Ecu],
+                                  keys: Map[EcuIdentifier, TufKeyPair]) {
+    def secondaries: Map[EcuIdentifier, Ecu] = ecus - primary.ecuSerial
+    def secondaryKeys: Map[EcuIdentifier, TufKeyPair] = keys - primary.ecuSerial
   }
 }
 
-class RsaAdminResourceSpec extends AdminResourceSpec with RsaGenerators
+trait AdminResources {
+  self: DirectorSpec with RouteResourceSpec with NamespacedTests =>
 
-class EdAdminResourceSpec extends AdminResourceSpec with EdGenerators
+  def registerAdminDeviceWithSecondariesOk()(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
+    val device = DeviceId.generate
+    val (regPrimaryEcu, primaryEcuKey) = GenRegisterEcuKeys.generate
+    val (regSecondaryEcu, secondaryEcuKey) = GenRegisterEcuKeys.generate
+
+
+    val regDev = RegisterDevice(device.some, regPrimaryEcu.ecu_serial, List(regPrimaryEcu, regSecondaryEcu))
+
+    Post(apiUri("admin/devices"), regDev).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    val ecus = regDev.ecus.map { e => e.ecu_serial -> e.toEcu(ns, regDev.deviceId.get) }.toMap
+    val primary = ecus(regDev.primary_ecu_serial)
+
+    RegisterDeviceResult(regDev.deviceId.get, primary, primaryEcuKey, ecus, Map(primary.ecuSerial -> primaryEcuKey, regSecondaryEcu.ecu_serial -> secondaryEcuKey))
+  }
+
+  def registerAdminDeviceOk(hardwareIdentifier: Option[HardwareIdentifier] = None)(implicit ns: Namespace, pos: Position): RegisterDeviceResult = {
+    val device = DeviceId.generate
+    val (regEcu, ecuKey) = GenRegisterEcuKeys.generate
+
+    val hwId = hardwareIdentifier.getOrElse(regEcu.hardware_identifier)
+    val regDev = RegisterDevice(device.some, regEcu.ecu_serial, List(regEcu.copy(hardware_identifier = hwId)))
+
+    Post(apiUri("admin/devices"), regDev).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    val ecus = regDev.ecus.map { e => e.ecu_serial -> e.toEcu(ns, regDev.deviceId.get) }.toMap
+    val primary = ecus(regDev.primary_ecu_serial)
+
+    RegisterDeviceResult(regDev.deviceId.get, primary, ecuKey, ecus, Map(primary.ecuSerial -> ecuKey))
+  }
+
+  def createRepoOk()(implicit ns: Namespace, pos: Position): Assertion = {
+    Post(apiUri("admin/repo")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+  }
+
+  def createMtuOk()(implicit ns: Namespace, pos: Position): UpdateId = {
+    val mtu = GenMultiTargetUpdateRequest.generate
+
+    Post(apiUri("multi_target_updates"), mtu).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
+    }
+  }
+}
+
+
+class AdminResourceSpec extends DirectorSpec
+  with RouteResourceSpec
+  with RepoNamespaceRepositorySupport
+  with DbSignedRoleRepositorySupport with AdminResources with RepositorySpec with DeviceResources with DeviceManifestSpec {
+
+  testWithNamespace("can register a device") { implicit ns =>
+    createRepoOk()
+
+    registerAdminDeviceOk()
+  }
+
+  testWithNamespace("can fetch root for a namespace") { implicit ns =>
+    createRepoOk()
+    registerAdminDeviceOk()
+
+    Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]].signed shouldBe a[RootRole]
+    }
+  }
+
+  testWithRepo("images/installed_count returns the count of ECUs a given image is installed on") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdate.generate
+
+    putManifestOk(dev.deviceId, buildPrimaryManifest(dev.primary, dev.primaryKey, targetUpdate))
+
+    val req = FindImageCount(List(targetUpdate.target))
+
+    Post(apiUri(s"admin/images/installed_count"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val resp = responseAs[Map[TargetFilename, Int]]
+      resp(targetUpdate.target) shouldBe 1
+    }
+  }
+
+  testWithRepo("devices/hardware_identifiers returns all hardware_ids") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices/hardware_identifiers")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[PaginationResult[HardwareIdentifier]].values should contain(dev.primary.hardwareId)
+    }
+  }
+
+  testWithRepo("devices/id/ecus/public_key can get public key") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices/${dev.deviceId.show}/ecus/${dev.primary.ecuSerial.value}/public_key")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[TufKey] shouldBe dev.primaryKey.pubkey
+    }
+  }
+
+  testWithRepo("devices/id gives a list of ecu responses") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdate.generate
+
+    putManifestOk(dev.deviceId, buildPrimaryManifest(dev.primary, dev.primaryKey, targetUpdate))
+
+    Get(apiUri(s"admin/devices/${dev.deviceId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val resp = responseAs[Vector[EcuInfoResponse]]
+      resp should have size(1)
+
+      resp.head.hardwareId shouldBe dev.primary.hardwareId
+      resp.head.id shouldBe dev.primary.ecuSerial
+      resp.head.primary shouldBe true
+      resp.head.image.filepath shouldBe targetUpdate.target
+    }
+  }
+
+  testWithRepo("PUT devices/id/targets.json forces refresh of devices targets.json") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 1
+    }
+
+    Put(apiUri(s"admin/devices/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Accepted
+    }
+
+    Get(apiUri(s"device/${dev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]].signed.version shouldBe 2
+    }
+  }
+
+  testWithNamespace("delegates root upload to keyserver") { implicit ns =>
+    createRepoOk()
+
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val root = RootRole(Map.empty, Map.empty, 2, Instant.now().truncatedTo(ChronoUnit.SECONDS))
+    val signedRoot = SignedPayload(Seq.empty, root, root.asJson)
+
+    Put(apiUri("admin/repo/root"), signedRoot).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val savedRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    savedRoot.signed shouldNot be(oldRoot.signed)
+    savedRoot.signed shouldBe signedRoot.signed
+  }
+
+  testWithRepo("delegates to keyserver to fetch key pair") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val keyPair = responseAs[TufKeyPair]
+      keyPair.pubkey.id shouldBe keyId
+    }
+  }
+
+  testWithRepo("delegates delete key pair to keyserver") { implicit ns =>
+    val oldRoot = Get(apiUri("admin/repo/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]]
+    }
+
+    val keyId = oldRoot.signed.keys.keys.head
+
+    Delete(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    Get(apiUri("admin/repo/private_keys/" + keyId.value)).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.NotFound
+    }
+  }
+
+}

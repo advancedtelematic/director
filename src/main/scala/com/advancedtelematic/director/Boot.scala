@@ -6,10 +6,7 @@ import java.security.Security
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
-import com.advancedtelematic.diff_service.client.DiffServiceDirectorClient
 import com.advancedtelematic.director.http.DirectorRoutes
-import com.advancedtelematic.director.manifest.SignatureVerification
-import com.advancedtelematic.director.roles.{Roles, RolesGeneration}
 import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.http.LogDirectives.logResponseMetrics
 import com.advancedtelematic.libats.http.VersionDirectives.versionHeaders
@@ -19,14 +16,12 @@ import com.advancedtelematic.libats.http.tracing.Tracing.ServerRequestTracing
 import com.advancedtelematic.libats.messaging.MessageBus
 import com.advancedtelematic.libats.slick.db.{CheckMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthResource}
-import com.advancedtelematic.libtuf.data.TufDataType.KeyType
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.Config
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
-import scala.util.Try
 
 object Util {
   def namedType[T](name: String): T = {
@@ -46,26 +41,9 @@ object Util {
   }
 }
 
-trait Settings {
-  import Util._
 
-  private lazy val _config = ConfigFactory.load()
-
-  val host = _config.getString("server.host")
-  val port = _config.getInt("server.port")
-
-  val tufUri = mkUri(_config, "keyserver.uri")
-  val tufBinaryUri = mkUri(_config, "tuf.binary.uri")
-
-  val defaultKeyType: Try[KeyType] = {
-    Try(_config.getString("daemon.defaultKeyType")).map { defaultKeyTypeName =>
-      namedType[KeyType](defaultKeyTypeName)
-    }
-  }
-}
 
 object Boot extends BootApp
-  with CheckMigrations
   with Directives
   with Settings
   with VersionInfo
@@ -74,7 +52,8 @@ object Boot extends BootApp
   with DatabaseMetrics
   with AkkaHttpRequestMetrics
   with AkkaHttpConnectionMetrics
-  with PrometheusMetricsSupport {
+  with PrometheusMetricsSupport
+  with CheckMigrations {
 
   implicit val _db = db
 
@@ -84,15 +63,14 @@ object Boot extends BootApp
 
   def keyserverClient(implicit tracing: ServerRequestTracing) = KeyserverHttpClient(tufUri)
   implicit val msgPublisher = MessageBus.publisher(system, config)
-  val diffService = new DiffServiceDirectorClient(tufBinaryUri)
 
   Security.addProvider(new BouncyCastleProvider())
 
   val routes: Route =
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
-      (versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
+    (logRequestResult("directorv2-request-result" -> requestLogLevel) & versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
-        new DirectorRoutes(SignatureVerification.verify, keyserverClient, new Roles(new RolesGeneration(keyserverClient, diffService)), diffService).routes
+        new DirectorRoutes(keyserverClient).routes
     }
 
   Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port)

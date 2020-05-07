@@ -1,427 +1,570 @@
 package com.advancedtelematic.director.http
 
-import java.security.{KeyPairGenerator, PublicKey}
-import java.util.concurrent.ConcurrentHashMap
-
-import com.advancedtelematic.director.data.Codecs._
 import akka.http.scaladsl.model.StatusCodes
-import com.advancedtelematic.director.data.AdminRequest._
-import com.advancedtelematic.director.data.Codecs.encoderEcuManifest
+import cats.syntax.option._
+import cats.syntax.show._
+import com.advancedtelematic.director.data.AdminDataType.{QueueResponse, RegisterDevice}
+import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
-import com.advancedtelematic.director.data.{EdGenerators, KeyGenerators, RsaGenerators}
-import com.advancedtelematic.director.db.{DeviceRepositorySupport, FileCacheDB, SetTargets}
-import com.advancedtelematic.director.manifest.Verifier
-import com.advancedtelematic.director.util.NamespaceTag.NamespaceTag
-import com.advancedtelematic.director.util.{DefaultPatience, DirectorSpec, RouteResourceSpec}
-import com.advancedtelematic.libats.data.DataType.CampaignId
+import com.advancedtelematic.director.data.Generators._
+import com.advancedtelematic.director.data.Messages.DeviceManifestReported
+import com.advancedtelematic.director.db.AssignmentsRepositorySupport
+import com.advancedtelematic.director.util._
+import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libtuf.data.TufDataType.{RSATufKey, TufKey}
+import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
+import com.advancedtelematic.libtuf.data.ClientCodecs._
+import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, SnapshotRole, TargetsRole, TimestampRole, TufRole}
+import com.advancedtelematic.libtuf.data.TufCodecs._
+import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.Json
 import org.scalatest.Inspectors
-import cats.syntax.option._
+import org.scalatest.OptionValues._
 
-trait DeviceResourceSpec extends DirectorSpec with KeyGenerators with DefaultPatience with DeviceRepositorySupport
-    with FileCacheDB with RouteResourceSpec with NamespacedRequests with Inspectors with DeviceUpdateSpec {
 
-  val correlationId = CampaignId(java.util.UUID.randomUUID())
+class DeviceResourceSpec extends DirectorSpec
+  with RouteResourceSpec with AdminResources with AssignmentResources
+  with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources with AssignmentsRepositorySupport {
 
-  def schedule(device: DeviceId, targets: SetTarget)(implicit ns: NamespaceTag): Unit = {
-    SetTargets.setTargets(ns.get, Seq(device -> targets), Some(correlationId)).futureValue
-    generateAllPendingFiles(device.some).futureValue
+  override implicit val msgPub = new MockMessageBus
+
+  def forceRoleExpire[T](deviceId: DeviceId)(implicit tufRole: TufRole[T]): Unit = {
+    import slick.jdbc.MySQLProfile.api._
+    val sql = sql"update signed_roles set expires_at = '1970-01-01 00:00:00' where device_id = '#${deviceId.uuid.toString}' and role = '#${tufRole.typeStr}'"
+    db.run(sql.asUpdate).futureValue
   }
 
-  def deviceVersion(deviceId: DeviceId): Option[Int] = {
-    deviceRepository.getCurrentVersion(deviceId).map(Some.apply).recover{case _ => None}.futureValue
+  testWithNamespace("accepts a device registering ecus") { implicit ns =>
+    createRepoOk()
+    registerDeviceOk()
   }
 
-  def deviceScheduledVersion(deviceId: DeviceId)(implicit ns: NamespaceTag): Int = {
-    fetchTargetsFor(deviceId).signed.version
-  }
+  // TODO: Legacy, this should not be possible
+  // https://saeljira.it.here.com/browse/OTA-441
+  // https://saeljira.it.here.com/browse/OTA-2517
+  testWithRepo("registering the same device id with different ecus works") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
 
-  testWithNamespace("Can register device") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
+    val ecus2 = GenRegisterEcu.generate
+    val primaryEcu2 = ecus2.ecu_serial
+    val req2 = RegisterDevice(deviceId.some, primaryEcu2, Seq(ecus2))
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-  }
-
-  testWithNamespace("Can't register device with primary ECU not in `ecus`") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcu = GenEcuIdentifier.generate
-    val ecus = GenRegisterEcu.atMost(5).generate.filter(_.ecu_serial != primEcu)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceExpected(regDev, StatusCodes.BadRequest)
-  }
-
-  testWithNamespace("Device can update a registered device") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-  }
-
-  testWithNamespace("Device update with broken image hash fails") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu =>
-      GenSigned(GenImageInvalidHash.flatMap(GenEcuManifestWithImage(regEcu.ecu_serial, _, None))).generate
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
     }
 
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
-  }
-
-  testWithNamespace("Device can update a registered device (legacy device manifest)") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-
-    val deviceManifest = GenSignedLegacyDeviceManifest(primEcu, ecuManifests).generate
-
-    updateLegacyManifestOk(device, deviceManifest)
-  }
-
-  testWithNamespace("Device must have the ecu given as primary") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val fakePrimEcu = GenEcuIdentifier.generate
-    val ecus = GenRegisterEcu.atMost(5).generate ++
-      (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-
-    val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
-
-    updateManifestExpect(device, deviceManifest, StatusCodes.NotFound)
-  }
-
-  testWithNamespace("Device need to have the correct primary") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val fakePrimEcuReg = GenRegisterEcu.generate
-    val fakePrimEcu = fakePrimEcuReg.ecu_serial
-    val ecus = GenRegisterEcu.atMost(5).generate ++
-      (primEcuReg :: fakePrimEcuReg :: GenRegisterEcu.atMost(5).generate)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-
-    val deviceManifest = GenSignedDeviceManifest(fakePrimEcu, ecuManifests).generate
-
-    updateManifestExpect(device, deviceManifest, StatusCodes.BadRequest)
-  }
-
-  testWithNamespace("Device update will only update correct ecus") { implicit ns =>
-    val taintedKeys = new ConcurrentHashMap[PublicKey, Unit]() // this is like a set
-    def testVerifier(c: TufKey): Verifier.Verifier =
-      if (taintedKeys.contains(c.keyval)) {
-        Verifier.alwaysReject
-      } else {
-        Verifier.alwaysAccept
-      }
-
-    val verifyRoutes = routesWithVerifier(testVerifier)
-
-
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecusWork = GenRegisterEcu.atMost(5).generate ++ (primEcuReg :: GenRegisterEcu.atMost(5).generate)
-    val ecusFail = GenEcuIdentifier.nonEmptyAtMost(5).generate.map{ ecu =>
-      val regEcu = GenRegisterEcu.generate
-      taintedKeys.put(regEcu.clientKey.keyval, Unit)
-      regEcu
-    }
-    val ecus = ecusWork ++ ecusFail
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOkWith(regDev, verifyRoutes)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOkWith(device, deviceManifest, verifyRoutes)
-
-    val images = getInstalledImagesOkWith(device, verifyRoutes)
-
-    val mImages = {
-      val start = images.groupBy(_._1).mapValues(_.map(_._2))
-      start.values.foreach { x =>
-        x.length shouldBe 1
-      }
-
-      start.mapValues(_.head)
-    }
-
-    ecus.zip(ecuManifests.map(_.signed)).foreach { case (regEcu, ecuMan) =>
-      if (regEcu.clientKey.keyval.getFormat() == "REJECT ME") {
-        mImages.get(regEcu.ecu_serial) shouldBe None
-        } else {
-        mImages.get(regEcu.ecu_serial) shouldBe Some(ecuMan.installed_image)
-      }
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
     }
   }
 
-  testWithNamespace("Can set target for device") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+  testWithRepo("fails when primary ecu is not defined in ecus") { implicit ns =>
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = GenEcuIdentifier.generate
+    val deviceId = DeviceId.generate()
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val targets = SetTarget(Map(primEcu -> GenCustomImage.generate))
-
-    setTargetsOk(device, targets)
-  }
-
-  testWithNamespace("Device can update to set target") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> targetImage))
-
-    setTargetsOk(device, targets)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    val ecuManifestsTarget = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }.map { sig =>
-      sig.updated(signed = sig.signed.copy(installed_image = targetImage.image))
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+      responseAs[ErrorRepresentation].code shouldBe Errors.PrimaryIsNotListedForDevice.code
     }
-    val deviceManifestTarget = GenSignedDeviceManifest(primEcu, ecuManifestsTarget).generate
 
-    updateManifestOk(device, deviceManifestTarget)
+    deviceId
   }
 
-  testWithNamespace("Device receives targets with uri if target contains uri") { implicit ns =>
-    createRepoOk(testKeyType)
+  testWithRepo("targets.json is empty after register") { implicit ns =>
+    val deviceId = registerDeviceOk()
 
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val targetImage = GenCustomImage.retryUntil(_.uri.isDefined).generate.copy(diffFormat = None)
-    val targets = SetTarget(Map(primEcu -> targetImage))
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    schedule(device, targets)
-
-    val deviceTargets = fetchTargetsFor(device).signed
-    val uri = deviceTargets.targets.head._2.custom.flatMap(_.as[TargetCustom].toOption).flatMap(_.uri)
-
-    uri shouldBe targetImage.uri
+    Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val signedPayload = responseAs[SignedPayload[TargetsRole]].signed
+      signedPayload.targets shouldBe empty
+    }
   }
 
-  testWithNamespace("Device can report current current") { implicit ns =>
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+  testWithRepo("fetches a root.json for a device") { implicit ns =>
+    val deviceId = registerDeviceOk()
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> targetImage))
-
-    setTargetsOk(device, targets)
-
-    updateManifestOk(device, deviceManifest)
+    Get(apiUri(s"device/${deviceId.show}/1.root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]].signed shouldBe a[RootRole]
+    }
   }
 
-  testWithNamespace("Update where the device is already") { implicit ns =>
-    createRepo()
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+  testWithRepo("can GET root.json without specifying version") { implicit ns =>
+    val deviceId = registerDeviceOk()
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    val targets = SetTarget(Map(primEcu -> CustomImage(ecuManifests.head.signed.installed_image, None, None)))
-
-    schedule(device, targets)
-    updateManifestOk(device, deviceManifest)
-
-    deviceVersion(device) shouldBe Some(1)
+    Get(apiUri(s"device/${deviceId.show}/root.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[RootRole]].signed shouldBe a[RootRole]
+    }
   }
 
-  testWithNamespace("First Device can also update") { implicit ns =>
-    createRepo()
+  testWithRepo("can GET timestamp") { implicit ns =>
+    val deviceId = registerDeviceOk()
 
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
-
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val cimage = GenCustomImage.generate
-
-    val targets = SetTarget(Map(primEcu -> cimage))
-
-    schedule(device, targets)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifestWithImage(regEcu.ecu_serial, cimage.image).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    deviceVersion(device) shouldBe Some(1)
+    Get(apiUri(s"device/${deviceId.show}/timestamp.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TimestampRole]].signed shouldBe a[TimestampRole]
+    }
   }
 
-  testWithNamespace("Failed update doesn't increase current target version") { implicit ns =>
-    createRepoOk(testKeyType)
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+  testWithRepo("can get snapshots") { implicit ns =>
+    val deviceId = registerDeviceOk()
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
-
-    registerDeviceOk(regDev)
-
-    val ecuManifests = ecus.map { regEcu => GenSignedEcuManifest(regEcu.ecu_serial).generate }
-    val deviceManifest = GenSignedDeviceManifest(primEcu, ecuManifests).generate
-
-    updateManifestOk(device, deviceManifest)
-
-    val targetImage = GenCustomImage.generate
-    val targets = SetTarget(Map(primEcu -> targetImage))
-
-    schedule(device, targets)
-    updateManifestOk(device, deviceManifest)
-
-    val deviceManifest2 = GenSignedDeviceManifest(primEcu, Seq()).generate
-
-    updateManifestOk(device, deviceManifest2)
-    deviceVersion(device) shouldBe Some(2)
-    deviceScheduledVersion(device) shouldBe 2
-
-    // currently device-current-target and device-update-target are both at 2
-    // sending empty device manifest should not update device-current-target to 3
-    updateManifestOk(device, deviceManifest2)
-    deviceVersion(device) shouldBe Some(2)
-    deviceScheduledVersion(device) shouldBe 2
+    Get(apiUri(s"device/${deviceId.show}/snapshot.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[SnapshotRole]].signed shouldBe a[SnapshotRole]
+    }
   }
 
-  testWithNamespace("Device can get versioned root.json") { implicit ns =>
-    createRepo(testKeyType)
-    val device = DeviceId.generate()
-    val primEcuReg = GenRegisterEcu.generate
-    val primEcu = primEcuReg.ecu_serial
-    val ecus = List(primEcuReg)
+  testWithRepo("GET on targets.json contains target after assignment") { implicit ns =>
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val regDev = registerAdminDeviceOk()
+    val deviceId = regDev.deviceId
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some)
 
-    val regDev = RegisterDevice(device, primEcu, ecus)
+    Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
 
-    registerDeviceOk(regDev)
+      val targets = responseAs[SignedPayload[TargetsRole]].signed
+      targets.version shouldBe 2
+      targets.targets.keys should contain(targetUpdate.to.target)
+      targets.targets(targetUpdate.to.target).hashes.values should contain(targetUpdate.to.checksum.hash)
+      targets.targets(targetUpdate.to.target).length shouldBe targetUpdate.to.targetLength
+    }
+  }
 
-    fetchRootFor(device).signed shouldBe fetchRootFor(device, 1).signed
+  testWithRepo("device can PUT a valid manifest") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey,targetUpdate.to)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+  }
+
+  testWithRepo("device queue is cleared after successful PUT manifest") { implicit ns =>
+    val registerDevice = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceId = registerDevice.deviceId
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some)
+
+    val deviceManifest = buildPrimaryManifest(registerDevice.primary, registerDevice.primaryKey, targetUpdate.to)
+
+    putManifestOk(deviceId, deviceManifest)
+
+    Get(apiUri(s"assignments/${deviceId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[List[Json]] shouldBe empty
+    }
+  }
+
+  testWithRepo("fails when manifest is not properly signed by primary") { implicit ns =>
+    val registerDevice = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceId = registerDevice.deviceId
+    val key = GenKeyType.generate.crypto.generateKeyPair()
+
+    val deviceManifest = buildPrimaryManifest(registerDevice.primary, key, targetUpdate.to)
+
+    Put(apiUri(s"device/${deviceId.show}/manifest"), deviceManifest).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.Manifest.SignatureNotValid
+    }
+  }
+
+  testWithRepo("accepts manifest signed by secondary and primary") { implicit ns =>
+    val regDev = registerAdminDeviceWithSecondariesOk()
+    val (secondary, secondaryKey) = regDev.secondaryKeys.head
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceManifest = buildSecondaryManifest(regDev.primary.ecuSerial, regDev.primaryKey, secondary, secondaryKey, Map(regDev.primary.ecuSerial -> targetUpdate.to, secondary -> targetUpdate.to))
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+  }
+
+  testWithRepo("fails when manifest is not properly signed by secondary") { implicit ns =>
+    val regDev = registerAdminDeviceWithSecondariesOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val (secondary, realKey) = regDev.secondaryKeys.head
+    val secondaryKey = GenTufKeyPair.generate
+    val deviceManifest = buildSecondaryManifest(regDev.primary.ecuSerial, regDev.primaryKey, secondary, secondaryKey, Map(regDev.primary.ecuSerial -> targetUpdate.to, secondary -> targetUpdate.to))
+
+    Put(apiUri(s"device/${regDev.deviceId.show}/manifest"), deviceManifest).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.Manifest.SignatureNotValid
+      responseAs[ErrorRepresentation].description should include(s"not signed with key ${realKey.pubkey.id}")
+    }
+  }
+
+  testWithRepo("returns exact same targets.json if assignments did not change") { implicit ns =>
+    import com.advancedtelematic.libtuf.crypt.CanonicalJson._
+    val regDev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+
+    val firstTargets = Get(apiUri(s"device/${regDev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]]
+    }
+
+    Thread.sleep(1000)
+
+    val secondTargets = Get(apiUri(s"device/${regDev.deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[SignedPayload[TargetsRole]]
+    }
+
+    if(firstTargets.json.canonical != secondTargets.json.canonical)
+      fail(s"targets.json $firstTargets is not the same as $secondTargets")
+  }
+
+  testWithRepo("returns a refreshed version of targets if it expires") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val firstTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    forceRoleExpire[TargetsRole](regDev.deviceId)
+
+    val secondTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    secondTargets.signed.expires.isAfter(firstTargets.signed.expires)
+    firstTargets.signed.version shouldBe 1
+    secondTargets.signed.version shouldBe 2
+  }
+
+  testWithRepo("a refreshed targets returns the same assignments as before, even if they were completed") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some)
+
+    val firstTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, targetUpdate.to)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    forceRoleExpire[TargetsRole](regDev.deviceId)
+
+    val secondTargets = fetchRoleOk[TargetsRole](regDev.deviceId)
+
+    secondTargets.signed.expires.isAfter(firstTargets.signed.expires)
+    secondTargets.signed.targets shouldBe firstTargets.signed.targets
+  }
+
+  testWithRepo("returns a refreshed version of snapshots if it expires") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val first = fetchRoleOk[SnapshotRole](regDev.deviceId)
+
+    forceRoleExpire[SnapshotRole](regDev.deviceId)
+
+    val second = fetchRoleOk[SnapshotRole](regDev.deviceId)
+
+    second.signed.expires.isAfter(first.signed.expires)
+    first.signed.version shouldBe 1
+    second.signed.version shouldBe 2
+  }
+
+  testWithRepo("returns a refreshed version of timestamps if it expires") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val first = fetchRoleOk[TimestampRole](regDev.deviceId)
+
+    forceRoleExpire[TimestampRole](regDev.deviceId)
+
+    val second = fetchRoleOk[TimestampRole](regDev.deviceId)
+
+    second.signed.expires.isAfter(first.signed.expires)
+    first.signed.version shouldBe 1
+    second.signed.version shouldBe 2
+  }
+
+  testWithRepo("moves queue status to inflight = true after device gets targets containing assignment") { implicit ns =>
+    val registerDevice = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceId = registerDevice.deviceId
+    val correlationId = GenCorrelationId.generate
+    createDeviceAssignmentOk(registerDevice.deviceId, registerDevice.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    getDeviceRoleOk[TargetsRole](deviceId)
+
+    getDeviceAssignment(deviceId) {
+      status shouldBe StatusCodes.OK
+      val firstQueueItem = responseAs[List[QueueResponse]].head
+
+      firstQueueItem.targets(registerDevice.primary.ecuSerial).image.filepath shouldBe targetUpdate.to.target
+      firstQueueItem.inFlight shouldBe true
+      firstQueueItem.correlationId shouldBe correlationId
+    }
+  }
+
+  testWithRepo("correlationId is included in a targets role custom field") { implicit ns =>
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val regDev = registerAdminDeviceOk()
+    val deviceId = regDev.deviceId
+    val correlationId = GenCorrelationId.generate
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+
+      val targets = responseAs[SignedPayload[TargetsRole]].signed
+
+      targets.custom.flatMap(_.as[DeviceTargetsCustom].toOption.flatMap(_.correlationId)) should contain(correlationId)
+    }
+  }
+
+  testWithRepo("ecu custom includes custom metadata") { implicit ns =>
+    val targetUpdate = GenTargetUpdateRequest.retryUntil(_.to.uri.isDefined).generate
+    val regDev = registerAdminDeviceOk()
+    val deviceId = regDev.deviceId
+    val correlationId = GenCorrelationId.generate
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+
+      val targets = responseAs[SignedPayload[TargetsRole]].signed
+      val item = targets.targets.head._2
+      val custom = item.custom.flatMap(_.as[TargetItemCustom].toOption)
+
+      custom.map(_.ecuIdentifiers) should contain(Map(regDev.primary.ecuSerial -> TargetItemCustomEcuData(regDev.primary.hardwareId)))
+      custom.flatMap(_.uri) shouldBe targetUpdate.to.uri
+    }
+  }
+
+  testWithRepo("custom metadata includes targets per ecu when more than one ECU is assigned to the same target") { implicit ns =>
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val regDev = registerAdminDeviceWithSecondariesOk()
+    val (secondaryEcuSerial, secondaryEcu) = (regDev.ecus - regDev.primary.ecuSerial).head
+    val deviceId = regDev.deviceId
+    val correlationId = GenCorrelationId.generate
+    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    createDeviceAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
+
+    Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+
+      val targets = responseAs[SignedPayload[TargetsRole]].signed
+      val item = targets.targets.head._2
+      val custom = item.custom.flatMap(_.as[TargetItemCustom].toOption).map(_.ecuIdentifiers)
+
+      custom.flatMap(_.get(regDev.primary.ecuSerial)) should contain (TargetItemCustomEcuData(regDev.primary.hardwareId))
+      custom.flatMap(_.get(secondaryEcuSerial)) should contain (TargetItemCustomEcuData(secondaryEcu.hardwareId))
+    }
+  }
+
+  testWithRepo("device gets logged when fetching root") { implicit ns =>
+    val deviceId = registerDeviceOk()
+
+    getDeviceRoleOk[RootRole](deviceId)
+
+    val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
+    deviceSeenMsg.map(_.namespace) should contain(ns)
+  }
+
+  testWithRepo("device gets logged when fetching root with version") { implicit ns =>
+    val deviceId = registerDeviceOk()
+
+    getDeviceRoleOk[RootRole](deviceId, version = 1.some)
+
+    val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
+    deviceSeenMsg.map(_.namespace) should contain(ns)
+  }
+
+  testWithRepo("publishes DeviceUpdateCompleted message") { implicit  ns =>
+    val regDev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = true, correlationId = correlationId.some).generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey,targetUpdate.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+      msg.deviceUuid === regDev.deviceId
+    }.map(_.asInstanceOf[DeviceUpdateCompleted])
+
+    reportMsg.map(_.namespace) should contain(ns)
+
+    reportMsg.get.result shouldBe deviceReport.result
+    val (ecuReportId, ecuReport) = reportMsg.get.ecuReports.head
+    ecuReportId shouldBe regDev.primary.ecuSerial
+    ecuReport.result shouldBe deviceReport.items.head.result
+    reportMsg.get.correlationId shouldBe correlationId
+  }
+
+  testWithRepo("fails with EcuNotPrimary if device declares wrong primary") { implicit ns =>
+    val regDev = registerAdminDeviceWithSecondariesOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val secondarySerial = regDev.secondaries.keys.head
+    val secondaryKey = regDev.secondaryKeys(secondarySerial)
+    val deviceManifest = buildSecondaryManifest(secondarySerial, regDev.primaryKey, secondarySerial, secondaryKey, Map(secondarySerial -> targetUpdate.to))
+
+    putManifest(regDev.deviceId, deviceManifest) {
+      status shouldBe StatusCodes.BadRequest
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.Manifest.EcuNotPrimary
+    }
+  }
+
+  testWithRepo("device updates to same target we know it has installed but without install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets shouldNot be(empty)
+    targetsAfter.targets.get(targetUpdate.to.target) shouldBe defined
+    targetsAfter.targets.get(targetUpdate.to.target).map(_.length) should contain(targetUpdate.to.targetLength)
+  }
+
+  testWithRepo("device updates to same target we know it has installed with install report") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    getDeviceRoleOk[TargetsRole](regDev.deviceId).signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = false, correlationId = correlationId.some).generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId).signed
+    targetsAfter.targets shouldBe empty
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed.head.result shouldNot be(empty)
+    processed.head.canceled  shouldBe false
+    processed.head.successful  shouldBe false
+  }
+
+  // keep old director behavior
+  // Status should not change, since there is no report, nothing should be published
+  testWithRepo("device updates to some unknown target without an installation report should be NOOP") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    val unknownVersion = GenTargetUpdateRequest.generate
+
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownVersion.to)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter shouldBe targetsBefore
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed shouldBe empty
+  }
+
+  // Keep old director behavior, clean targets
+  testWithRepo("device updates to some unknown target with with a failed installation report empties targets") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsBefore.signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = false, correlationId = correlationId.some).generate
+    val unknownUpdate = GenTargetUpdateRequest.generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownUpdate.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter.signed.targets shouldBe empty
+
+    val processed = assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue
+    processed.head.result shouldNot be(empty)
+  }
+
+  // Keep old behavior, leaving targets/assignments unchanged and publish message if this happens
+  testWithRepo("device updates to some unknown target with a success installation report leaves assignments unchanged") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+    val targetsBefore = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsBefore.signed.targets shouldNot be(empty)
+
+    val deviceReport = GenInstallReport(regDev.primary.ecuSerial, success = true, correlationId = correlationId.some).generate
+    val unknownUpdate = GenTargetUpdateRequest.generate
+    val deviceManifestAfterTrying = buildPrimaryManifest(regDev.primary, regDev.primaryKey, unknownUpdate.to, deviceReport.some)
+
+    putManifestOk(regDev.deviceId, deviceManifestAfterTrying)
+
+    val targetsAfter = getDeviceRoleOk[TargetsRole](regDev.deviceId)
+    targetsAfter shouldBe targetsBefore
+
+    assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue shouldBe empty
+
+    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+      msg.deviceUuid === regDev.deviceId
+    }.map(_.asInstanceOf[DeviceUpdateCompleted])
+
+    reportMsg.value.result shouldBe deviceReport.result
+  }
+
+  testWithRepo("publishes bus message when manifest is received") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    val initialVersion = GenTargetUpdateRequest.generate
+    val deviceManifest = buildPrimaryManifest(regDev.primary, regDev.primaryKey, initialVersion.to, None)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val msg = msgPub.wasReceived[DeviceManifestReported](regDev.deviceId.show)
+
+    msg.value.manifest.asJsonSignedPayload shouldBe deviceManifest.asJsonSignedPayload
   }
 }
-
-class RsaDeviceResourceSpec extends DeviceResourceSpec with RsaGenerators {
-  testWithNamespace("Device can't register with a public RSA key which is too small") { implicit ns =>
-    val device = DeviceId.generate
-    val ecuIds = GenEcuIdentifier.listBetween(5,5).generate
-    val primEcu = ecuIds.head
-
-    val regEcusPrev = ecuIds.zipWithIndex.map { case (ecu, i) =>
-      val reg = GenRegisterEcu.generate.copy(ecu_serial = ecu)
-      if (i == 3) {
-        // we can't use TufCrypto.generateKeyPair to generate the key since it will
-        // throw an exception if the key is too small
-        val keyGen = KeyPairGenerator.getInstance("RSA", "BC")
-        keyGen.initialize(1024)
-        val keyPair = keyGen.generateKeyPair()
-        reg.copy(clientKey = RSATufKey(keyPair.getPublic))
-      } else reg
-    }
-
-    val regEcus = regEcusPrev
-
-    val regDev = RegisterDevice(device, primEcu, regEcus)
-
-    registerDeviceExpected(regDev, StatusCodes.BadRequest)
-  }
-}
-
-class EdDeviceResourceSpec extends DeviceResourceSpec with EdGenerators

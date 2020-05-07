@@ -3,556 +3,412 @@ package com.advancedtelematic.director.db
 import java.time.Instant
 
 import akka.http.scaladsl.util.FastFuture
-import com.advancedtelematic.director.data.AdminRequest.EcuInfoImage
-import com.advancedtelematic.director.data.DataType.{Ecu, FileCacheRequest, MultiTargetUpdateRow}
-import com.advancedtelematic.director.data.{DataType, FileCacheRequestStatus}
-import com.advancedtelematic.director.db.Errors._
-import com.advancedtelematic.director.db.SlickMapping._
+import cats.Show
+import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment, SHA256Checksum}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric.validatedStringMapper
-import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TufKey}
-import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
-import io.circe.Json
-import org.slf4j.LoggerFactory
+import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
+import SlickMapping._
+import com.advancedtelematic.director.http.Errors
+import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
+import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
+import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import io.circe.Json
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait AdminRepositorySupport {
-  def adminRepository(implicit db: Database, ec: ExecutionContext) = new AdminRepository()
+protected trait DatabaseSupport {
+  implicit val ec: ExecutionContext
+  implicit val db: Database
 }
 
-protected class AdminRepository()(implicit db: Database, ec: ExecutionContext) extends DeviceRepositorySupport
-    with FileCacheRequestRepositorySupport {
-  import com.advancedtelematic.director.data.AdminRequest.{EcuInfoResponse, RegisterEcu}
-  import com.advancedtelematic.director.data.DataType.{CustomImage, Hashes, Image}
+trait DeviceRepositorySupport extends DatabaseSupport {
+  lazy val deviceRepository = new DeviceRepository()
+}
 
-  implicit private class NotInCampaign(query: Query[Rep[DeviceId], DeviceId, Seq]) {
-    def notInACampaign(namespace: Namespace): Query[Rep[DeviceId], DeviceId, Seq] = {
+protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  def create(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[Unit] = {
+    val ecusDeleteIO =
+      Schema.ecus
+        .filter(_.namespace === ns)
+        .filter(_.deviceId === deviceId)
+        .filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial)))
+        .delete
 
-      def devUpdateAssignments = Schema.deviceUpdateAssignments
-        .filter(_.namespace === namespace)
-        .groupBy(_.deviceId)
-        .map{case (devId, q) => (devId, q.map(_.version).max.getOrElse(0))}
+    val deviceDeleteIo =
+      Schema.devices
+        .filter(_.namespace === ns)
+        .filter(_.id === deviceId)
+        .delete
 
-      val reportedButNotInACampaign = query
-        .join(Schema.deviceCurrentTarget).on(_ === _.device)
-        .map{case (devId, devCurTarget) => (devId, devCurTarget.deviceCurrentTarget)}
-        .joinLeft(devUpdateAssignments).on(_._1 === _._1)
-        .map{case ((devId, curTarg), devUpdate) => (devId, curTarg, devUpdate.map(_._2).getOrElse(curTarg))}
-        .filter{ case(_, cur, lastScheduled) => cur >= lastScheduled}
-        .map(_._1)
+    val io = for {
+      _ <- ecusDeleteIO.andThen(deviceDeleteIo) // This is a bad idea and will fail if device has assignments, see DeviceResourceSpec
+      _ <- Schema.ecus ++= ecus
+      _ <- Schema.devices += Device(ns, deviceId, primaryEcuId, generatedMetadataOutdaded = true)
+    } yield ()
 
-      val notReported = query.filterNot(dev => dev.in(Schema.deviceCurrentTarget.map(_.device)))
-
-      reportedButNotInACampaign.union(notReported)
-    }
+    db.run(io.transactionally)
   }
 
-  protected [db] def devicesNotInACampaign(namespace: Namespace, devices: Seq[DeviceId]): Query[Rep[DeviceId], DeviceId, Seq] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .map(_.device)
-      .filter(_.inSet(devices))
-      .notInACampaign(namespace)
-
-  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-
-  protected [db] def fetchHwMappingAction(namespace: Namespace, device: DeviceId): DBIO[Map[EcuIdentifier, (HardwareIdentifier, Option[Image])]] =
-    byDevice(namespace, device)
-      .joinLeft(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
-      .map{case (x,y) => (x.ecuSerial, x.hardwareId, y)}
-      .result
-      .failIfEmpty(DeviceMissing)
-      .map(_.map{case (id, hw, img) => id -> ((hw, img.map(_.image)))}.toMap)
-
-  protected [db] def findImagesAction(namespace: Namespace, device: DeviceId): DBIO[Seq[(EcuIdentifier, Image)]] =
-    byDevice(namespace, device)
-      .join(Schema.currentImage).on((ecu, curImage) => ecu.namespace === curImage.namespace && ecu.ecuSerial === curImage.id)
-      .map(_._2)
-      .result
-      .map(_.map(cim => cim.ecuSerial -> cim.image))
-
-  def findImages(namespace: Namespace, device: DeviceId): Future[Seq[(EcuIdentifier, Image)]] = db.run {
-    findImagesAction(namespace, device)
+  protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {
+    Schema.devices.filter(_.id.inSet(deviceIds)).map(_.generatedMetadataOutdated).update(outdated)
   }
 
-  def findAffected(namespace: Namespace, filepath: TargetFilename, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
-    Schema.currentImage
-      .filter(_.filepath === filepath)
+  def setMetadataOutdated(deviceId: DeviceId, outdated: Boolean): Future[Unit] = db.run {
+    setMetadataOutdatedAction(Set(deviceId), outdated)
+  }
+
+  def metadataIsOutdated(ns: Namespace, deviceId: DeviceId): Future[Boolean] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .filter(_.id === deviceId).map(_.generatedMetadataOutdated).result.headOption.map(_.exists(_ == true))
+  }
+}
+
+trait RepoNamespaceRepositorySupport extends DatabaseSupport {
+  lazy val repoNamespaceRepo = new RepoNamespaceRepository()
+}
+
+protected[db] class RepoNamespaceRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  import Schema.repoNamespaces
+
+  val MissingRepoNamespace = MissingEntity[(RepoId, Namespace)]()
+  val AlreadyExists = EntityAlreadyExists[(RepoId, Namespace)]()
+
+  def persist(repoId: RepoId, namespace: Namespace): Future[Unit] = db.run {
+    (repoNamespaces += (repoId -> namespace)).map(_ => ()).handleIntegrityErrors(AlreadyExists)
+  }
+
+  def ensureNotExists(namespace: Namespace): Future[Unit] =
+    findFor(namespace)
+      .flatMap(_ => FastFuture.failed(AlreadyExists))
+      .recover { case MissingRepoNamespace => () }
+
+  def findFor(namespace: Namespace): Future[RepoId] = db.run {
+    repoNamespaces
       .filter(_.namespace === namespace)
-      .map(_.id)
-      .join(Schema.ecu.filter(_.namespace === namespace)).on(_ === _.ecuSerial)
-      .map(_._2)
-      .map(_.device)
-      .notInACampaign(namespace)
+      .map(_.repoId)
+      .result
+      .headOption
+      .failIfNone(MissingRepoNamespace)
+  }
+
+  def belongsTo(repoId: RepoId, namespace: Namespace): Future[Boolean] = db.run {
+    repoNamespaces
+      .filter(_.repoId === repoId)
+      .filter(_.namespace === namespace)
+      .size
+      .result
+      .map(_ > 0)
+  }
+}
+
+object HardwareUpdateRepository {
+  implicit val showHardwareUpdateId = Show.show[(Namespace, UpdateId)] { case (ns, id) =>
+    s"($ns, $id)"
+  }
+
+  def MissingHardwareUpdate(namespace: Namespace, id: UpdateId) = MissingEntityId[(Namespace, UpdateId)](namespace -> id)
+}
+
+trait HardwareUpdateRepositorySupport extends DatabaseSupport {
+  lazy val hardwareUpdateRepository = new HardwareUpdateRepository()
+}
+
+protected class HardwareUpdateRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  import HardwareUpdateRepository._
+
+  protected [db] def persistAction(hardwareUpdate: HardwareUpdate): DBIO[Unit] = {
+    (Schema.hardwareUpdates += hardwareUpdate).map(_ => ())
+  }
+
+  def findBy(ns: Namespace, id: UpdateId): Future[Map[HardwareIdentifier, HardwareUpdate]] = db.run {
+    Schema.hardwareUpdates
+      .filter(_.namespace === ns).filter(_.id === id)
+      .result
+      .failIfEmpty(MissingHardwareUpdate(ns, id))
+      .map { hwUpdates =>
+        hwUpdates.map(hwUpdate => hwUpdate.hardwareId -> hwUpdate).toMap
+      }
+  }
+
+  def findUpdateTargets(ns: Namespace, id: UpdateId): Future[Seq[(HardwareUpdate, Option[EcuTarget], EcuTarget)]] = db.run {
+    val io = Schema.hardwareUpdates
+      .filter(_.namespace === ns).filter(_.id === id)
+      .join(Schema.ecuTargets).on { case (hwU, toTarget) => hwU.toTarget === toTarget.id }
+      .joinLeft(Schema.ecuTargets).on { case ((hw, _), fromTarget) => hw.fromTarget === fromTarget.id }
+      .map { case ((hw, toTarget), fromTarget) =>
+        (hw, fromTarget, toTarget)
+      }
+
+    io.result.failIfEmpty(MissingHardwareUpdate(ns, id))
+  }
+}
+
+trait EcuTargetsRepositorySupport extends DatabaseSupport {
+  lazy val ecuTargetsRepository = new EcuTargetsRepository()
+}
+
+protected class EcuTargetsRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  protected [db] def persistAction(ecuTarget: EcuTarget): DBIO[EcuTargetId] = {
+    (Schema.ecuTargets += ecuTarget).map(_ => ecuTarget.id)
+  }
+
+  def find(ns: Namespace, id: EcuTargetId): Future[EcuTarget] = db.run {
+    Schema.ecuTargets
+      .filter(_.namespace === ns)
+      .filter(_.id === id).result.failIfNotSingle(MissingEntityId[EcuTargetId](id))
+  }
+
+  def findAll(ns: Namespace, ids: Seq[EcuTargetId]): Future[Map[EcuTargetId, EcuTarget]] = db.run {
+    Schema.ecuTargets
+      .filter(_.namespace === ns)
+      .filter(_.id.inSet(ids))
+      .result.map(_.map(e => e.id -> e).toMap)
+  }
+}
+
+trait AssignmentsRepositorySupport extends DatabaseSupport {
+  lazy val assignmentsRepository = new AssignmentsRepository()
+}
+
+protected class AssignmentsRepository()(implicit val db: Database, val ec: ExecutionContext) {
+
+  def persistManyForEcuTarget(ecuTargetsRepository: EcuTargetsRepository, deviceRepository: DeviceRepository)
+                             (ecuTarget: EcuTarget, assignments: Seq[Assignment]): Future[Unit] = db.run {
+    ecuTargetsRepository.persistAction(ecuTarget)
+      .andThen { (Schema.assignments ++= assignments).map(_ => ()) }
+      .andThen { deviceRepository.setMetadataOutdatedAction(assignments.map(_.deviceId).toSet, outdated = true) }
+      .transactionally
+  }
+
+  def persistMany(deviceRepository: DeviceRepository)(assignments: Seq[Assignment]): Future[Unit] = db.run {
+    (Schema.assignments ++= assignments)
+      .andThen { deviceRepository.setMetadataOutdatedAction(assignments.map(_.deviceId).toSet, outdated = true) }
+      .transactionally
+  }
+
+  def findBy(deviceId: DeviceId): Future[Seq[Assignment]] = db.run {
+    Schema.assignments.filter(_.deviceId === deviceId).result
+  }
+
+  def existsForDevices(deviceIds: Set[DeviceId]): Future[Map[DeviceId, Boolean]] = db.run {
+    Schema.assignments
+      .filter(_.deviceId.inSet(deviceIds))
+      .map { a => a.deviceId -> true }
+      .result
+      .map { existing => deviceIds.map(_ -> false).toMap ++ existing.toMap }
+  }
+
+  def withAssignments(ecus: Set[EcuIdentifier]): Future[Seq[EcuIdentifier]] = db.run {
+    Schema.assignments.filter(_.ecuId.inSet(ecus)).map(_.ecuId).result
+  }
+
+  def findLastCreated(deviceId: DeviceId): Future[Option[Instant]] = db.run {
+    Schema.assignments.filter(_.deviceId === deviceId).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption
+  }
+
+  def markRegenerated(deviceRepository: DeviceRepository)(deviceId: DeviceId): Future[Unit] = db.run {
+    Schema.assignments.filter(_.deviceId === deviceId).map(_.inFlight).update(true).map(_ => ())
+      .andThen { deviceRepository.setMetadataOutdatedAction(Set(deviceId), outdated = false) }
+      .transactionally
+  }
+
+  def processCancellation(ns: Namespace, deviceIds: Seq[DeviceId]): Future[Seq[Assignment]] = {
+    val assignmentQuery = Schema.assignments.filter(_.namespace === ns).filter(_.deviceId inSet deviceIds).filterNot(_.inFlight)
+
+    val action = for {
+      assignments <- assignmentQuery.result
+      _ <- Schema.processedAssignments ++= assignments.map(_.toProcessedAssignment(true))
+      _ <- assignmentQuery.delete
+    } yield assignments
+
+    db.run(action.transactionally)
+  }
+
+  def findProcessed(ns: Namespace, deviceId: DeviceId): Future[Seq[ProcessedAssignment]] = db.run {
+    Schema.processedAssignments.filter(_.namespace === ns).filter(_.deviceId === deviceId).result
+  }
+}
+
+
+trait EcuRepositorySupport extends DatabaseSupport {
+  lazy val ecuRepository = new EcuRepository()
+}
+
+protected class EcuRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  def findBy(deviceId: DeviceId): Future[Seq[Ecu]] = db.run {
+    Schema.ecus.filter(_.deviceId === deviceId).result
+  }
+
+  def findBySerial(ns: Namespace, deviceId: DeviceId, ecuSerial: EcuIdentifier): Future[Ecu] = db.run {
+    Schema.ecus.filter(_.deviceId === deviceId).filter(_.namespace === ns).filter(_.ecuSerial === ecuSerial).result.failIfNotSingle(MissingEntity[Ecu]())
+  }
+
+  def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, EcuTarget)]] = db.run {
+    Schema.ecus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
+  }
+
+  def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
+    Schema.ecus.filter(_.namespace === ns)
+      .join(Schema.ecuTargets.filter(_.filename.inSet(targets)).filter(_.namespace === ns)).on(_.installedTarget === _.id)
+      .map { case (ecu, ecuTarget) => ecu.ecuSerial -> ecuTarget.filename }
+      .result
+      .map { targetByEcu =>
+        targetByEcu
+          .groupBy { case (_, filename) => filename }
+          .mapValues(_.size)
+      }
+  }
+
+  def findAllHardwareIdentifiers(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
+    Schema.ecus
+      .filter(_.namespace === ns)
+      .map(_.hardwareId)
       .distinct
       .paginateResult(offset = offset, limit = limit)
   }
 
-  def findDeviceById(device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
-    findDeviceAction(namespaceO = None, device)
-  }
-
-  private def findDeviceAction(namespaceO: Option[Namespace], deviceId: DeviceId): DBIO[Seq[EcuInfoResponse]] = {
-    Schema.ecu
-      .maybeFilter(_.namespace === namespaceO)
-      .filter(_.device === deviceId)
-      .join(Schema.currentImage).on { case (e, ci) => e.ecuSerial === ci.id && e.namespace === ci.namespace }
-      .map { case (ecu, curImage) => (ecu.ecuSerial, ecu.hardwareId, ecu.primary, curImage.filepath, curImage.length, curImage.checksum) }
-      .result
-      .failIfEmpty(MissingDevice)
-      .map { _.map {
-        case (id, hardwareId, primary, filepath, size, checksum) =>
-          EcuInfoResponse(id, hardwareId, primary, EcuInfoImage(filepath, size, Hashes(checksum.hash)))
-      }
-      }
-  }
-
-  def findDevice(namespace: Namespace, device: DeviceId): Future[Seq[EcuInfoResponse]] = db.run {
-    findDeviceAction(Option(namespace), device)
-  }
-
-  def findDevices(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .map(x => (x.device, x.createdAt))
-      .distinctOn(_._1)
+  def findAllDeviceIds(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .map(d => (d.id, d.createdAt))
       .paginateAndSortResult(_._2, offset = offset, limit = limit)
       .map(_.map(_._1))
   }
 
-  def findPublicKey(namespace: Namespace, device: DeviceId, ecu_serial: EcuIdentifier): Future[TufKey] = db.run {
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .filter(_.ecuSerial === ecu_serial)
-      .map(_.publicKey)
-      .result
-      .failIfNotSingle(MissingEcu)
+  def findFor(deviceId: DeviceId): Future[Map[EcuIdentifier, Ecu]] = db.run {
+    Schema.ecus.filter(_.deviceId === deviceId).result
+  }.map(_.map(e => e.ecuSerial -> e).toMap)
+
+  def findEcuWithTargets(devices: Set[DeviceId], hardwareIds: Set[HardwareIdentifier]): Future[Seq[(Ecu, Option[EcuTarget])]] = db.run {
+    Schema.ecus.filter(_.deviceId.inSet(devices)).filter(_.hardwareId.inSet(hardwareIds))
+      .joinLeft(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
-  def createDevice(namespace: Namespace, device: DeviceId, primEcu: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[Unit] = {
-    val toClean = byDevice(namespace, device)
-    val clean = Schema.currentImage
-      .filter(_.namespace === namespace)
-      .filter(_.id in toClean.map(_.ecuSerial))
-      .delete.andThen(toClean.delete)
-
-    def register(reg: RegisterEcu) =
-      (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
-        .handleIntegrityErrors(EcuAlreadyRegistered)
-
-    val act = clean.andThen(DBIO.sequence(ecus.map(register)))
-      .andThen(deviceRepository.createEmptyTarget(namespace, device))
-    db.run(act.map(_ => ()).transactionally)
-  }
-
-  // TODO: Remove this
-  def fetchCustomTargetVersion(namespace: Namespace, device: DeviceId, version: Int): Future[Map[EcuIdentifier, (HardwareIdentifier, CustomImage)]] = db.run {
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .join(Schema.ecuUpdateAssignments
-        .filter(_.namespace === namespace)
-        .filter(_.deviceId === device)
-        .filter(_.version === version)).on(_.ecuSerial === _.ecuId)
-      .map { case (ecu, ecuTarget) => ecuTarget.ecuId -> ((ecu.hardwareId, ecuTarget.customImage)) }
-      .result
-      .map(_.toMap)
-  }
-
-  def getPrimaryEcuForDevice(device: DeviceId): Future[EcuIdentifier] = db.run {
-    Schema.ecu
-      .filter(_.device === device)
-      .filter(_.primary)
-      .map(_.ecuSerial)
-      .result
-      .failIfNotSingle(DeviceMissingPrimaryEcu)
-  }
-
-  def findAllHardwareIdentifiers(namespace: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .map(_.hardwareId)
-      .distinct
-      .paginateAndSortResult(identity, offset = offset, limit = limit)
-  }
-
-  def countInstalledImages(namespace: Namespace, filepaths: Seq[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
-    Schema.currentImage
-      .filter(_.namespace === namespace)
-      .filter(_.filepath inSet(filepaths))
-      .groupBy(_.filepath)
-      .map { case (filepath, results) => (filepath, results.length) }
-      .drop(0) //workaround for slick issue: https://github.com/slick/slick/issues/1355
-      .result
-      .map(_.toMap)
+  def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {
+    Schema.devices.filter(_.id === deviceId).filter(_.namespace === ns)
+      .join(Schema.ecus).on { case (d, e) => d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
+      .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu)
   }
 }
 
-trait DeviceRepositorySupport {
-  def deviceRepository(implicit db: Database, ec: ExecutionContext) = new DeviceRepository()
+trait DbSignedRoleRepositorySupport extends DatabaseSupport {
+  lazy val dbSignedRoleRepository = new DbSignedRoleRepository()
 }
 
-protected class DeviceRepository()(implicit db: Database, ec: ExecutionContext) extends FileCacheRequestRepositorySupport {
-  import DataType.{CurrentImage, DeviceCurrentTarget, DeviceUpdateAssignment}
-  import com.advancedtelematic.director.data.AdminRequest.RegisterEcu
-  import com.advancedtelematic.director.data.DeviceRequest.EcuManifest
 
-  private def byDevice(namespace: Namespace, device: DeviceId): Query[Schema.EcusTable, Ecu, Seq] =
-    Schema.ecu
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
+protected[db] class DbSignedRoleRepository()(implicit val db: Database, val ec: ExecutionContext) {
+  import Schema.signedRoles
 
-  private def persistEcu(namespace: Namespace, ecuManifest: EcuManifest): DBIO[Unit] = {
-    Schema.currentImage.insertOrUpdate(CurrentImage(namespace, ecuManifest.ecu_serial, ecuManifest.installed_image, ecuManifest.attacks_detected)).map(_ => ())
-  }
+  def persist(signedRole: DbSignedRole, forceVersion: Boolean = false): Future[DbSignedRole] =
+    db.run(persistAction(signedRole, forceVersion).transactionally)
 
-  protected [db] def persistAllAction(namespace: Namespace, ecuManifests: Seq[EcuManifest]): DBIO[Unit] =
-    DBIO.sequence(ecuManifests.map(persistEcu(namespace, _))).map(_ => ()).transactionally
-
-  def persistAll(namespace: Namespace, ecuManifests: Seq[EcuManifest]): Future[Unit] =
-    db.run(persistAllAction(namespace, ecuManifests))
-
-  protected [db] def createEmptyTarget(namespace: Namespace, device: DeviceId): DBIO[Unit] = {
-    val fcr = FileCacheRequest(namespace, 0, device, FileCacheRequestStatus.PENDING, 0)
-    (Schema.deviceUpdateAssignments += DeviceUpdateAssignment(namespace, device, None, None, 0, served = false))
-      .andThen(fileCacheRequestRepository.persistAction(fcr))
-  }
-
-  def create(namespace: Namespace, device: DeviceId, primEcu: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[Unit] = {
-    def register(reg: RegisterEcu) =
-      (Schema.ecu += Ecu(reg.ecu_serial, device, namespace, reg.ecu_serial == primEcu, reg.hardwareId, reg.clientKey))
-        .handleIntegrityErrors(EcuAlreadyRegistered)
-
-    val dbAct = byDevice(namespace, device).exists.result.flatMap {
-      case false => DBIO.sequence(ecus.map(register)).andThen(createEmptyTarget(namespace, device))
-      case true  => DBIO.failed(DeviceAlreadyRegistered)
-    }
-
-    db.run(dbAct.transactionally)
-  }
-
-  def findEcus(namespace: Namespace, device: DeviceId): Future[Seq[Ecu]] =
-    db.run(byDevice(namespace, device).result)
-
-  def findEcuIdentifiers(namespace: Namespace, device: DeviceId): Future[Set[EcuIdentifier]] =
-    db.run(byDevice(namespace, device).map(_.ecuSerial).to[Set].result)
-
-  protected [db] def getCurrentVersionAction(device: DeviceId): DBIO[Option[Int]] =
-    Schema.deviceCurrentTarget
-      .filter(_.device === device)
-      .map(_.deviceCurrentTarget)
+  protected [db] def persistAction(signedRole: DbSignedRole, forceVersion: Boolean): DBIO[DbSignedRole] = {
+    signedRoles
+      .filter(_.device === signedRole.device)
+      .filter(_.role === signedRole.role)
+      .sortBy(_.version.reverse)
       .result
-      .failIfMany
-
-  def getCurrentVersion(device: DeviceId): Future[Int] = db.run {
-    getCurrentVersionAction(device)
-      .failIfNone(MissingCurrentTarget)
-  }
-
-  def getCurrentVersionSetIfInitialAction(device: DeviceId): DBIO[Int] = {
-    getCurrentVersionAction(device).flatMap {
-      case None => updateDeviceVersionAction(device, 0).map { _ => 0 }
-      case Some(current_version) => DBIO.successful(current_version)
-    }
-  }
-
-  protected [db] def updateDeviceVersionAction(device: DeviceId, device_version: Int): DBIO[Unit] = {
-    Schema.deviceCurrentTarget.insertOrUpdate(DeviceCurrentTarget(device, device_version))
-      .map(_ => ())
-  }
-
-  def setAsInFlight(namespace: Namespace, device: DeviceId, version: Int): Future[Int] = db.run {
-    val stillValid = Schema.deviceCurrentTarget
-      .filter(_.device === device)
-      .map(_.deviceCurrentTarget)
-      .forUpdate
-      .result
-      .failIfMany
-      .map(_.getOrElse(0))
-      .flatMap{ currentVersion =>
-      if (currentVersion <= version) {
-        DBIO.successful(())
-      } else {
-        DBIO.failed(FetchingCancelledUpdate)
+      .headOption
+      .flatMap { old =>
+        if(!forceVersion)
+          ensureVersionBumpIsValid(signedRole)(old)
+        else
+          DBIO.successful(())
       }
+      .flatMap(_ => signedRoles += signedRole)
+      .map(_ => signedRole)
+  }
+
+  def persistAll(signedRoles: List[DbSignedRole]): Future[Seq[DbSignedRole]] = db.run {
+    DBIO.sequence(signedRoles.map(sr => persistAction(sr, forceVersion = false))).transactionally
+  }
+
+  def findLatest[T](deviceId: DeviceId)(implicit ev: TufRole[T]): Future[DbSignedRole] =
+    db.run {
+      signedRoles
+        .filter(_.device === deviceId)
+        .filter(_.role === ev.roleType)
+        .sortBy(_.version.reverse)
+        .result
+        .headOption
+        .failIfNone(Errors.SignedRoleNotFound[T](deviceId))
     }
 
-    val act = Schema.deviceUpdateAssignments
-      .filter(_.namespace === namespace)
-      .filter(_.deviceId === device)
-      .filter(_.version === version)
-      .map(_.served)
-      .update(true)
-
-    stillValid.andThen(act).transactionally
-  }
-}
-
-trait FileCacheRepositorySupport {
-  def fileCacheRepository(implicit db: Database, ec: ExecutionContext) = new FileCacheRepository()
-}
-
-protected class FileCacheRepository()(implicit db: Database, ec: ExecutionContext) {
-  import DataType.FileCache
-  import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
-  import com.advancedtelematic.libtuf.data.ClientCodecs._
-  import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TargetsRole, TimestampRole}
-  import com.advancedtelematic.libtuf.data.TufCodecs._
-  import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
-  import com.advancedtelematic.libtuf_server.data.TufSlickMappings.roleTypeMapper
-  import io.circe.syntax._
-
-  private def fetchRoleType(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int): Future[Json] = db.run {
-    Schema.fileCache
-      .filter(_.role === role)
-      .filter(_.version === version)
-      .filter(_.device === device)
-      .map(_.fileEntity)
-      .result
-      .failIfNotSingle(err)
+  def findLastCreated[T](deviceId: DeviceId)(implicit ev: TufRole[T]): Future[Option[Instant]] = db.run {
+    signedRoles.filter(_.device === deviceId).filter(_.role === ev.roleType).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption
   }
 
-  protected [db] def fetchLatestVersionAction(deviceId: DeviceId): DBIO[Option[Int]] = {
-    Schema.fileCache
-      .filter(_.device === deviceId)
-      .map(_.version)
-      .max
-      .result
-  }
-
-  def fetchLatestVersion(deviceId: DeviceId): Future[Option[Int]] = db.run {
-    fetchLatestVersionAction(deviceId)
-  }
-
-  def fetchDeviceTargets(deviceId: DeviceId): Future[Seq[Json]] = db.run {
-    Schema.fileCache
-      .filter(_.role === RoleType.TARGETS)
-      .filter(_.device === deviceId)
-      .sortBy(_.expires.desc)
-      .map(_.fileEntity)
-      .result
-  }
-
-  def fetchTarget(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TARGETS, MissingTarget)(device, version)
-
-  def fetchSnapshot(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.SNAPSHOT, MissingSnapshot)(device, version)
-
-  def fetchTimestamp(device: DeviceId, version: Int): Future[Json] = fetchRoleType(RoleType.TIMESTAMP, MissingTimestamp)(device, version)
-
-  // TODO: This should **never** update, that breaks the validation
-  // This cannot be easily changed because tests rely on this:
-  // When two updates are scheduled concurrently, 2 file requests are generated with the same version (!!!) and the last one wins
-  protected [db] def storeRoleTypeAction(role: RoleType.RoleType, err: => Throwable)(device: DeviceId, version: Int, expires: Instant, file: Json): DBIO[Unit] =
-    Schema.fileCache.insertOrUpdate(FileCache(role, version, device, expires, file))
-      .handleIntegrityErrors(err)
-      .map(_ => ())
-
-  def storeJson(device: DeviceId, version: Int, expires: Instant, targets: SignedPayload[TargetsRole],
-                snapshots: SignedPayload[SnapshotRole], timestamp: SignedPayload[TimestampRole]): Future[Unit] = db.run {
-    storeRoleTypeAction(RoleType.TARGETS, ConflictingTarget)(device, version, expires, targets.asJson)
-      .andThen(storeRoleTypeAction(RoleType.SNAPSHOT, ConflictingSnapshot)(device, version, expires, snapshots.asJson))
-      .andThen(storeRoleTypeAction(RoleType.TIMESTAMP, ConflictingTimestamp)(device, version, expires, timestamp.asJson))
+  def storeAll(deviceId: DeviceId, signedRoles: List[DbSignedRole]): Future[Unit] = db.run {
+    DBIO.sequence(signedRoles.map(sr => persistAction(sr, forceVersion = false)))
       .transactionally
-  }
-
-  def haveExpired(device: DeviceId, version: Int): Future[Boolean] = db.run {
-    Schema.fileCache
-      .filter(_.device === device)
-      .filter(_.version === version)
-      .filter(_.role === RoleType.TIMESTAMP)
-      .map(_.expires)
-      .result
-      .failIfNotSingle(NoCacheEntry)
-  }.map (_.isBefore(Instant.now()))
-
-  def versionIsCached(device: DeviceId, version: Int): Future[Boolean] = db.run {
-    Schema.fileCache
-      .filter(_.device === device)
-      .filter(_.version === version)
-      .filter(_.role === RoleType.TIMESTAMP)
-      .exists
-      .result
-  }
-}
-
-
-trait FileCacheRequestRepositorySupport {
-  def fileCacheRequestRepository(implicit db: Database, ec: ExecutionContext) = new FileCacheRequestRepository()
-}
-
-protected class FileCacheRequestRepository()(implicit db: Database, ec: ExecutionContext) {
-
-  protected [db] def persistAction(req: FileCacheRequest): DBIO[Unit] =
-    (Schema.fileCacheRequest += req)
-      .map(_ => ())
-      .handleIntegrityErrors(ConflictingFileCacheRequest)
-
-  def findPending(limit: Int = 10): Future[Seq[FileCacheRequest]] = db.run {
-    Schema.fileCacheRequest.filter(_.status === FileCacheRequestStatus.PENDING).take(limit).result
-  }
-
-  def updateRequest(req: FileCacheRequest): Future[Unit] = db.run {
-    Schema.fileCacheRequest
-      .filter(_.namespace === req.namespace)
-      .filter(_.timestampVersion === req.timestampVersion)
-      .filter(_.device === req.device)
-      .map(_.status)
-      .update(req.status)
-      .handleSingleUpdateError(MissingFileCacheRequest)
       .map(_ => ())
   }
 
-  def findByVersion(namespace: Namespace, device: DeviceId, version: Int): Future[FileCacheRequest] = db.run {
-    Schema.fileCacheRequest
-      .filter(_.namespace === namespace)
-      .filter(_.timestampVersion === version)
-      .filter(_.device === device)
-      .result
-      .failIfNotSingle(MissingFileCacheRequest)
+  private def ensureVersionBumpIsValid(signedRole: DbSignedRole)(oldSignedRole: Option[DbSignedRole]): DBIO[Unit] =
+    oldSignedRole match {
+      case Some(sr) if signedRole.role != RoleType.ROOT && sr.version != signedRole.version - 1 =>
+        DBIO.failed(Errors.InvalidVersionBumpError(sr.version, signedRole.version, signedRole.role))
+      case _ => DBIO.successful(())
+    }
+}
+
+trait AutoUpdateDefinitionRepositorySupport {
+  def autoUpdateDefinitionRepository(implicit db: Database, ec: ExecutionContext) = new AutoUpdateDefinitionRepository()
+}
+
+protected class AutoUpdateDefinitionRepository()(implicit db: Database, ec: ExecutionContext) {
+  private val nonDeleted = Schema.autoUpdates.filter(_.deleted === false)
+
+  def persist(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[AutoUpdateDefinitionId] = db.run {
+    val id = AutoUpdateDefinitionId.generate()
+    (Schema.autoUpdates += AutoUpdateDefinition(id, ns, deviceId, ecuId, targetName)).map(_ => id)
+  }
+
+  def remove(ns: Namespace, deviceId: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[Unit] = db.run {
+    nonDeleted
+      .filter(_.deviceId === deviceId).filter(_.ecuId === ecuId)
+      .filter(_.namespace === ns).filter(_.targetName === targetName)
+      .map(_.deleted).update(true).handleSingleUpdateError(MissingEntity[AutoUpdateDefinition]())
+  }
+
+  def findByName(namespace: Namespace, targetName: TargetName): Future[Seq[AutoUpdateDefinition]] = db.run {
+    nonDeleted.filter(_.namespace === namespace).filter(_.targetName === targetName).result
+  }
+
+  def findOnDevice(ns: Namespace, device: DeviceId, ecuId: EcuIdentifier): Future[Seq[AutoUpdateDefinition]] = db.run {
+    nonDeleted.filter(_.namespace === ns).filter(_.deviceId === device).filter(_.ecuId === ecuId).result
   }
 }
 
-trait RepoNameRepositorySupport {
-  def repoNameRepository(implicit db: Database, ec: ExecutionContext) = new RepoNameRepository()
+trait DeviceManifestRepositorySupport {
+  def deviceManifestRepository(implicit db: Database, ec: ExecutionContext) = new DeviceManifestRepository()
 }
 
-protected class RepoNameRepository()(implicit db: Database, ec: ExecutionContext) {
-  import DataType.RepoName
-  import akka.NotUsed
-  import akka.stream.scaladsl.Source
-
-  def getRepo(ns: Namespace): Future[RepoId] = db.run {
-    Schema.repoNames
-      .filter(_.ns === ns)
-      .map(_.repo)
-      .result
-      .failIfNotSingle(MissingNamespaceRepo)
+protected class DeviceManifestRepository()(implicit db: Database, ec: ExecutionContext) {
+  def find(deviceId: DeviceId): Future[Option[(Json, Instant)]] = db.run {
+    Schema.deviceManifests.filter(_.deviceId === deviceId).map(r => r.manifest -> r.receivedAt).result.headOption
   }
 
-  protected [db] def persistAction(ns: Namespace, repoId: RepoId): DBIO[RepoName] = {
-    val repoName = RepoName(ns, repoId)
-    (Schema.repoNames += repoName)
-      .handleIntegrityErrors(ConflictNamespaceRepo)
-      .map(_ => repoName)
+  def findAll(deviceId: DeviceId): Future[Seq[(Json, Instant)]] = db.run {
+    Schema.deviceManifests.filter(_.deviceId === deviceId).map(r => r.manifest -> r.receivedAt).result
   }
 
-  def persist(ns: Namespace, repoId: RepoId): Future[RepoName] = db.run(persistAction(ns, repoId))
-
-  def streamNamespaces: Source[Namespace, NotUsed] = Source.fromPublisher(db.stream(Schema.repoNames.map(_.ns).result))
-}
-
-trait MultiTargetUpdatesRepositorySupport {
-  def multiTargetUpdatesRepository(implicit db: Database, ec: ExecutionContext) = new MultiTargetUpdatesRepository()
-}
-
-protected class MultiTargetUpdatesRepository()(implicit db: Database, ec: ExecutionContext) {
-
-  protected [db] def fetchAction(id: UpdateId, ns: Namespace): DBIO[Seq[MultiTargetUpdateRow]] =
-    Schema.multiTargets
-      .filter(_.id === id)
-      .filter(_.namespace === ns)
-      .result
-      .failIfEmpty(MissingMultiTargetUpdate)
-
-  def fetch(id: UpdateId, ns: Namespace): Future[Seq[MultiTargetUpdateRow]] = db.run {
-    fetchAction(id, ns)
-  }
-
-  def requireDiff(ns: Namespace, id: UpdateId): Future[Boolean] = db.run {
-    Schema.multiTargets
-      .filter(_.namespace === ns)
-      .filter(_.id === id)
-      .map(_.generateDiff)
-      .result
-      .failIfEmpty(MissingMultiTargetUpdate)
-      .map(_.contains(true))
-  }
-
-  def create(rows: Seq[MultiTargetUpdateRow]): Future[Unit] = db.run {
-    (Schema.multiTargets ++= rows)
-      .handleIntegrityErrors(ConflictingMultiTargetUpdate)
-      .map(_ => ())
+  def createOrUpdate(device: DeviceId, jsonManifest: Json, receivedAt: Instant): Future[Unit] = db.run {
+    val checksum = Sha256Digest.digest(jsonManifest.canonical.getBytes).hash
+    Schema.deviceManifests.insertOrUpdate((device, jsonManifest, checksum, receivedAt)).map(_ => ())
   }
 }
-
-trait AutoUpdateRepositorySupport {
-  def autoUpdateRepository(implicit db: Database, ec: ExecutionContext) = new AutoUpdateRepository()
-}
-
-protected class AutoUpdateRepository()(implicit db: Database, ec: ExecutionContext) {
-  import com.advancedtelematic.director.data.DataType.{AutoUpdate, TargetUpdate}
-  import com.advancedtelematic.libtuf.data.TufDataType.TargetName
-
-  def persist(namespace: Namespace, device: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[AutoUpdate] = db.run {
-    val autoUpdate = AutoUpdate(namespace, device, ecuId, targetName)
-    (Schema.autoUpdates += autoUpdate)
-      .handleIntegrityErrors(ConflictingAutoUpdate)
-      .map(_ => autoUpdate)
-  }
-
-  def remove(namespace: Namespace, device: DeviceId, ecuId: EcuIdentifier, targetName: TargetName): Future[Boolean] = db.run {
-    Schema
-      .autoUpdates
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .filter(_.ecuSerial === ecuId)
-      .filter(_.targetName === targetName)
-      .delete
-      .map(_ > 0)
-  }
-
-  def removeAll(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier): Future[Unit] = db.run {
-    Schema
-      .autoUpdates
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .filter(_.ecuSerial === ecuSerial)
-      .delete
-      .map(_ => ())
-  }
-
-  def findOnDevice(namespace: Namespace, device: DeviceId, ecuSerial: EcuIdentifier): Future[Seq[TargetName]] = db.run {
-    Schema
-      .autoUpdates
-      .filter(_.namespace === namespace)
-      .filter(_.device === device)
-      .filter(_.ecuSerial === ecuSerial)
-      .map(_.targetName)
-      .result
-  }
-
-  def findByTargetNameAction(namespace: Namespace, targetName: TargetName): DBIO[Seq[(DeviceId, HardwareIdentifier, TargetUpdate)]] = {
-    Schema.autoUpdates
-      .filter(_.namespace === namespace)
-      .filter(_.targetName === targetName)
-      .join(Schema.ecu.filter(_.namespace === namespace)).on(_.ecuSerial === _.ecuSerial)
-      .join(Schema.currentImage.filter(_.namespace === namespace)).on(_._1.ecuSerial === _.id)
-      .map{case ((auto, ecu), current) =>
-        (auto.device, ecu.hardwareId, current.filepath, current.checksum, current.length)}
-      .result
-      .map(_.map{case (device, hw, filepath, checksum, length) => (device, hw, TargetUpdate(filepath, checksum, length, None))})
-  }
-
-  def findByTargetName(namespace: Namespace, targetName: TargetName): Future[Map[DeviceId, Seq[(HardwareIdentifier, TargetUpdate)]]] = db.run {
-    findByTargetNameAction(namespace, targetName)
-      .map(_.groupBy{case (device, _, _) => device}
-             .map{case (k, v) => k -> v.map{case (_, hw, tu) => (hw, tu)}})
-  }
-}
-
-
-

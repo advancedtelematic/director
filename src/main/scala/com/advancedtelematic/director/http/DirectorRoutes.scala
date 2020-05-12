@@ -1,12 +1,10 @@
 package com.advancedtelematic.director.http
 
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directives, _}
 import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
 import com.advancedtelematic.libats.http.ErrorHandler
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import slick.jdbc.MySQLProfile.api._
 

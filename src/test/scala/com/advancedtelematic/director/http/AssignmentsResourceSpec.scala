@@ -208,25 +208,40 @@ class AssignmentsResourceSpec extends DirectorSpec
     queue.head.targets.get(regDev.secondaries.keys.head) should be(defined)
   }
 
+  // TODO: director should return 4xx and campaigner should handle that
+  // https://saeljira.it.here.com/browse/OTA-4956
+  testWithRepo("returns ok if no devices are affected by assignment") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    createDeviceAssignment(regDev.deviceId, GenHardwareIdentifier.generate) {
+      status shouldBe StatusCodes.OK
+      responseAs[List[Unit]] shouldBe empty
+    }
+  }
+
+  // TODO: Same test as above, should pass once OTA-4956 is implemented
   testWithRepo("fails if no ecus are affected by assignment") { implicit ns =>
+    pending
     val regDev = registerAdminDeviceOk()
 
     createDeviceAssignment(regDev.deviceId, GenHardwareIdentifier.generate) {
       status shouldBe StatusCodes.BadRequest
-      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.NoDevicesAffected
     }
   }
 
-  testWithRepo("create assignment fails if there is a created assignment for an ecu already") { implicit ns =>
+  // TODO: director should return errors describing which devices failed for this reason and campaigner should handle that
+  // https://saeljira.it.here.com/browse/OTA-4955
+  testWithRepo("create assignment returns 2xx if there is a created assignment for an ecu already, but device should not be affected") { implicit ns =>
     val regDev = registerAdminDeviceOk()
 
     createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 
     createDeviceAssignment(regDev.deviceId, regDev.primary.hardwareId) {
-      status shouldBe StatusCodes.Conflict
-      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.AssignmentExists
+      status shouldBe StatusCodes.OK
+      responseAs[List[Unit]] shouldBe empty
     }
   }
+
 
   testWithRepo("PATCH assignments cancels assigned updates") { implicit ns =>
     val regDev = registerAdminDeviceOk()

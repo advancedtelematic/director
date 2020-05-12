@@ -2,7 +2,6 @@ package com.advancedtelematic.director.db
 
 import java.time.Instant
 
-import akka.http.scaladsl.util.FastFuture
 import cats.Show
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment, SHA256Checksum}
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -84,17 +83,12 @@ trait RepoNamespaceRepositorySupport extends DatabaseSupport {
 protected[db] class RepoNamespaceRepository()(implicit val db: Database, val ec: ExecutionContext) {
   import Schema.repoNamespaces
 
-  val MissingRepoNamespace = MissingEntity[(RepoId, Namespace)]()
-  val AlreadyExists = EntityAlreadyExists[(RepoId, Namespace)]()
+  def MissingRepoNamespace(ns: Namespace) = MissingEntityId[Namespace](ns)(implicitly, Show.fromToString)
+  private val AlreadyExists = EntityAlreadyExists[(RepoId, Namespace)]()
 
   def persist(repoId: RepoId, namespace: Namespace): Future[Unit] = db.run {
     (repoNamespaces += (repoId -> namespace)).map(_ => ()).handleIntegrityErrors(AlreadyExists)
   }
-
-  def ensureNotExists(namespace: Namespace): Future[Unit] =
-    findFor(namespace)
-      .flatMap(_ => FastFuture.failed(AlreadyExists))
-      .recover { case MissingRepoNamespace => () }
 
   def findFor(namespace: Namespace): Future[RepoId] = db.run {
     repoNamespaces
@@ -102,7 +96,7 @@ protected[db] class RepoNamespaceRepository()(implicit val db: Database, val ec:
       .map(_.repoId)
       .result
       .headOption
-      .failIfNone(MissingRepoNamespace)
+      .failIfNone(MissingRepoNamespace(namespace))
   }
 
   def belongsTo(repoId: RepoId, namespace: Namespace): Future[Boolean] = db.run {
@@ -242,7 +236,6 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
     Schema.processedAssignments.filter(_.namespace === ns).filter(_.deviceId === deviceId).result
   }
 }
-
 
 trait EcuRepositorySupport extends DatabaseSupport {
   lazy val ecuRepository = new EcuRepository()

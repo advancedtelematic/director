@@ -19,7 +19,7 @@ trait NamespaceRepoId {
   def UserRepoId(ns: Namespace): Directive1[RepoId] = {
     onComplete(repoNamespaceRepo.findFor(ns)).flatMap {
       case Success(repoId) => provide(repoId)
-      case Failure(_: MissingEntity[_]) =>
+      case Failure(err) if err == repoNamespaceRepo.MissingRepoNamespace(ns) =>
         log.info(s"No repo for namespace $ns")
         reject(AuthorizationFailedRejection)
 

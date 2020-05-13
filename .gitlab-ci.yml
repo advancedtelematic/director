@@ -3,8 +3,6 @@ stages:
   - test
   - build image
   - trigger deploy
-  - update deployment
-  - integration test
   - veracode scan
   - deps scan
   - generate pages
@@ -28,24 +26,23 @@ default:
 
 test:
   stage: test
-  tags:
-    - docker-sock
   image: advancedtelematic/gitlab-jobs:0.2.3
   except:
     refs:
       - deploy/sit
   variables:
     DB_URL: "jdbc:mariadb://db:3306/$MYSQL_DATABASE"
+    SONAR_USER_HOME: $CI_PROJECT_DIR/.caches/sonar
   before_script:
     - echo "GRANT ALL PRIVILEGES ON \`director%\`.* TO 'director_v2'@'%'; FLUSH PRIVILEGES; " > db_user.sql
     - mysqladmin ping --protocol=TCP -h db -P 3306 -u root -proot
     - mysql -v -h db -u root -proot < db_user.sql
   script:
-    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 clean coverage compile test coverageReport
+    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 clean compile coverageOn test coverageOff coverageReport sonarScan
   cache:
     paths:
       - .ivy2/
-      - .sbt
+      - .sbt/
 
 build docker image:
   stage: build image
@@ -144,7 +141,3 @@ pages:
     paths:
       - public
     expire_in: 64 days
-
-include:
-  - project: olp/edge/ota/testing/dynamic-hats
-    file: /.gitlab-ci.yml

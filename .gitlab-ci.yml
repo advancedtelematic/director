@@ -38,7 +38,7 @@ test:
     - mysqladmin ping --protocol=TCP -h db -P 3306 -u root -proot
     - mysql -v -h db -u root -proot < db_user.sql
   script:
-    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 clean compile coverageOn test coverageOff coverageReport sonarScan
+    - sbt -sbt-dir ./.sbt -ivy ./.ivy2 -Dsbt.override.build.repos=true -Dsbt.repository.config=sbt-repositories.conf clean compile coverageOn test coverageOff coverageReport sonarScan
   cache:
     paths:
       - .ivy2/

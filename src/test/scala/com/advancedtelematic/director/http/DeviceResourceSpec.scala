@@ -3,13 +3,14 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminDataType.{QueueResponse, RegisterDevice}
+import com.advancedtelematic.director.data.AdminDataType
+import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.director.data.Messages.DeviceManifestReported
-import com.advancedtelematic.director.db.AssignmentsRepositorySupport
+import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, EcuRepositorySupport}
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -24,9 +25,8 @@ import io.circe.Json
 import org.scalatest.Inspectors
 import org.scalatest.OptionValues._
 
-
 class DeviceResourceSpec extends DirectorSpec
-  with RouteResourceSpec with AdminResources with AssignmentResources
+  with RouteResourceSpec with AdminResources with AssignmentResources with EcuRepositorySupport
   with DeviceManifestSpec with RepositorySpec with Inspectors with DeviceResources with AssignmentsRepositorySupport {
 
   override implicit val msgPub = new MockMessageBus
@@ -42,10 +42,7 @@ class DeviceResourceSpec extends DirectorSpec
     registerDeviceOk()
   }
 
-  // TODO: Legacy, this should not be possible
-  // https://saeljira.it.here.com/browse/OTA-441
-  // https://saeljira.it.here.com/browse/OTA-2517
-  testWithRepo("registering the same device id with different ecus works") { implicit ns =>
+  testWithRepo("a device can replace its ecus") { implicit ns =>
     val deviceId = DeviceId.generate()
     val ecus = GenRegisterEcu.generate
     val primaryEcu = ecus.ecu_serial
@@ -60,8 +57,105 @@ class DeviceResourceSpec extends DirectorSpec
     }
 
     Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+  }
+
+  testWithRepo("registering the same device id with different ecus works when using the same primary ecu") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+
+    val ecus2 = GenRegisterEcu.generate
+    val req2 = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus, ecus2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Created
     }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+  }
+
+  testWithRepo("a device can replace a secondary and POST manifests for the new ECUs") { implicit ns =>
+    val dev = registerAdminDeviceWithSecondariesOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val secondarySerial = dev.secondaries.keys.head
+    val secondaryKey = dev.secondaryKeys(secondarySerial)
+
+    val deviceManifest = buildSecondaryManifest(dev.primary.ecuSerial, dev.primaryKey, secondarySerial, secondaryKey, Map(dev.primary.ecuSerial -> targetUpdate.to, secondarySerial -> targetUpdate.to))
+    putManifestOk(dev.deviceId, deviceManifest)
+
+    val (ecus2, ecu2Keys) = GenRegisterEcuKeys.generate
+    val regPrimaryEcu = AdminDataType.RegisterEcu(dev.primary.ecuSerial, dev.primary.hardwareId, dev.primaryKey.pubkey)
+    val req2 = RegisterDevice(dev.deviceId.some, dev.primary.ecuSerial, Seq(regPrimaryEcu, ecus2))
+
+    Post(apiUri(s"device/${dev.deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    putManifestOk(dev.deviceId, buildSecondaryManifest(dev.primary.ecuSerial, dev.primaryKey, ecus2.ecu_serial, ecu2Keys, Map(dev.primary.ecuSerial -> targetUpdate.to, ecus2.ecu_serial -> targetUpdate.to)))
+
+    Get(apiUri(s"admin/devices/${dev.deviceId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val info = responseAs[Vector[EcuInfoResponse]]
+      info should have size(2)
+      info.map(_.id) should contain(dev.primary.ecuSerial)
+      info.map(_.id) should contain(ecus2.ecu_serial)
+    }
+  }
+
+  testWithRepo("replacing ecus fails when device has running assignments") { implicit ns =>
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val regDev = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), regDev).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    createDeviceAssignmentOk(deviceId, ecus.hardware_identifier, targetUpdate.some)
+
+    val ecus2 = GenRegisterEcu.generate
+    val req2 = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus, ecus2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.PreconditionFailed
+      val resp = responseAs[ErrorRepresentation]
+      resp.description should include(s"Cannot replace ecus for $deviceId")
+      resp.code shouldBe ErrorCodes.ReplaceEcuAssignmentExists
+    }
+  }
+
+  testWithRepo("Previously used ecus can be reused when replacing ecus") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val registerEcu = GenRegisterEcu.generate
+    val registerEcu2 = GenRegisterEcu.generate
+    val primaryEcu = registerEcu.ecu_serial
+    val regDev = RegisterDevice(deviceId.some, primaryEcu, Seq(registerEcu, registerEcu2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), regDev).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    val req2 = RegisterDevice(deviceId.some, primaryEcu, Seq(registerEcu))
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val req3 = RegisterDevice(deviceId.some, primaryEcu, Seq(registerEcu, registerEcu2))
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req3).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val deviceEcus = ecuRepository.findBy(deviceId).futureValue
+
+    deviceEcus.map(_.ecuSerial) should contain(primaryEcu)
+    deviceEcus.map(_.ecuSerial) should contain(registerEcu2.ecu_serial)
   }
 
   testWithRepo("fails when primary ecu is not defined in ecus") { implicit ns =>

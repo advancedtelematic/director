@@ -25,7 +25,7 @@ object ErrorCodes {
     val SignatureNotValid = ErrorCode("signature_not_valid")
   }
 
-  val AssignmentExists = ErrorCode("assignment_exists")
+  val ReplaceEcuAssignmentExists = ErrorCode("replace_ecu_assignment_exists")
 }
 
 object Errors {

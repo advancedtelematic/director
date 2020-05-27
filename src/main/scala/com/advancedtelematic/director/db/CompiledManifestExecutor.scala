@@ -18,20 +18,18 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
   private val _log = LoggerFactory.getLogger(this.getClass)
 
   private def findStateAction(deviceId: DeviceId): DBIO[DeviceKnownState] = {
-    val io = for {
+    for {
       assignments <- Schema.assignments.filter(_.deviceId === deviceId).result
       processed <- Schema.processedAssignments.filter(_.deviceId === deviceId).result
-      ecuStatus <- Schema.ecus.filter(_.deviceId === deviceId).map(ecu => ecu.ecuSerial -> ecu.installedTarget).result
+      ecuStatus <- Schema.activeEcus.filter(_.deviceId === deviceId).map(ecu => ecu.ecuSerial -> ecu.installedTarget).result
       device <- Schema.devices.filter(_.id === deviceId).result.head
       ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
       ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
     } yield DeviceKnownState(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdaded)
-
-    io
   }
 
   private def updateEcuAction(deviceId: DeviceId, ecuIdentifier: EcuIdentifier, installedTarget: Option[EcuTargetId]): DBIO[Unit] = {
-    Schema.ecus
+    Schema.activeEcus
       .filter(_.deviceId === deviceId)
       .filter(_.ecuSerial === ecuIdentifier).map(_.installedTarget).update(installedTarget).map(_ => ())
   }

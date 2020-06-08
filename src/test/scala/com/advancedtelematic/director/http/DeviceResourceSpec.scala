@@ -131,7 +131,7 @@ class DeviceResourceSpec extends DirectorSpec
     }
   }
 
-  testWithRepo("Previously used ecus can be reused when replacing ecus") { implicit ns =>
+  testWithRepo("Previously used *secondary* ecus cannot be reused when replacing ecus") { implicit ns =>
     val deviceId = DeviceId.generate()
     val registerEcu = GenRegisterEcu.generate
     val registerEcu2 = GenRegisterEcu.generate
@@ -149,13 +149,13 @@ class DeviceResourceSpec extends DirectorSpec
 
     val req3 = RegisterDevice(deviceId.some, primaryEcu, Seq(registerEcu, registerEcu2))
     Post(apiUri(s"device/${deviceId.show}/ecus"), req3).namespaced ~> routes ~> check {
-      status shouldBe StatusCodes.OK
+      status shouldBe StatusCodes.Conflict
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.SecondaryEcuExists
     }
 
     val deviceEcus = ecuRepository.findBy(deviceId).futureValue
 
-    deviceEcus.map(_.ecuSerial) should contain(primaryEcu)
-    deviceEcus.map(_.ecuSerial) should contain(registerEcu2.ecu_serial)
+    deviceEcus.map(_.ecuSerial) should contain only(primaryEcu)
   }
 
   testWithRepo("fails when primary ecu is not defined in ecus") { implicit ns =>

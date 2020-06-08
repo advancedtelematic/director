@@ -70,13 +70,21 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
       case false => DBIO.successful(())
     }
 
-    val insertEcus = DBIO.sequence(ecus.map(Schema.allEcus.insertOrUpdate))
+    val insertPrimaryEcu = ecus
+      .find(_.ecuSerial == device.primaryEcuId)
+      .map(Schema.allEcus.insertOrUpdate)
+      .getOrElse(DBIO.successful(()))
+
+    val secondaryEcus = ecus.filterNot(_.ecuSerial ==  device.primaryEcuId)
+
+    val insertSecondaryEcus = (Schema.allEcus ++= secondaryEcus)
+      .handleIntegrityErrors(Errors.SecondaryEcuExists(device.id, secondaryEcus.map(_.ecuSerial)))
 
     val insertDevice = Schema.devices.insertOrUpdate(device)
 
     val setActive = ecuRepository.setActiveEcus(ns, device.id, ecus.map(_.ecuSerial).toSet)
 
-    DBIO.seq(ensureNoAssignments, insertEcus, insertDevice, setActive)
+    DBIO.seq(ensureNoAssignments, insertPrimaryEcu, insertSecondaryEcus, insertDevice, setActive)
   }
 
   protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {
@@ -327,7 +335,6 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
       .filterNot(_.ecuSerial.inSet(ecus))
       .map(_.deleted)
       .update(true)
-      .map(_ => ())
 
     DBIO.seq(activeIO, deleteIO)
   }

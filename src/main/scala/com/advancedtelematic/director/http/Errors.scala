@@ -26,12 +26,16 @@ object ErrorCodes {
   }
 
   val ReplaceEcuAssignmentExists = ErrorCode("replace_ecu_assignment_exists")
+  val SecondaryEcuExists = ErrorCode("secondary_ecu_already_exists")
 }
 
 object Errors {
   val PrimaryIsNotListedForDevice = RawError(ErrorCodes.PrimaryIsNotListedForDevice, StatusCodes.BadRequest, "The given primary ecu isn't part of ecus for the device")
 
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
+
+  def SecondaryEcuExists(deviceId: DeviceId, ecuIds: Seq[EcuIdentifier]) =
+    RawError(ErrorCodes.SecondaryEcuExists, StatusCodes.Conflict, s"At least one secondary ecu in ${ecuIds.mkString(",")} already exists for device $deviceId")
 
   def InvalidVersionBumpError(oldVersion: Int, newVersion: Int, roleType: RoleType) =
     RawError(ErrorCode("invalid_version_bump"), StatusCodes.Conflict, s"Cannot bump version from $oldVersion to $newVersion for $roleType")

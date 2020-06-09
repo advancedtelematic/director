@@ -2,14 +2,11 @@ package com.advancedtelematic.director.db
 
 import java.time.Instant
 
-import akka.http.scaladsl.model.StatusCodes
 import cats.Show
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment}
-import com.advancedtelematic.director.db.DeviceRepository.{AssignmentExistsError, DeviceCreateResult}
-import com.advancedtelematic.director.http.ErrorCodes
+import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
-import com.advancedtelematic.libats.http
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
@@ -43,8 +40,6 @@ trait DeviceRepositorySupport extends DatabaseSupport {
 }
 
 object DeviceRepository {
-  case class AssignmentExistsError(deviceId: DeviceId) extends http.Errors.Error(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
-
   sealed trait DeviceCreateResult
   case object Created extends DeviceCreateResult
   case object Updated extends DeviceCreateResult
@@ -66,25 +61,23 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
 
   private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Unit] = {
     val ensureNoAssignments = Schema.assignments.filter(_.deviceId === device.id).exists.result.flatMap  {
-      case true => DBIO.failed(AssignmentExistsError(device.id))
+      case true => DBIO.failed(Errors.AssignmentExistsError(device.id))
       case false => DBIO.successful(())
     }
 
-    val insertPrimaryEcu = ecus
-      .find(_.ecuSerial == device.primaryEcuId)
-      .map(Schema.allEcus.insertOrUpdate)
-      .getOrElse(DBIO.successful(()))
+    val ensureNotReplacingDeleted =
+      Schema.deletedEcus.filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial))).exists.result.flatMap {
+        case true => DBIO.failed(Errors.EcusReuseError(device.id, ecus.map(_.ecuSerial)))
+        case false => DBIO.successful(())
+      }
 
-    val secondaryEcus = ecus.filterNot(_.ecuSerial ==  device.primaryEcuId)
-
-    val insertSecondaryEcus = (Schema.allEcus ++= secondaryEcus)
-      .handleIntegrityErrors(Errors.SecondaryEcuExists(device.id, secondaryEcus.map(_.ecuSerial)))
+    val insertEcus = DBIO.sequence(ecus.map(Schema.allEcus.insertOrUpdate))
 
     val insertDevice = Schema.devices.insertOrUpdate(device)
 
     val setActive = ecuRepository.setActiveEcus(ns, device.id, ecus.map(_.ecuSerial).toSet)
 
-    DBIO.seq(ensureNoAssignments, insertPrimaryEcu, insertSecondaryEcus, insertDevice, setActive)
+    DBIO.seq(ensureNoAssignments, ensureNotReplacingDeleted, insertEcus, insertDevice, setActive)
   }
 
   protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {

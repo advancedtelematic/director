@@ -61,6 +61,27 @@ class DeviceResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("a device can replace its primary ecu only") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val secondaryEcu = GenRegisterEcu.generate
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus, secondaryEcu))
+
+    val ecus2 = GenRegisterEcu.generate
+    val primaryEcu2 = ecus2.ecu_serial
+    val req2 = RegisterDevice(deviceId.some, primaryEcu2, Seq(ecus2, secondaryEcu))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+  }
+
+
   testWithRepo("registering the same device id with different ecus works when using the same primary ecu") { implicit ns =>
     val deviceId = DeviceId.generate()
     val ecus = GenRegisterEcu.generate
@@ -150,7 +171,7 @@ class DeviceResourceSpec extends DirectorSpec
     val req3 = RegisterDevice(deviceId.some, primaryEcu, Seq(registerEcu, registerEcu2))
     Post(apiUri(s"device/${deviceId.show}/ecus"), req3).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.Conflict
-      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.SecondaryEcuExists
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.EcuReuseError
     }
 
     val deviceEcus = ecuRepository.findBy(deviceId).futureValue

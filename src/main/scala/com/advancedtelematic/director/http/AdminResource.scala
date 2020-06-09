@@ -6,7 +6,7 @@ import akka.http.scaladsl.server._
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.{FindImageCount, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, EcuRepositorySupport, RepoNamespaceRepositorySupport}
+import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, DeviceRepository, EcuRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -130,8 +130,13 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   if (regDev.deviceId.isEmpty)
                     reject(ValidationRejection("deviceId is required to register a device"))
                   else {
-                    val f = deviceRegistration.register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
-                    complete(f.map(_ => StatusCodes.Created))
+                    val f = deviceRegistration
+                      .register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
+                      .map {
+                        case DeviceRepository.Created => StatusCodes.Created
+                        case DeviceRepository.Updated => StatusCodes.OK
+                      }
+                    complete(f)
                   }
                 }
               },

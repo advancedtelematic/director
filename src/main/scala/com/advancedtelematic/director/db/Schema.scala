@@ -13,6 +13,8 @@ import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import slick.ast.Subquery.Default
+import slick.sql.SqlProfile.ColumnOption
 
 
 object Schema {
@@ -47,12 +49,18 @@ object Schema {
     def hardwareId = column[HardwareIdentifier]("hardware_identifier")
     def publicKey = column[TufKey]("public_key")
     def installedTarget = column[Option[EcuTargetId]]("current_target")
+    def deleted = column[Boolean]("deleted", O.Default(false))
 
     def primKey = primaryKey("ecus_pk", (deviceId, ecuSerial))
 
     override def * = (ecuSerial, deviceId, namespace, hardwareId, publicKey, installedTarget) <> ((Ecu.apply _).tupled, Ecu.unapply)
   }
-  protected [db] val ecus = TableQuery[EcusTable]
+
+  protected [db] val allEcus = TableQuery[EcusTable]
+
+  protected [db] val activeEcus = TableQuery[EcusTable].filter(_.deleted === false)
+
+  protected [db] val deletedEcus = TableQuery[EcusTable].filter(_.deleted === true)
 
   class EcuTargetsTable(tag: Tag) extends Table[EcuTarget](tag, "ecu_targets") {
     def id = column[EcuTargetId]("id")

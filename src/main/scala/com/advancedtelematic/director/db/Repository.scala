@@ -3,16 +3,17 @@ package com.advancedtelematic.director.db
 import java.time.Instant
 
 import cats.Show
-import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment, SHA256Checksum}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment}
+import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
-import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
+import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
@@ -21,8 +22,9 @@ import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
-import com.advancedtelematic.libats.slick.db.SlickExtensions._
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, RepoId, RoleType, TargetFilename, TargetName}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
+import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
@@ -37,28 +39,45 @@ trait DeviceRepositorySupport extends DatabaseSupport {
   lazy val deviceRepository = new DeviceRepository()
 }
 
+object DeviceRepository {
+  sealed trait DeviceCreateResult
+  case object Created extends DeviceCreateResult
+  case object Updated extends DeviceCreateResult
+}
+
 protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
-  def create(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[Unit] = {
-    val ecusDeleteIO =
-      Schema.ecus
-        .filter(_.namespace === ns)
-        .filter(_.deviceId === deviceId)
-        .filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial)))
-        .delete
+  def create(ecuRepository: EcuRepository)(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[DeviceCreateResult] = {
+    val device = Device(ns, deviceId, primaryEcuId, generatedMetadataOutdaded = true)
 
-    val deviceDeleteIo =
-      Schema.devices
-        .filter(_.namespace === ns)
-        .filter(_.id === deviceId)
-        .delete
-
-    val io = for {
-      _ <- ecusDeleteIO.andThen(deviceDeleteIo) // This is a bad idea and will fail if device has assignments, see DeviceResourceSpec
-      _ <- Schema.ecus ++= ecus
-      _ <- Schema.devices += Device(ns, deviceId, primaryEcuId, generatedMetadataOutdaded = true)
-    } yield ()
+    val io = Schema.devices.filter(_.id === deviceId).result.headOption.flatMap {
+      case Some(_) => // Update Device and Ecus
+        replaceDeviceEcus(ecuRepository)(ns, device, ecus).map(_ => DeviceRepository.Updated)
+      case _ => // New Device and Ecus
+        (Schema.allEcus ++= ecus).andThen(Schema.devices += device).map(_ => DeviceRepository.Created)
+    }
 
     db.run(io.transactionally)
+  }
+
+  private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Unit] = {
+    val ensureNoAssignments = Schema.assignments.filter(_.deviceId === device.id).exists.result.flatMap  {
+      case true => DBIO.failed(Errors.AssignmentExistsError(device.id))
+      case false => DBIO.successful(())
+    }
+
+    val ensureNotReplacingDeleted =
+      Schema.deletedEcus.filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial))).exists.result.flatMap {
+        case true => DBIO.failed(Errors.EcusReuseError(device.id, ecus.map(_.ecuSerial)))
+        case false => DBIO.successful(())
+      }
+
+    val insertEcus = DBIO.sequence(ecus.map(Schema.allEcus.insertOrUpdate))
+
+    val insertDevice = Schema.devices.insertOrUpdate(device)
+
+    val setActive = ecuRepository.setActiveEcus(ns, device.id, ecus.map(_.ecuSerial).toSet)
+
+    DBIO.seq(ensureNoAssignments, ensureNotReplacingDeleted, insertEcus, insertDevice, setActive)
   }
 
   protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {
@@ -243,19 +262,19 @@ trait EcuRepositorySupport extends DatabaseSupport {
 
 protected class EcuRepository()(implicit val db: Database, val ec: ExecutionContext) {
   def findBy(deviceId: DeviceId): Future[Seq[Ecu]] = db.run {
-    Schema.ecus.filter(_.deviceId === deviceId).result
+    Schema.activeEcus.filter(_.deviceId === deviceId).result
   }
 
   def findBySerial(ns: Namespace, deviceId: DeviceId, ecuSerial: EcuIdentifier): Future[Ecu] = db.run {
-    Schema.ecus.filter(_.deviceId === deviceId).filter(_.namespace === ns).filter(_.ecuSerial === ecuSerial).result.failIfNotSingle(MissingEntity[Ecu]())
+    Schema.activeEcus.filter(_.deviceId === deviceId).filter(_.namespace === ns).filter(_.ecuSerial === ecuSerial).result.failIfNotSingle(MissingEntity[Ecu]())
   }
 
   def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, EcuTarget)]] = db.run {
-    Schema.ecus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
+    Schema.activeEcus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {
-    Schema.ecus.filter(_.namespace === ns)
+    Schema.activeEcus.filter(_.namespace === ns)
       .join(Schema.ecuTargets.filter(_.filename.inSet(targets)).filter(_.namespace === ns)).on(_.installedTarget === _.id)
       .map { case (ecu, ecuTarget) => ecu.ecuSerial -> ecuTarget.filename }
       .result
@@ -267,7 +286,7 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
   }
 
   def findAllHardwareIdentifiers(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.run {
-    Schema.ecus
+    Schema.activeEcus
       .filter(_.namespace === ns)
       .map(_.hardwareId)
       .distinct
@@ -283,25 +302,40 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
   }
 
   def findFor(deviceId: DeviceId): Future[Map[EcuIdentifier, Ecu]] = db.run {
-    Schema.ecus.filter(_.deviceId === deviceId).result
+    Schema.activeEcus.filter(_.deviceId === deviceId).result
   }.map(_.map(e => e.ecuSerial -> e).toMap)
 
   def findEcuWithTargets(devices: Set[DeviceId], hardwareIds: Set[HardwareIdentifier]): Future[Seq[(Ecu, Option[EcuTarget])]] = db.run {
-    Schema.ecus.filter(_.deviceId.inSet(devices)).filter(_.hardwareId.inSet(hardwareIds))
+    Schema.activeEcus.filter(_.deviceId.inSet(devices)).filter(_.hardwareId.inSet(hardwareIds))
       .joinLeft(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {
     Schema.devices.filter(_.id === deviceId).filter(_.namespace === ns)
-      .join(Schema.ecus).on { case (d, e) => d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
+      .join(Schema.activeEcus).on { case (d, e) => d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
       .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu)
+  }
+
+  protected[db] def setActiveEcus(ns: Namespace, deviceId: DeviceId, ecus: Set[EcuIdentifier]): DBIO[Unit] = {
+    val ecuQuery = Schema.allEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId)
+
+    val activeIO = ecuQuery
+      .filter(_.ecuSerial.inSet(ecus))
+      .map(_.deleted)
+      .update(false)
+
+    val deleteIO = ecuQuery
+      .filterNot(_.ecuSerial.inSet(ecus))
+      .map(_.deleted)
+      .update(true)
+
+    DBIO.seq(activeIO, deleteIO)
   }
 }
 
 trait DbSignedRoleRepositorySupport extends DatabaseSupport {
   lazy val dbSignedRoleRepository = new DbSignedRoleRepository()
 }
-
 
 protected[db] class DbSignedRoleRepository()(implicit val db: Database, val ec: ExecutionContext) {
   import Schema.signedRoles
@@ -343,12 +377,6 @@ protected[db] class DbSignedRoleRepository()(implicit val db: Database, val ec: 
 
   def findLastCreated[T](deviceId: DeviceId)(implicit ev: TufRole[T]): Future[Option[Instant]] = db.run {
     signedRoles.filter(_.device === deviceId).filter(_.role === ev.roleType).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption
-  }
-
-  def storeAll(deviceId: DeviceId, signedRoles: List[DbSignedRole]): Future[Unit] = db.run {
-    DBIO.sequence(signedRoles.map(sr => persistAction(sr, forceVersion = false)))
-      .transactionally
-      .map(_ => ())
   }
 
   private def ensureVersionBumpIsValid(signedRole: DbSignedRole)(oldSignedRole: Option[DbSignedRole]): DBIO[Unit] =

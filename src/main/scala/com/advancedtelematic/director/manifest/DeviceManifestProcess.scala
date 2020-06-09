@@ -72,10 +72,7 @@ object DeviceManifestProcess {
 }
 
 class DeviceManifestProcess()(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport {
-  import cats.syntax.either._
   import cats.implicits._
-
-  private val _log = LoggerFactory.getLogger(this.getClass)
 
   import com.advancedtelematic.libtuf.crypt.SignedPayloadSignatureOps._
 

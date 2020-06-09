@@ -25,13 +25,19 @@ object ErrorCodes {
     val SignatureNotValid = ErrorCode("signature_not_valid")
   }
 
-  val AssignmentExists = ErrorCode("assignment_exists")
+  val ReplaceEcuAssignmentExists = ErrorCode("replace_ecu_assignment_exists")
+  val EcuReuseError = ErrorCode("ecu_reuse_not_allowed")
 }
 
 object Errors {
   val PrimaryIsNotListedForDevice = RawError(ErrorCodes.PrimaryIsNotListedForDevice, StatusCodes.BadRequest, "The given primary ecu isn't part of ecus for the device")
 
   val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
+
+  def AssignmentExistsError(deviceId: DeviceId) = RawError(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
+
+  def EcusReuseError(deviceId: DeviceId, ecuIds: Seq[EcuIdentifier]) =
+    RawError(ErrorCodes.EcuReuseError, StatusCodes.Conflict, s"At least one ecu in ${ecuIds.mkString(",")} was already used and removed for $deviceId and cannot be reused")
 
   def InvalidVersionBumpError(oldVersion: Int, newVersion: Int, roleType: RoleType) =
     RawError(ErrorCode("invalid_version_bump"), StatusCodes.Conflict, s"Cannot bump version from $oldVersion to $newVersion for $roleType")

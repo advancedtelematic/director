@@ -3,6 +3,7 @@ package com.advancedtelematic.director.db
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoImage, EcuInfoResponse, RegisterEcu}
 import com.advancedtelematic.director.data.UptaneDataType.Hashes
+import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.DataType.Namespace
@@ -30,14 +31,14 @@ class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Data
     }.toVector
   }
 
-  def register(ns: Namespace, repoId: RepoId, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[Unit] = {
+  def register(ns: Namespace, repoId: RepoId, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[DeviceCreateResult] = {
     if (ecus.exists(_.ecu_serial == primaryEcuId)) {
       val _ecus = ecus.map(_.toEcu(ns, deviceId))
 
       for {
-        _ <- deviceRepository.create(ns, deviceId, primaryEcuId, _ecus)
+        result <- deviceRepository.create(ecuRepository)(ns, deviceId, primaryEcuId, _ecus)
         _ <- roleGeneration.findFreshTargets(ns, repoId, deviceId)
-      } yield ()
+      } yield result
     } else
       FastFuture.failed(Errors.PrimaryIsNotListedForDevice)
   }

@@ -4,7 +4,6 @@ package com.advancedtelematic.director
 import java.security.Security
 
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
 import com.advancedtelematic.libats.http.BootApp
@@ -19,28 +18,7 @@ import com.advancedtelematic.libats.slick.monitoring.{DatabaseMetrics, DbHealthR
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverHttpClient
 import com.advancedtelematic.metrics.prometheus.PrometheusMetricsSupport
 import com.advancedtelematic.metrics.{AkkaHttpConnectionMetrics, AkkaHttpRequestMetrics, MetricsSupport}
-import com.typesafe.config.Config
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-
-
-object Util {
-  def namedType[T](name: String): T = {
-    val ru = scala.reflect.runtime.universe
-    val mirror = ru.runtimeMirror(getClass.getClassLoader)
-    val objectSymbol = mirror.staticModule(name)
-    val mm = mirror.reflectModule(objectSymbol)
-    mm.instance.asInstanceOf[T]
-  }
-
-  def mkUri(config: Config, key: String): Uri = {
-    val uri = Uri(config.getString(key))
-    if (!uri.isAbsolute) {
-      throw new IllegalArgumentException(s"$key is not an absolute uri")
-    }
-    uri
-  }
-}
-
 
 
 object Boot extends BootApp

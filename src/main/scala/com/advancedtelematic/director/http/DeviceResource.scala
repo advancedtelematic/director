@@ -56,8 +56,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
     pathPrefix("device" / DeviceId.Path) { device =>
       post {
         (path("ecus") & entity(as[RegisterDevice])) { regDev =>
-          val f = deviceRegistration.register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
-          complete(f.map(_ => StatusCodes.Created))
+          val f = deviceRegistration
+            .register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
+            .map {
+              case DeviceRepository.Created => StatusCodes.Created
+              case DeviceRepository.Updated => StatusCodes.OK
+            }
+          complete(f)
         }
       } ~
       put {

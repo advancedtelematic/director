@@ -297,4 +297,23 @@ class AssignmentsResourceSpec extends DirectorSpec
     val targetItemCustom = t2.signed.targets.headOption.value._2.customParsed[TargetItemCustom]
     targetItemCustom.get.ecuIdentifiers.keys.head shouldBe regDev.ecus.keys.head
   }
+
+  testWithRepo("can schedule an assignment when using the same ecu serial as another device") { implicit ns =>
+    val device1 = DeviceId.generate
+    val device2 = DeviceId.generate
+    val (regEcu, _) = GenRegisterEcuKeys.generate
+    val regDev1 = RegisterDevice(device1.some, regEcu.ecu_serial, List(regEcu))
+    val regDev2 = RegisterDevice(device2.some, regEcu.ecu_serial, List(regEcu))
+
+    Post(apiUri("admin/devices"), regDev1).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri("admin/devices"), regDev2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    createDeviceAssignmentOk(device1, regEcu.hardware_identifier)
+    createDeviceAssignmentOk(device2, regEcu.hardware_identifier)
+  }
 }

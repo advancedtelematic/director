@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.db
 
 import java.time.Instant
+import java.util.UUID
 
 import cats.Show
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment}
@@ -11,6 +12,7 @@ import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEnt
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
+import cats.syntax.either._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
@@ -18,6 +20,7 @@ import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
 import SlickMapping._
+import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
@@ -27,6 +30,7 @@ import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
+import slick.jdbc.{GetResult, PositionedParameters, SetParameter}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -66,7 +70,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     }
 
     val ensureNotReplacingDeleted =
-      Schema.deletedEcus.filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial))).exists.result.flatMap {
+      Schema.deletedEcus.filter(_.deviceId === device.id).filter(_.ecuSerial.inSet(ecus.map(_.ecuSerial))).exists.result.flatMap {
         case true => DBIO.failed(Errors.EcusReuseError(device.id, ecus.map(_.ecuSerial)))
         case false => DBIO.successful(())
       }
@@ -225,9 +229,23 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
       .map { existing => deviceIds.map(_ -> false).toMap ++ existing.toMap }
   }
 
-  def withAssignments(ecus: Set[EcuIdentifier]): Future[Seq[EcuIdentifier]] = db.run {
-    Schema.assignments.filter(_.ecuId.inSet(ecus)).map(_.ecuId).result
-  }
+  def withAssignments(ids: Set[(DeviceId, EcuIdentifier)]): Future[Set[(DeviceId, EcuIdentifier)]] =
+    if (ids.isEmpty) {
+      FastFuture.successful(Set.empty)
+    } else {
+      // raw sql is workaround for https://github.com/slick/slick/pull/995
+      implicit val getResult = GetResult { r =>
+        DeviceId(UUID.fromString(r.nextString)) -> EcuIdentifier(r.nextString()).valueOr(throw _)
+      }
+
+      val elems = ids.map { case (d, e) => "('" + d.uuid.toString + "','" + e.value + "')" }.mkString("(", ",", ")")
+
+      db.run {
+        sql"select device_id, ecu_serial from assignments where (device_id, ecu_serial) in #$elems"
+          .as[(DeviceId, EcuIdentifier)]
+          .map(_.toSet)
+      }
+    }
 
   def findLastCreated(deviceId: DeviceId): Future[Option[Instant]] = db.run {
     Schema.assignments.filter(_.deviceId === deviceId).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption
@@ -312,8 +330,8 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
 
   def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {
     Schema.devices.filter(_.id === deviceId).filter(_.namespace === ns)
-      .join(Schema.activeEcus).on { case (d, e) => d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
-      .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu)
+      .join(Schema.activeEcus).on { case (d, e) => d.id === e.deviceId && d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
+      .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu(deviceId))
   }
 
   protected[db] def setActiveEcus(ns: Namespace, deviceId: DeviceId, ecus: Set[EcuIdentifier]): DBIO[Unit] = {

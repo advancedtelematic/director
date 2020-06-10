@@ -4,8 +4,10 @@ import java.time.Instant
 
 import akka.http.scaladsl.model.Uri
 import com.advancedtelematic.director.data.DbDataType._
+import com.advancedtelematic.libats.data
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging_datatype.DataType
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, RepoId, SignedPayload, TargetFilename, TargetName, TufKey}

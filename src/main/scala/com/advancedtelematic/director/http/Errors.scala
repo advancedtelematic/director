@@ -32,7 +32,7 @@ object ErrorCodes {
 object Errors {
   val PrimaryIsNotListedForDevice = RawError(ErrorCodes.PrimaryIsNotListedForDevice, StatusCodes.BadRequest, "The given primary ecu isn't part of ecus for the device")
 
-  val DeviceMissingPrimaryEcu = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, "The device don't have an ECU")
+  def DeviceMissingPrimaryEcu(deviceId: DeviceId) = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, s"This server does not have a primary ecu for $deviceId")
 
   def AssignmentExistsError(deviceId: DeviceId) = RawError(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
 

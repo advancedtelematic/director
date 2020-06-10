@@ -77,11 +77,12 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       }
     }
 
-    val ecusWithAssignments = await(assignmentsRepository.withAssignments(ecus.map(_._1.ecuSerial).toSet))
+    val ecuIds = ecus.map { case (ecu, _) => ecu.deviceId -> ecu.ecuSerial }.toSet
+    val ecusWithAssignments = await(assignmentsRepository.withAssignments(ecuIds))
 
     ecus.flatMap {
-      case (ecu, _) if ecusWithAssignments.contains(ecu.ecuSerial) =>
-        _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} not affected because it has a running assignment")
+      case (ecu, _) if ecusWithAssignments.contains(ecu.deviceId -> ecu.ecuSerial) =>
+        _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} not affected because ecu has a running assignment")
         None
       case other =>
         Some(other)
@@ -89,7 +90,7 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
   }
 
   def createForDevice(ns: Namespace, correlationId: CorrelationId, deviceId: DeviceId, mtuId: UpdateId): Future[Assignment] = {
-    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.head)
+    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.head) // TODO: This HEAD is problematic
   }
 
   def createForDevices(ns: Namespace, correlationId: CorrelationId, devices: Seq[DeviceId], mtuId: UpdateId): Future[Seq[Assignment]] = async {
@@ -120,5 +121,4 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       }
     }
   }
-
 }

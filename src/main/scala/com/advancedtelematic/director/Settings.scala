@@ -13,4 +13,6 @@ trait Settings {
   val tufUri = Uri(_config.getString("keyserver.uri"))
 
   val requestLogLevel = Logging.levelFor(_config.getString("requestLogLevel")).getOrElse(Logging.DebugLevel)
+
+  val allowEcuReplacement = _config.getBoolean("allowEcuReplacement")
 }

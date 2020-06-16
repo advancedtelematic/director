@@ -48,7 +48,7 @@ object Boot extends BootApp
     DbHealthResource(versionMap, dependencies = Seq(new ServiceHealthCheck(tufUri))).route ~
     (logRequestResult("directorv2-request-result" -> requestLogLevel) & versionHeaders(version) & requestMetrics(metricRegistry) & logResponseMetrics(projectName) & tracing.traceRequests) { implicit requestTracing =>
       prometheusMetricsRoutes ~
-        new DirectorRoutes(keyserverClient).routes
+        new DirectorRoutes(keyserverClient, allowEcuReplacement).routes
     }
 
   Http().bindAndHandle(withConnectionMetrics(routes, metricRegistry), host, port)

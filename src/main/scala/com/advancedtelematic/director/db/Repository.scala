@@ -63,6 +63,10 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     db.run(io.transactionally)
   }
 
+  def exists(deviceId: DeviceId): Future[Boolean] = db.run {
+    Schema.devices.filter(_.id === deviceId).exists.result
+  }
+
   private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Unit] = {
     val ensureNoAssignments = Schema.assignments.filter(_.deviceId === device.id).exists.result.flatMap  {
       case true => DBIO.failed(Errors.AssignmentExistsError(device.id))

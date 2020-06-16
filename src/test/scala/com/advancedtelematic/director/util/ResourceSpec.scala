@@ -38,7 +38,7 @@ trait RouteResourceSpec extends ResourceSpec {
 
   val keyserverClient = new FakeKeyserverClient
 
-  lazy val routes = new DirectorRoutes(keyserverClient).routes
+  lazy val routes = new DirectorRoutes(keyserverClient, allowEcuReplacement = true).routes
 }
 
 trait DeviceManifestSpec {

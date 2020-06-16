@@ -3,7 +3,7 @@ package com.advancedtelematic.director.http
 import java.time.Instant
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.{Directive0, Directive1, Route}
+import akka.http.scaladsl.server.{Directive, Directive0, Directive1, Route}
 
 import scala.async.Async._
 import cats.data.Validated.{Invalid, Valid}
@@ -33,7 +33,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.ExecutionContext
 
 
-class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
+class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient, val ecuReplacementAllowed: Boolean)
                     (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
   extends DeviceRepositorySupport
     with RepoNamespaceRepositorySupport
@@ -47,6 +47,19 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
   val deviceManifestProcess = new DeviceManifestProcess()
   val deviceRoleGeneration = new DeviceRoleGeneration(keyserverClient)
 
+  def deviceRegisterAllowed(deviceId: DeviceId): Directive0 = {
+    if (ecuReplacementAllowed) {
+      pass
+    } else {
+      Directive.Empty.tflatMap { _ =>
+        onSuccess(deviceRepository.exists(deviceId)).flatMap {
+          case true => failWith(Errors.EcuReplacementDisabled(deviceId))
+          case false => pass
+        }
+      }
+    }
+  }
+
   private def logDevice(namespace: Namespace, device: DeviceId): Directive0 = {
     val f = messageBusPublisher.publishSafe(DeviceSeen(namespace, device))
     onComplete(f).flatMap(_ => pass)
@@ -55,7 +68,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
   val route = extractNamespaceRepoId(extractNamespace){ (repoId, ns) =>
     pathPrefix("device" / DeviceId.Path) { device =>
       post {
-        (path("ecus") & entity(as[RegisterDevice])) { regDev =>
+        (path("ecus") & entity(as[RegisterDevice]) & deviceRegisterAllowed(device)) { regDev =>
           val f = deviceRegistration
             .register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
             .map {

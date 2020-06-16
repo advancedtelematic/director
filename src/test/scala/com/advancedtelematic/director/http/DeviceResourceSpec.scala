@@ -81,6 +81,25 @@ class DeviceResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("a device ecu replacement is rejected if disabled") { implicit ns =>
+    lazy val ecuReplacementDisabledRoutes = new DirectorRoutes(keyserverClient, allowEcuReplacement = false).routes
+
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val req = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+    val ecus2 = GenRegisterEcu.generate
+    val req2 = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> ecuReplacementDisabledRoutes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> ecuReplacementDisabledRoutes ~> check {
+      status shouldBe StatusCodes.Conflict
+      responseAs[ErrorRepresentation].code shouldBe ErrorCodes.EcuReplacementDisabled
+    }
+  }
 
   testWithRepo("registering the same device id with different ecus works when using the same primary ecu") { implicit ns =>
     val deviceId = DeviceId.generate()

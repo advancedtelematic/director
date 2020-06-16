@@ -11,7 +11,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.ExecutionContext
 
 
-class DirectorRoutes(keyserverClient: KeyserverClient)
+class DirectorRoutes(keyserverClient: KeyserverClient, allowEcuReplacement: Boolean)
                     (implicit val db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
   import Directives._
 
@@ -23,7 +23,7 @@ class DirectorRoutes(keyserverClient: KeyserverClient)
         pathPrefix("api" / "v1") {
           new AdminResource(extractNamespace, keyserverClient).route ~
           new AssignmentsResource(extractNamespace).route ~
-          new DeviceResource(extractNamespace, keyserverClient).route ~
+          new DeviceResource(extractNamespace, keyserverClient, allowEcuReplacement).route ~
           new MultiTargetUpdatesResource(extractNamespace).route ~
           new LegacyRoutes(extractNamespace).route
         }

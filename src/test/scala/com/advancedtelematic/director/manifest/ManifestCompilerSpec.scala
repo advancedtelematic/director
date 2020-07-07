@@ -42,7 +42,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> Some(ecuTarget.id), secondary -> Some(ecuTarget.id)), Map(ecuTarget.id -> ecuTarget), Set.empty, Set.empty, generatedMetadataOutdated = false)
 
-    ManifestCompiler(ns, manifest).apply(currentStatus).get shouldBe currentStatus
+    ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState shouldBe currentStatus
   }
 
   test("manifest setting unknown ecu targets creates targets") {
@@ -53,7 +53,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownState(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty, generatedMetadataOutdated = false)
 
-    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
 
     newStatus.ecuTargets should have size (1)
 
@@ -76,7 +76,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> None, secondary -> None), Map(ecuTarget.id -> ecuTarget),
                                           Set(assignment, secondaryAssignment), Set.empty, generatedMetadataOutdated = false)
 
-    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
 
     newStatus.currentAssignments shouldBe Set(assignment)
     newStatus.processedAssignments shouldBe Set(secondaryAssignment.toProcessedAssignment(successful = true))
@@ -93,7 +93,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty, generatedMetadataOutdated = false)
 
-    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
 
     newStatus.currentAssignments shouldBe Set(otherAssignment)
     newStatus.processedAssignments.loneElement.copy(result = None) shouldBe assignment.toProcessedAssignment(successful = true)
@@ -112,7 +112,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment, otherAssignment), Set.empty, generatedMetadataOutdated = false)
 
-    val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
 
     resultStatus.currentAssignments shouldBe empty
     resultStatus.processedAssignments.map(_.copy(result = None)) shouldBe Set(assignment.toProcessedAssignment(successful = false), otherAssignment.toProcessedAssignment(successful = false))
@@ -130,7 +130,7 @@ class ManifestCompilerSpec extends DirectorSpec {
 
     val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment), Set.empty, generatedMetadataOutdated = false)
 
-    val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
 
     resultStatus.currentAssignments shouldBe empty
     resultStatus.processedAssignments.loneElement.copy(result = None) shouldBe assignment.toProcessedAssignment(successful = false)
@@ -144,7 +144,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val manifest = DeviceManifest(primary, ecuVersionManifest)
     val currentStatus = DeviceKnownState(deviceId, primary, Map.empty, Map.empty, Set.empty, Set.empty, generatedMetadataOutdated = false)
 
-    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val newStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
     val newTarget = newStatus.ecuTargets.values.head
 
     newStatus.ecuStatus(primary) should contain(newTarget.id)

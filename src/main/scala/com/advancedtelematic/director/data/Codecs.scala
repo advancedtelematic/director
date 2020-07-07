@@ -79,5 +79,8 @@ object Codecs {
 
   implicit val targetsCustomEncoder: Encoder[DeviceTargetsCustom] = deriveEncoder
   implicit val targetsCustomDecoder: Decoder[DeviceTargetsCustom] = deriveDecoder
+
+  implicit val operationResultCodec: Codec[OperationResult] = deriveCodec
+  implicit val ecuManifestCustomCodec: Codec[EcuManifestCustom] = deriveCodec
 }
 

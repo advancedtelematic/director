@@ -2,7 +2,7 @@ package com.advancedtelematic.director.manifest
 
 import com.advancedtelematic.director.data.UptaneDataType.Image
 import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownState, EcuTarget, EcuTargetId}
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, EcuManifestCustom}
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.data.DataType.{Checksum, HashMethod, Namespace}
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -10,12 +10,15 @@ import org.slf4j.LoggerFactory
 import cats.syntax.option._
 import io.circe.syntax._
 import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateEvent
 
 import scala.util.{Failure, Success, Try}
 
 
 object ManifestCompiler {
   private val _log = LoggerFactory.getLogger(this.getClass)
+
+  case class ManifestCompileResult(knownState: DeviceKnownState, messages: List[DeviceUpdateEvent])
 
   private def assignmentExists(assignments: Set[Assignment],
                                ecuTargets: Map[EcuTargetId, EcuTarget],
@@ -34,21 +37,33 @@ object ManifestCompiler {
     }
   }
 
-  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownState => Try[DeviceKnownState] = {
-    validateManifest(ns, manifest, _).map { compileManifest(ns, manifest) }
+  def apply(ns: Namespace, manifest: DeviceManifest): DeviceKnownState => Try[ManifestCompileResult] = (beforeState: DeviceKnownState) => {
+    validateManifest(manifest, beforeState).map { _ =>
+      val nextStatus = compileManifest(ns, manifest).apply(beforeState)
+
+      val correlationIdProcessedInManifest = manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
+        assignmentExists(beforeState.currentAssignments, beforeState.ecuTargets, ecuId, signedManifest.signed).map { a =>
+          a.correlationId -> signedManifest.signed
+        }
+      }
+
+      val msgs = ManifestReportMessages(ns, beforeState.deviceId, manifest, correlationIdProcessedInManifest).toList
+
+      ManifestCompileResult(nextStatus, msgs)
+    }
   }
 
-  private def validateManifest(ns: Namespace, manifest: DeviceManifest, deviceKnownStatus: DeviceKnownState): Try[DeviceKnownState] = {
+  private def validateManifest(manifest: DeviceManifest, deviceKnownStatus: DeviceKnownState): Try[DeviceManifest] = {
     if(manifest.primary_ecu_serial != deviceKnownStatus.primaryEcu)
       Failure(Errors.Manifest.EcuNotPrimary)
     else
-      Success(deviceKnownStatus)
+      Success(manifest)
   }
 
   private def compileManifest(ns: Namespace, manifest: DeviceManifest): DeviceKnownState => DeviceKnownState = (knownStatus: DeviceKnownState) => {
     _log.debug(s"current device state: $knownStatus")
 
-    val assignmentsProcessedInManifest = manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
+    val assignmentsProcessedInManifest =  manifest.ecu_version_manifests.flatMap { case (ecuId, signedManifest) =>
       assignmentExists(knownStatus.currentAssignments, knownStatus.ecuTargets, ecuId, signedManifest.signed)
     }
 

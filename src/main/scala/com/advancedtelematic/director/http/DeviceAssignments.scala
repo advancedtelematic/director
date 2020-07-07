@@ -65,14 +65,14 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
 
       if (hwUpdate.fromTarget.isEmpty || installedTarget.zip(updateFrom).exists { case (a, b) => a matches b }) {
         if(installedTarget.exists(_.matches(updateTo))) {
-          _log.debug(s"Ecu ${ecu.deviceId}/${ecu.ecuSerial} not affected for $hwUpdate, installed target is already the target update")
+          _log.info(s"Ecu ${ecu.deviceId}/${ecu.ecuSerial} not affected for $hwUpdate, installed target is already the target update")
           None
         } else {
           _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} affected for $hwUpdate")
           Some(ecu -> hwUpdate.toTarget)
         }
       } else {
-        _log.debug(s"ecu ${ecu.deviceId}${ecu.ecuSerial} not affected by $mtuId")
+        _log.info(s"ecu ${ecu.deviceId}${ecu.ecuSerial} not affected by $mtuId")
         None
       }
     }

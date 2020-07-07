@@ -4,14 +4,11 @@ import java.time.Instant
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directive, Directive0, Directive1, Route}
-
-import scala.async.Async._
 import cats.data.Validated.{Invalid, Valid}
-import cats.syntax.option._
+import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.RegisterDevice
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.Messages._
-import com.advancedtelematic.director.data.Messages.DeviceManifestReported
+import com.advancedtelematic.director.data.Messages.{DeviceManifestReported, _}
 import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.manifest.{DeviceManifestProcess, ManifestCompiler, ManifestReportMessages}
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
@@ -23,15 +20,15 @@ import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, Dev
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, RoleType, SignedPayload}
+import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
 import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
 
-import scala.concurrent.ExecutionContext
-
+import scala.async.Async._
+import scala.concurrent.{ExecutionContext, Future}
 
 class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient, val ecuReplacementAllowed: Boolean)
                     (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
@@ -122,11 +119,9 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
         val executor = new CompiledManifestExecutor()
 
         val f = async {
-          await(executor.process(device, validatedManifest))
+          val execResult = await(executor.process(device, validatedManifest))
 
-          val msgO = ManifestReportMessages(ns, device, deviceManifest)
-          if(msgO.isDefined)
-            await(messageBusPublisher.publishSafe[DeviceUpdateEvent](msgO.get))
+          await(Future.traverse(execResult.messages)(messageBusPublisher.publishSafe[DeviceUpdateEvent]))
 
           StatusCodes.OK
         }

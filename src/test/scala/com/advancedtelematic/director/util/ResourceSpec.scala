@@ -54,7 +54,7 @@ trait DeviceManifestSpec {
     EcuManifest(image, ecuSerial, "", custom = None)
   }
 
-  def buildPrimaryManifest(primary: Ecu, ecuKey: TufKeyPair, targetUpdate: TargetUpdate, reportO: Option[InstallationReport] = None): SignedPayload[DeviceManifest] = {
+  def buildPrimaryManifest(primary: Ecu, ecuKey: TufKeyPair, targetUpdate: TargetUpdate, reportO: Option[InstallationReport] = None, ecuManifest: Option[EcuManifest] = None): SignedPayload[DeviceManifest] = {
     val ecuManifest = sign(ecuKey, buildEcuManifest(primary.ecuSerial, targetUpdate))
     val report = reportO.map { r => InstallationReportEntity("mock-content-type", r) }
     sign(ecuKey, DeviceRequest.DeviceManifest(primary.ecuSerial, Map(primary.ecuSerial -> ecuManifest), installation_report = report))

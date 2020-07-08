@@ -3,17 +3,20 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
-import com.advancedtelematic.director.data.AdminDataType
+import com.advancedtelematic.director.data.{AdminDataType, DeviceRequest}
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, EcuManifestCustom, InstallationReportEntity, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.director.data.Messages.DeviceManifestReported
+import com.advancedtelematic.director.data.UptaneDataType.{FileInfo, Hashes, Image}
 import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, EcuRepositorySupport}
 import com.advancedtelematic.director.util._
+import com.advancedtelematic.libats.data.DataType.{ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
-import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -24,6 +27,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import org.scalatest.Inspectors
 import org.scalatest.OptionValues._
+import io.circe.syntax._
 
 class DeviceResourceSpec extends DirectorSpec
   with RouteResourceSpec with AdminResources with AssignmentResources with EcuRepositorySupport
@@ -533,6 +537,32 @@ class DeviceResourceSpec extends DirectorSpec
     ecuReportId shouldBe regDev.primary.ecuSerial
     ecuReport.result shouldBe deviceReport.items.head.result
     reportMsg.get.correlationId shouldBe correlationId
+  }
+
+  testWithRepo("publishes DeviceUpdateCompleted message if device sends no install report, but ecu sends an ecu report") { implicit  ns =>
+    val regDev = registerAdminDeviceOk()
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val correlationId = GenCorrelationId.generate
+
+    val image = Image(targetUpdate.to.target, FileInfo(Hashes(targetUpdate.to.checksum), targetUpdate.to.targetLength))
+    val ecuInstallResult = OperationResult("0", 0, "some description")
+    val ecuManifest = sign(regDev.primaryKey, EcuManifest(image, regDev.primary.ecuSerial, "", custom = EcuManifestCustom(ecuInstallResult).asJson.some))
+    val deviceManifest = sign(regDev.primaryKey, DeviceManifest(regDev.primary.ecuSerial, Map(regDev.primary.ecuSerial -> ecuManifest), installation_report = None))
+
+    createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
+
+    putManifestOk(regDev.deviceId, deviceManifest)
+
+    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+      msg.deviceUuid === regDev.deviceId
+    }.map(_.asInstanceOf[DeviceUpdateCompleted]).value
+
+    reportMsg.namespace shouldBe ns
+    reportMsg.result shouldBe InstallationResult(success = true, ResultCode("0"), ResultDescription("All targeted ECUs were successfully updated"))
+
+    val (ecuReportId, ecuReport) = reportMsg.ecuReports.head
+    ecuReportId shouldBe regDev.primary.ecuSerial
+    ecuReport.result shouldBe InstallationResult(success = true, ResultCode("0"), ResultDescription("some description"))
   }
 
   testWithRepo("fails with EcuNotPrimary if device declares wrong primary") { implicit ns =>

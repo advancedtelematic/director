@@ -1,16 +1,16 @@
 package com.advancedtelematic.director.db
 
 import com.advancedtelematic.director.data.DbDataType.{DeviceKnownState, EcuTargetId}
+import com.advancedtelematic.director.manifest.ManifestCompiler.ManifestCompileResult
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-
-import scala.concurrent.{ExecutionContext, Future}
-import slick.jdbc.MySQLProfile.api._
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import org.slf4j.LoggerFactory
+import slick.jdbc.MySQLProfile.api._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionContext) {
@@ -67,13 +67,13 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
     case Failure(ex) => DBIO.failed(ex)
   }
 
-  def process(deviceId: DeviceId, compiledManifest: DeviceKnownState => Try[DeviceKnownState]): Future[DeviceKnownState] = {
+  def process(deviceId: DeviceId, compiledManifest: DeviceKnownState => Try[ManifestCompileResult]): Future[ManifestCompileResult] = {
     val io = for {
       initialStatus <- findStateAction(deviceId)
-      newStatus <- dbActionFromTry(compiledManifest.apply(initialStatus))
-      _ = _log.debug(s"Updating device status to $newStatus")
-      _ <- updateStatusAction(deviceId, initialStatus, newStatus)
-    } yield newStatus
+      manifestCompileResult <- dbActionFromTry(compiledManifest.apply(initialStatus))
+      _ = _log.debug(s"Updating device status to ${manifestCompileResult.knownState}")
+      _ <- updateStatusAction(deviceId, initialStatus, manifestCompileResult.knownState)
+    } yield manifestCompileResult
 
     db.run(io.transactionally)
   }

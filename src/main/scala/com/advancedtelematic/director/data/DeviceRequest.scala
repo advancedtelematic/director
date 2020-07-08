@@ -19,6 +19,13 @@ object DeviceRequest {
                                   ecu_version_manifests: Map[EcuIdentifier, SignedPayload[EcuManifest]],
                                   installation_report: Option[InstallationReportEntity] = None)
 
+  final case class OperationResult(id: String, result_code: Int, result_text: String) {
+    def isSuccess: Boolean = result_code == 0 || result_code == 1
+    def isFail: Boolean = !isSuccess
+  }
+
+  final case class EcuManifestCustom(operation_result: OperationResult)
+
   final case class InstallationReportEntity(content_type: String, report: InstallationReport)
 
   final case class InstallationReport(

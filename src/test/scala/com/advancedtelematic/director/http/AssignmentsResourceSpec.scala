@@ -12,6 +12,7 @@ import com.advancedtelematic.director.db.{DbSignedRoleRepositorySupport, RepoNam
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{CorrelationId, MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.data.ErrorRepresentation
+import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateEvent, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -252,7 +253,7 @@ class AssignmentsResourceSpec extends DirectorSpec
     val queue = getDeviceAssignmentOk(regDev.deviceId)
     queue shouldBe empty
 
-    val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val msg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid == regDev.deviceId
     }
 
@@ -274,7 +275,7 @@ class AssignmentsResourceSpec extends DirectorSpec
     val regDev = registerAdminDeviceOk()
     createDeviceAssignmentOk(regDev.deviceId, regDev.primary.hardwareId)
 
-    val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val msg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid == regDev.deviceId
     }
 

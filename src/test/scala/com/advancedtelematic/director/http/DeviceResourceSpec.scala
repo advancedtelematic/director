@@ -16,6 +16,7 @@ import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, EcuRepos
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
+import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
@@ -504,7 +505,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     getDeviceRoleOk[RootRole](deviceId)
 
-    val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
+    val deviceSeenMsg = msgPub.findReceived[DeviceSeen](deviceId.toString)
     deviceSeenMsg.map(_.namespace) should contain(ns)
   }
 
@@ -513,7 +514,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     getDeviceRoleOk[RootRole](deviceId, version = 1.some)
 
-    val deviceSeenMsg = msgPub.wasReceived[DeviceSeen](deviceId.toString)
+    val deviceSeenMsg = msgPub.findReceived[DeviceSeen](deviceId.toString)
     deviceSeenMsg.map(_.namespace) should contain(ns)
   }
 
@@ -526,7 +527,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     putManifestOk(regDev.deviceId, deviceManifest)
 
-    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val reportMsg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid === regDev.deviceId
     }.map(_.asInstanceOf[DeviceUpdateCompleted])
 
@@ -553,7 +554,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     putManifestOk(regDev.deviceId, deviceManifest)
 
-    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val reportMsg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid === regDev.deviceId
     }.map(_.asInstanceOf[DeviceUpdateCompleted]).value
 
@@ -712,7 +713,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     assignmentsRepository.findProcessed(ns, regDev.deviceId).futureValue shouldBe empty
 
-    val reportMsg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val reportMsg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid === regDev.deviceId
     }.map(_.asInstanceOf[DeviceUpdateCompleted])
 
@@ -727,7 +728,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     putManifestOk(regDev.deviceId, deviceManifest)
 
-    val msg = msgPub.wasReceived[DeviceManifestReported](regDev.deviceId.show)
+    val msg = msgPub.findReceived[DeviceManifestReported](regDev.deviceId.show)
 
     msg.value.manifest.asJsonSignedPayload shouldBe deviceManifest.asJsonSignedPayload
   }

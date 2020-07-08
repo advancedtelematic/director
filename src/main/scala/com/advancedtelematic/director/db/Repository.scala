@@ -20,7 +20,9 @@ import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
 import SlickMapping._
+import akka.NotUsed
 import akka.http.scaladsl.util.FastFuture
+import akka.stream.scaladsl.Source
 import com.advancedtelematic.director.http.Errors
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
@@ -275,6 +277,21 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
 
   def findProcessed(ns: Namespace, deviceId: DeviceId): Future[Seq[ProcessedAssignment]] = db.run {
     Schema.processedAssignments.filter(_.namespace === ns).filter(_.deviceId === deviceId).result
+  }
+
+  def streamProcessed(ns: Namespace, noLaterThan: Instant, deviceIds: Set[DeviceId]): Source[(ProcessedAssignment, Instant), NotUsed] = {
+    val baseQuery = Schema.processedAssignments.filter(_.namespace === ns).filter(_.createdAt > noLaterThan)
+
+    val query = if(deviceIds.isEmpty)
+      baseQuery
+    else
+      baseQuery.filter(_.deviceId.inSet(deviceIds))
+
+    val io = query.map { row =>
+      row -> row.createdAt
+    }.result
+
+    Source.fromPublisher(db.stream(io))
   }
 }
 

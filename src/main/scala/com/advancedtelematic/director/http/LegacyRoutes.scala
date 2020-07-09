@@ -5,7 +5,7 @@ import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive1, Route}
-import com.advancedtelematic.director.db.EcuRepositorySupport
+import com.advancedtelematic.director.db.{DeviceRepositorySupport, EcuRepositorySupport}
 import com.advancedtelematic.director.http.PaginationParametersDirectives._
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
@@ -26,7 +26,8 @@ object LegacyRoutes {
 
 // Implements routes provided by old director that ota-web-app still uses
 class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
-  extends EcuRepositorySupport {
+  extends EcuRepositorySupport with DeviceRepositorySupport {
+
   import LegacyRoutes._
 
   private val deviceAssignments = new DeviceAssignments()
@@ -58,7 +59,7 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Dat
         },
         (path("admin" / "devices") & PaginationParameters) { (limit, offset) =>
           get {
-            complete(ecuRepository.findAllDeviceIds(ns, offset, limit))
+            complete(deviceRepository.findAllDeviceIds(ns, offset, limit))
           }
         },
         (path("admin" / "director") & entity(as[NamespaceDirectorChangeRequest])) { req =>

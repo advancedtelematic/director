@@ -25,7 +25,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       device <- Schema.devices.filter(_.id === deviceId).result.head
       ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
       ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
-    } yield DeviceKnownState(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdaded)
+    } yield DeviceKnownState(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdated)
   }
 
   private def updateEcuAction(deviceId: DeviceId, ecuIdentifier: EcuIdentifier, installedTarget: Option[EcuTargetId]): DBIO[Unit] = {

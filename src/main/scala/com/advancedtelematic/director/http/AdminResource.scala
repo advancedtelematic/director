@@ -5,17 +5,19 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.{FindImageCount, RegisterDevice}
+import com.advancedtelematic.director.data.ClientDataType.DevicePaginationOps
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, DeviceRepository, EcuRepositorySupport, RepoNamespaceRepositorySupport}
+import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, DeviceRepository, DeviceRepositorySupport, EcuRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.http.RefinedMarshallingSupport._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.data.TufDataType.{RepoId, SignedPayload, TargetName, ValidKeyId}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetName, ValidKeyId}
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
@@ -26,13 +28,13 @@ import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 
 import scala.concurrent.ExecutionContext
 
-
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
                    (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
   extends NamespaceRepoId
     with RepoNamespaceRepositorySupport
     with RootFetching
     with EcuRepositorySupport
+    with DeviceRepositorySupport
     with AutoUpdateDefinitionRepositorySupport {
 
   private val EcuIdPath = Segment.flatMap(EcuIdentifier(_).toOption)
@@ -58,10 +60,10 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
         path("root.json") {
           complete(fetchRoot(ns, version = None))
         } ~
-          path(IntNumber ~ ".root.json") { version ⇒
-            complete(fetchRoot(ns, version.some))
-          }
-        } ~
+        path(IntNumber ~ ".root.json") { version ⇒
+          complete(fetchRoot(ns, version.some))
+        }
+      } ~
       path("private_keys" / KeyIdPath) { keyId =>
         UserRepoId(ns) { repoId =>
           delete {
@@ -69,11 +71,11 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
               keyserverClient.deletePrivateKey(repoId, keyId)
             }
           } ~
-            get {
-              complete {
-                keyserverClient.fetchKeyPair(repoId, keyId)
-              }
+          get {
+            complete {
+              keyserverClient.fetchKeyPair(repoId, keyId)
             }
+          }
         }
       }
     }
@@ -140,11 +142,24 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   }
                 }
               },
-              (get & path("hardware_identifiers")) {
-                PaginationParameters { (limit, offset) =>
-                  val f = ecuRepository.findAllHardwareIdentifiers(ns, offset, limit)
-                  complete(f)
-                }
+              get {
+                concat(
+                  pathEnd {
+                    /** if you leave this parameter (or misspell it) out you'll land in [[LegacyRoutes.route]] */
+                    parameter('primaryHardwareId.as[HardwareIdentifier]) { hardwareId =>
+                      PaginationParameters { (limit, offset) =>
+                        val f = deviceRepository.findDevices(ns, hardwareId, offset, limit).map(_.toClient)
+                        complete(f)
+                      }
+                    }
+                  },
+                  path("hardware_identifiers") {
+                    PaginationParameters { (limit, offset) =>
+                      val f = ecuRepository.findAllHardwareIdentifiers(ns, offset, limit)
+                      complete(f)
+                    }
+                  }
+                )
               },
               devicePath(ns)
             )

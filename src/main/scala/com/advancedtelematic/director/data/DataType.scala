@@ -5,11 +5,10 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
-import com.advancedtelematic.director.data.UptaneDataType._
 import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.UptaneDataType.{Hashes, TargetImage}
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
-import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.MessageLike
@@ -40,7 +39,7 @@ object DbDataType {
                                     processedAssignments: Set[ProcessedAssignment],
                                     generatedMetadataOutdated: Boolean)
 
-  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdaded: Boolean)
+  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdated: Boolean)
 
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
                        hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])
@@ -168,4 +167,16 @@ object DataType {
   final case class DeviceUpdateTarget(device: DeviceId, correlationId: Option[CorrelationId], updateId: Option[UpdateId], targetVersion: Int, inFlight: Boolean)
 
   final case class DeviceTargetsCustom(correlationId: Option[CorrelationId])
+}
+
+object ClientDataType {
+  final case class Device(id: DeviceId, primaryEcu: EcuIdentifier, createdAt: Instant)
+
+  implicit class DeviceOps(value: DbDataType.Device) {
+    def toClient(createdAt: Instant): Device = Device(value.id, value.primaryEcuId, createdAt)
+  }
+
+  implicit class DevicePaginationOps(value: PaginationResult[(Instant, DbDataType.Device)]) {
+    def toClient: PaginationResult[Device] = value.map { case (createdAt, device) => device.toClient(createdAt) }
+  }
 }

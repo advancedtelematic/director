@@ -32,7 +32,7 @@ import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import io.circe.Json
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
-import slick.jdbc.{GetResult, PositionedParameters, SetParameter}
+import slick.jdbc.GetResult
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -53,7 +53,7 @@ object DeviceRepository {
 
 protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
   def create(ecuRepository: EcuRepository)(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[DeviceCreateResult] = {
-    val device = Device(ns, deviceId, primaryEcuId, generatedMetadataOutdaded = true)
+    val device = Device(ns, deviceId, primaryEcuId, generatedMetadataOutdated = true)
 
     val io = Schema.devices.filter(_.id === deviceId).result.headOption.flatMap {
       case Some(_) => // Update Device and Ecus
@@ -67,6 +67,23 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
 
   def exists(deviceId: DeviceId): Future[Boolean] = db.run {
     Schema.devices.filter(_.id === deviceId).exists.result
+  }
+
+  def findAllDeviceIds(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .map(d => (d.id, d.createdAt))
+      .paginateAndSortResult(_._2, offset = offset, limit = limit)
+      .map(_.map(_._1))
+  }
+
+  def findDevices(ns: Namespace, hardwareIdentifier: HardwareIdentifier, offset: Long, limit: Long): Future[PaginationResult[(Instant,Device)]] = db.run {
+    Schema.devices
+      .filter(_.namespace === ns)
+      .join(Schema.activeEcus.filter(_.hardwareId === hardwareIdentifier)).on { case (d, e) => d.primaryEcu === e.ecuSerial }
+      .map(_._1)
+      .map(r => r.createdAt -> r)
+      .paginateAndSortResult(_._1.desc, offset = offset, limit = limit)
   }
 
   private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Unit] = {
@@ -330,14 +347,6 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
       .map(_.hardwareId)
       .distinct
       .paginateResult(offset = offset, limit = limit)
-  }
-
-  def findAllDeviceIds(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.run {
-    Schema.devices
-      .filter(_.namespace === ns)
-      .map(d => (d.id, d.createdAt))
-      .paginateAndSortResult(_._2, offset = offset, limit = limit)
-      .map(_.map(_._1))
   }
 
   def findFor(deviceId: DeviceId): Future[Map[EcuIdentifier, Ecu]] = db.run {

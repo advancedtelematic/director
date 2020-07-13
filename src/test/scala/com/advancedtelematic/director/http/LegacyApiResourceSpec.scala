@@ -2,7 +2,7 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, QueueResponse}
-import com.advancedtelematic.director.util.{DirectorSpec, MockMessageBus, RepositorySpec, RouteResourceSpec}
+import com.advancedtelematic.director.util.{DirectorSpec, RepositorySpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DirectorV2, UpdateId}
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
@@ -12,6 +12,7 @@ import com.advancedtelematic.libats.codecs.CirceCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
 import com.advancedtelematic.libats.data.PaginationResult
+import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
 import io.circe.Json
@@ -50,7 +51,7 @@ class LegacyApiResourceSpec extends DirectorSpec
     queue.head.targets.get(regDev.primary.ecuSerial).value.image.filepath shouldBe targetUpdate.to.target
     queue.head.targets.get(regDev.secondaries.keys.head) shouldBe empty
 
-    val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val msg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid == regDev.deviceId
     }
 
@@ -72,7 +73,7 @@ class LegacyApiResourceSpec extends DirectorSpec
     val queue = getDeviceAssignmentOk(regDev.deviceId)
     queue shouldBe empty
 
-    val msg = msgPub.wasReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
+    val msg = msgPub.findReceived[DeviceUpdateEvent] { msg: DeviceUpdateEvent =>
       msg.deviceUuid == regDev.deviceId
     }
 
@@ -99,7 +100,7 @@ class LegacyApiResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.Accepted
     }
 
-    val msg = msgPub.wasReceived[NamespaceDirectorChanged] { msg: NamespaceDirectorChanged =>
+    val msg = msgPub.findReceived[NamespaceDirectorChanged] { msg: NamespaceDirectorChanged =>
       msg.namespace == ns
     }
 

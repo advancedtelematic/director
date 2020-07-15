@@ -3,9 +3,10 @@ package com.advancedtelematic.director.http
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import akka.http.scaladsl.model.{HttpEntity, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
+import com.advancedtelematic.director.data.ClientDataType
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DbDataType.Ecu
@@ -239,4 +240,38 @@ class AdminResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("return empty list for non-existing hardware ID") { implicit ns =>
+    Get(apiUri(s"admin/devices?primaryHardwareId=foo")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val page = responseAs[PaginationResult[DeviceId]]
+      page shouldBe PaginationResult(Seq.empty, 0, 0, 50)
+    }
+  }
+
+  testWithRepo("only returns devices where the primary ECU has the given hardware ID") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+    val hardwareId = dev.ecus.values.head.hardwareId
+    registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices?primaryHardwareId=${hardwareId.value}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val page = responseAs[PaginationResult[ClientDataType.Device]]
+      page.total shouldBe 1
+      page.values.length shouldBe 1
+      page.values.head.id shouldBe dev.deviceId
+    }
+  }
+
+  testWithRepo("search by hardwareId returns devices latest first") { implicit ns =>
+    val regDev0 = registerAdminDeviceOk()
+    Thread.sleep(1000)
+    val regDev1 = registerAdminDeviceOk(regDev0.primary.hardwareId.some)
+
+    Get(apiUri(s"admin/devices?primaryHardwareId=${regDev0.primary.hardwareId.value}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      val page = responseAs[PaginationResult[ClientDataType.Device]]
+      page.values.length shouldBe 2
+      page.values.head.id shouldBe regDev1.deviceId
+    }
+  }
 }

@@ -7,8 +7,8 @@ docker rm --force director-mariadb || true
 mkdir director_entrypoint.d/ || true
 
 echo "
-CREATE DATABASE director;
-GRANT ALL PRIVILEGES ON \`director%\`.* TO 'director'@'%';
+CREATE DATABASE director_v2;
+GRANT ALL PRIVILEGES ON \`director%\`.* TO 'director_v2'@'%';
 FLUSH PRIVILEGES;
 " > director_entrypoint.d/db_user.sql
 
@@ -19,8 +19,8 @@ docker run -d \
   -p $MYSQL_PORT:3306 \
   -v $(pwd)/director_entrypoint.d:/docker-entrypoint-initdb.d \
   -e MYSQL_ROOT_PASSWORD=root \
-  -e MYSQL_USER=director \
-  -e MYSQL_PASSWORD=director \
+  -e MYSQL_USER=director_v2 \
+  -e MYSQL_PASSWORD=director_v2 \
   mariadb:10.3.13 \
   --character-set-server=utf8 --collation-server=utf8_unicode_ci \
   --max_connections=1000

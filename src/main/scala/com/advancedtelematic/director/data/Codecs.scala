@@ -82,6 +82,6 @@ object Codecs {
 
   implicit val operationResultCodec: Codec[OperationResult] = deriveCodec
   implicit val ecuManifestCustomCodec: Codec[EcuManifestCustom] = deriveCodec
-  implicit val adminDeviceCodec: Codec[ClientDataType.Device] = deriveCodec
+  implicit val clientDeviceCodec: Codec[ClientDataType.Device] = deriveCodec
 }
 

@@ -22,7 +22,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       assignments <- Schema.assignments.filter(_.deviceId === deviceId).result
       processed <- Schema.processedAssignments.filter(_.deviceId === deviceId).result
       ecuStatus <- Schema.activeEcus.filter(_.deviceId === deviceId).map(ecu => ecu.ecuSerial -> ecu.installedTarget).result
-      device <- Schema.devices.filter(_.id === deviceId).result.head
+      device <- Schema.allDevices.filter(_.id === deviceId).result.head
       ecuTargetIds = ecuStatus.flatMap(_._2) ++ assignments.map(_.ecuTargetId)
       ecuTargets <- Schema.ecuTargets.filter(_.id.inSet(ecuTargetIds)).map { t => t.id -> t }.result
     } yield DeviceKnownState(deviceId, device.primaryEcuId, ecuStatus.toMap, ecuTargets.toMap, assignments.toSet, processed.toSet, device.generatedMetadataOutdated)
@@ -35,7 +35,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
   }
 
   private def updateStatusAction(deviceId: DeviceId, oldStatus: DeviceKnownState, newStatus: DeviceKnownState): DBIO[Unit] = {
-    assert(oldStatus.primaryEcu == newStatus.primaryEcu, "a device cannot change it's primary ecu")
+    assert(oldStatus.primaryEcu == newStatus.primaryEcu, "a device cannot change its primary ecu")
 
     val assignmentsToDelete = (oldStatus.currentAssignments -- newStatus.currentAssignments).map(_.ecuId)
     val newProcessedAssignments = newStatus.processedAssignments -- oldStatus.processedAssignments
@@ -54,7 +54,7 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
 
   private def updateMetadataOutdatedFlagAction(deviceId: DeviceId, old: DeviceKnownState, newStatus: DeviceKnownState): DBIO[Unit] = {
     if(old.generatedMetadataOutdated != newStatus.generatedMetadataOutdated)
-      Schema.devices.filter(_.id === deviceId)
+      Schema.allDevices.filter(_.id === deviceId)
         .map(_.generatedMetadataOutdated)
         .update(newStatus.generatedMetadataOutdated)
         .map(_ => ())

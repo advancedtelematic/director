@@ -39,7 +39,8 @@ object DbDataType {
                                     processedAssignments: Set[ProcessedAssignment],
                                     generatedMetadataOutdated: Boolean)
 
-  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier, generatedMetadataOutdated: Boolean)
+  final case class Device(ns: Namespace, id: DeviceId, primaryEcuId: EcuIdentifier,
+                          generatedMetadataOutdated: Boolean, deleted: Boolean)
 
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
                        hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])

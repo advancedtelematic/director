@@ -3,7 +3,6 @@ package com.advancedtelematic.director.daemon
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import akka.stream.ActorMaterializer
 import cats.syntax.option._
 import com.advancedtelematic.director.ForceDeviceUpdateMessage
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -21,8 +20,6 @@ import org.scalatest.OptionValues._
 class ForceDeviceUpdateMessageSpec extends DirectorSpec with RouteResourceSpec with RepositorySpec with DeviceManifestSpec
   with DatabaseSpec
   with DeviceManifestRepositorySupport with AssignmentsRepositorySupport with DeviceRepositorySupport with AssignmentResources with DeviceResources with AdminResources {
-
-  implicit val mat = ActorMaterializer()
 
   override implicit val msgPub = new MockMessageBus
 

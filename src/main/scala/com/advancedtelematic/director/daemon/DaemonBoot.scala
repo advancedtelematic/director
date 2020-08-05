@@ -6,7 +6,8 @@ import akka.http.scaladsl.server.Directives
 import com.advancedtelematic.director.{Settings, VersionInfo}
 import com.advancedtelematic.libats.http.BootApp
 import com.advancedtelematic.libats.messaging.{BusListenerMetrics, MessageListenerSupport, MetricsBusMonitor}
-import com.advancedtelematic.libats.slick.db.{BootMigrations, CheckMigrations, DatabaseConfig}
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeleteDeviceRequest
+import com.advancedtelematic.libats.slick.db.{BootMigrations, DatabaseConfig}
 import com.advancedtelematic.libats.slick.monitoring.DbHealthResource
 import com.advancedtelematic.libtuf_server.data.Messages.TufTargetAdded
 import com.advancedtelematic.metrics.MetricsSupport
@@ -27,6 +28,8 @@ object DaemonBoot extends BootApp
   import com.advancedtelematic.libats.http.VersionDirectives._
 
   val tufTargetAddedListener = startListener[TufTargetAdded](new TufTargetAddedListener, new MetricsBusMonitor(metricRegistry, "director-v2-tuf-target-added"))
+
+  startListener[DeleteDeviceRequest](new DeleteDeviceRequestListener, new MetricsBusMonitor(metricRegistry, "director-v2-delete-device-request"))
 
   val routes = versionHeaders(version) {
     prometheusMetricsRoutes ~

@@ -9,12 +9,12 @@ resolvers += "ATS Releases" at "https://nexus.ota.here.com/content/repositories/
 resolvers += "ATS Snapshots" at "https://nexus.ota.here.com/content/repositories/snapshots"
 
 libraryDependencies ++= {
-  val akkaV = "2.5.26"
-  val akkaHttpV = "10.1.11"
+  val akkaV = "2.6.5"
+  val akkaHttpV = "10.1.12"
   val scalaTestV = "3.0.8"
   val bouncyCastleV = "1.59"
   val tufV = "0.7.1-6-gd36661d"
-  val libatsV = "0.3.0-109-ge12f057"
+  val libatsV = "0.3.0-120-g2193268"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,

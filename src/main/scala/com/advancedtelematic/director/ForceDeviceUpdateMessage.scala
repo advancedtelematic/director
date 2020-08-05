@@ -3,11 +3,10 @@ package com.advancedtelematic.director
 import java.time.Instant
 import java.util.UUID
 
-import akka.{Done, NotUsed}
 import akka.actor.ActorSystem
 import akka.http.scaladsl.util.FastFuture
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Sink}
+import akka.stream.Materializer
+import akka.stream.scaladsl.Flow
 import com.advancedtelematic.director.data.DbDataType.ProcessedAssignment
 import com.advancedtelematic.director.db.AssignmentsRepositorySupport
 import com.advancedtelematic.libats.data.DataType.{Namespace, ResultCode, ResultDescription}
@@ -23,7 +22,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Try
 import scala.concurrent.duration._
 
-protected [director] class ForceDeviceUpdateMessage()(implicit system: ActorSystem, mat: ActorMaterializer, msgBus: MessageBusPublisher, val ec: ExecutionContext, val db: Database) extends AssignmentsRepositorySupport {
+protected [director] class ForceDeviceUpdateMessage()(implicit system: ActorSystem, mat: Materializer, msgBus: MessageBusPublisher, val ec: ExecutionContext, val db: Database) extends AssignmentsRepositorySupport {
   private val _log = LoggerFactory.getLogger(this.getClass)
 
   def run(ns: Namespace, since: Instant, deviceIds: Set[DeviceId], dryRun: Boolean): Future[Int] = {

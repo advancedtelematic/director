@@ -35,14 +35,17 @@ object Schema {
     def id = column[DeviceId]("id")
     def primaryEcu = column[EcuIdentifier]("primary_ecu_id")
     def generatedMetadataOutdated = column[Boolean]("generated_metadata_outdated")
+    def deleted = column[Boolean]("deleted", O.Default(false))
     def createdAt = column[Instant]("created_at")
 
     def pk = primaryKey("devices_pk", id)
 
-    override def * = (namespace, id, primaryEcu, generatedMetadataOutdated) <> ((Device.apply _).tupled, Device.unapply)
+    override def * = (namespace, id, primaryEcu, generatedMetadataOutdated, deleted) <> ((Device.apply _).tupled, Device.unapply)
   }
 
-  protected [db] val devices = TableQuery[DevicesTable]
+  protected [db] val allDevices = TableQuery[DevicesTable]
+
+  protected [db] val activeDevices = TableQuery[DevicesTable].filter(_.deleted === false)
 
   class EcusTable(tag: Tag) extends Table[Ecu](tag, "ecus") {
     def namespace = column[Namespace]("namespace")

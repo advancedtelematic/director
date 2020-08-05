@@ -103,10 +103,10 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
             }
         }
       } ~
-        get {
-          val f = deviceRegistration.findDeviceEcuInfo(ns, device)
-          complete(f)
-        } ~
+      get {
+        val f = deviceRegistration.findDeviceEcuInfo(ns, device)
+        complete(f)
+      } ~
       (path("targets.json") & put) {
         complete(deviceRoleGeneration.forceTargetsRefresh(ns, device).map(_ => StatusCodes.Accepted))
       }

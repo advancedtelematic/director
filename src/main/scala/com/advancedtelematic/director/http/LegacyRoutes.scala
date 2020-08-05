@@ -10,8 +10,8 @@ import com.advancedtelematic.director.http.PaginationParametersDirectives._
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, DirectorVersion, UpdateId}
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent, NamespaceDirectorChanged}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceUpdateAssigned, DeviceUpdateEvent}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Codec
 import slick.jdbc.MySQLProfile.api._
@@ -19,16 +19,9 @@ import com.advancedtelematic.libats.messaging_datatype.MessageCodecs._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object LegacyRoutes {
-  case class NamespaceDirectorChangeRequest(version: DirectorVersion)
-  implicit val namespaceDirectorChangeRequestCodec: Codec[NamespaceDirectorChangeRequest] = io.circe.generic.semiauto.deriveCodec
-}
-
 // Implements routes provided by old director that ota-web-app still uses
 class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
   extends EcuRepositorySupport with DeviceRepositorySupport {
-
-  import LegacyRoutes._
 
   private val deviceAssignments = new DeviceAssignments()
 
@@ -61,10 +54,6 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Dat
           get {
             complete(deviceRepository.findAllDeviceIds(ns, offset, limit))
           }
-        },
-        (path("admin" / "director") & entity(as[NamespaceDirectorChangeRequest])) { req =>
-          val f = messageBusPublisher.publishSafe(NamespaceDirectorChanged(ns, req.version)).map(_ => StatusCodes.Accepted)
-          complete(f)
         }
       )
     }

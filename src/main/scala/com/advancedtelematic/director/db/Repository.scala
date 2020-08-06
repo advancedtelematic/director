@@ -66,9 +66,11 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     db.run(io.transactionally)
   }
 
-  def exists(deviceId: DeviceId): Future[Boolean] = db.run {
+  private def existsIO(deviceId: DeviceId): DBIO[Boolean] =
     Schema.allDevices.filter(_.id === deviceId).exists.result
-  }
+
+  def exists(deviceId: DeviceId): Future[Boolean] =
+    db.run(existsIO(deviceId))
 
   def markDeleted(namespace: Namespace, deviceId: DeviceId): Future[Unit] = db.run {
     Schema.allDevices
@@ -335,7 +337,7 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
   }
 
   def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, EcuTarget)]] = db.run {
-    Schema.activeEcus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
+    Schema.activeEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {

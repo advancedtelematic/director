@@ -3,11 +3,11 @@ package com.advancedtelematic.director.http
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
-import com.advancedtelematic.director.data.{AdminDataType, DeviceRequest}
+import com.advancedtelematic.director.data.AdminDataType
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
-import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, EcuManifestCustom, InstallationReportEntity, OperationResult}
+import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, EcuManifestCustom, OperationResult}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
 import com.advancedtelematic.director.data.Messages.DeviceManifestReported
@@ -64,6 +64,10 @@ class DeviceResourceSpec extends DirectorSpec
     Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+
+    val ecuReplaced = msgPub.findReceived[EcuReplaced](deviceId.uuid.toString).value
+    ecuReplaced.former shouldBe EcuAndHardwareId(primaryEcu, ecus.hardware_identifier.value)
+    ecuReplaced.current shouldBe EcuAndHardwareId(primaryEcu2, ecus2.hardware_identifier.value)
   }
 
   testWithRepo("a device can replace its primary ecu only") { implicit ns =>
@@ -84,6 +88,10 @@ class DeviceResourceSpec extends DirectorSpec
     Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+
+    val ecuReplaced = msgPub.findReceived[EcuReplaced](deviceId.uuid.toString).value
+    ecuReplaced.former shouldBe EcuAndHardwareId(primaryEcu, ecus.hardware_identifier.value)
+    ecuReplaced.current shouldBe EcuAndHardwareId(primaryEcu2, ecus2.hardware_identifier.value)
   }
 
   testWithRepo("a device ecu replacement is rejected if disabled") { implicit ns =>
@@ -104,6 +112,8 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.Conflict
       responseAs[ErrorRepresentation].code shouldBe ErrorCodes.EcuReplacementDisabled
     }
+
+    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
   }
 
   testWithRepo("registering the same device id with different ecus works when using the same primary ecu") { implicit ns =>
@@ -122,6 +132,8 @@ class DeviceResourceSpec extends DirectorSpec
     Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
     }
+
+    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
   }
 
   testWithRepo("a device can replace a secondary and POST manifests for the new ECUs") { implicit ns =>
@@ -174,6 +186,8 @@ class DeviceResourceSpec extends DirectorSpec
       resp.description should include(s"Cannot replace ecus for $deviceId")
       resp.code shouldBe ErrorCodes.ReplaceEcuAssignmentExists
     }
+
+    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
   }
 
   testWithRepo("Previously used *secondary* ecus cannot be reused when replacing ecus") { implicit ns =>

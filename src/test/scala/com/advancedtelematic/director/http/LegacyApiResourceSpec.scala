@@ -5,17 +5,15 @@ import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, Que
 import com.advancedtelematic.director.util.{DirectorSpec, RepositorySpec, RouteResourceSpec}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.director.data.Generators._
-import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
+import com.advancedtelematic.libats.data.DataType.MultiTargetUpdateId
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.libats.codecs.CirceCodecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
 import com.advancedtelematic.libats.data.PaginationResult
 import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
-import io.circe.syntax._
 import org.scalatest.LoneElement._
 
 class LegacyApiResourceSpec extends DirectorSpec

@@ -12,7 +12,6 @@ import io.circe.Encoder
 import org.scalatest.Suite
 import com.advancedtelematic.director.Settings
 import com.advancedtelematic.director.data.AdminDataType.TargetUpdate
-import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.UptaneDataType._
 import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.DeviceRequest

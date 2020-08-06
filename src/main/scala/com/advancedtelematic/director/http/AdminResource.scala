@@ -24,6 +24,7 @@ import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libats.messaging_datatype.Messages.EcuReplaced
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 
 import scala.concurrent.ExecutionContext
@@ -136,7 +137,11 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                       .register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
                       .map {
                         case DeviceRepository.Created => StatusCodes.Created
-                        case DeviceRepository.Updated => StatusCodes.OK
+                        case DeviceRepository.Updated(deviceId, replaced, replacements, when) =>
+                          (replaced zip replacements)
+                            .map { case (oldEcu, newEcu) => EcuReplaced(deviceId, oldEcu, newEcu, when) }
+                            .foreach(messageBusPublisher.publish(_))
+                          StatusCodes.OK
                       }
                     complete(f)
                   }

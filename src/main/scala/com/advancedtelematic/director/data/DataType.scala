@@ -5,14 +5,18 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.Uri
+import cats.implicits._
 import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.UptaneDataType.{Hashes, TargetImage}
 import com.advancedtelematic.libats.data.DataType.{Checksum, CorrelationId, HashMethod, Namespace, ValidChecksum}
-import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.data.UUIDKey.{UUIDKey, UUIDKeyObj}
+import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.MessageLike
+import com.advancedtelematic.libats.messaging_datatype.Messages.EcuAndHardwareId
+import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
+import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
@@ -20,10 +24,6 @@ import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
 import io.circe.Json
 import io.circe.syntax._
-import cats.syntax._
-import cats.implicits._
-import com.advancedtelematic.libtuf.data.TufCodecs._
-import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 
 object DbDataType {
   case class AutoUpdateDefinitionId(uuid: UUID) extends UUIDKey
@@ -43,7 +43,9 @@ object DbDataType {
                           generatedMetadataOutdated: Boolean, deleted: Boolean)
 
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
-                       hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId])
+                       hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId]) {
+    def asEcuAndHardwareId: EcuAndHardwareId = EcuAndHardwareId(ecuSerial, hardwareId.value)
+  }
 
   final case class DbSignedRole(role: RoleType, device: DeviceId, checksum: Option[Checksum], length: Option[Long], version: Int, expires: Instant, content: JsonSignedPayload)
 
@@ -156,7 +158,7 @@ object Messages {
 
   implicit val deviceManifestReportedCodecs = io.circe.generic.semiauto.deriveCodec[DeviceManifestReported]
 
-  implicit val msgLike = MessageLike[DeviceManifestReported](_.deviceId.show)
+  implicit val deviceManifestReportedMsgLike = MessageLike[DeviceManifestReported](_.deviceId.show)
 }
 
 object DataType {

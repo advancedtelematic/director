@@ -73,7 +73,7 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
               case DeviceRepository.Updated(deviceId, replaced, replacements, when) =>
                 (replaced zip replacements)
                   .map { case (oldEcu, newEcu) => EcuReplaced(deviceId, oldEcu, newEcu, when) }
-                  .foreach(messageBusPublisher.publish(_))
+                  .foreach(messageBusPublisher.publishSafe(_))
                 StatusCodes.OK
             }
           complete(f)

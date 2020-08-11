@@ -16,7 +16,7 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateEvent}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateEvent, EcuReplaced}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -70,7 +70,11 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
             .register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
             .map {
               case DeviceRepository.Created => StatusCodes.Created
-              case DeviceRepository.Updated => StatusCodes.OK
+              case DeviceRepository.Updated(deviceId, replaced, replacements, when) =>
+                (replaced zip replacements)
+                  .map { case (oldEcu, newEcu) => EcuReplaced(deviceId, oldEcu, newEcu, when) }
+                  .foreach(messageBusPublisher.publish(_))
+                StatusCodes.OK
             }
           complete(f)
         }

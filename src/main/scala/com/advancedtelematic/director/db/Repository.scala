@@ -10,20 +10,17 @@ import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
-import com.advancedtelematic.libats.slick.codecs.SlickRefined._
-import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import cats.syntax.either._
 import com.advancedtelematic.libats.slick.db.SlickCirceMapper.jsonMapper
 import com.advancedtelematic.libats.slick.db.SlickExtensions._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
-import com.advancedtelematic.libtuf_server.data.TufSlickMappings._
 import com.advancedtelematic.libats.slick.codecs.SlickRefined._
 import slick.jdbc.MySQLProfile.api._
-import SlickMapping._
 import akka.NotUsed
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import com.advancedtelematic.director.http.Errors
+import com.advancedtelematic.libats.messaging_datatype.Messages.EcuAndHardwareId
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
@@ -48,7 +45,7 @@ trait DeviceRepositorySupport extends DatabaseSupport {
 object DeviceRepository {
   sealed trait DeviceCreateResult
   case object Created extends DeviceCreateResult
-  case object Updated extends DeviceCreateResult
+  case class Updated(deviceId: DeviceId, former: Seq[EcuAndHardwareId], current: Seq[EcuAndHardwareId], when: Instant) extends DeviceCreateResult
 }
 
 protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
@@ -56,19 +53,26 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
   def create(ecuRepository: EcuRepository)(ns: Namespace, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[Ecu]): Future[DeviceCreateResult] = {
     val device = Device(ns, deviceId, primaryEcuId, generatedMetadataOutdated = true, deleted = false)
 
-    val io = Schema.allDevices.filter(_.id === deviceId).result.headOption.flatMap {
-      case Some(_) => // Update Device and Ecus
-        replaceDeviceEcus(ecuRepository)(ns, device, ecus).map(_ => DeviceRepository.Updated)
-      case _ => // New Device and Ecus
+    val io = existsIO(deviceId).flatMap {
+      case false => // New Device and Ecus
         (Schema.allEcus ++= ecus).andThen(Schema.allDevices += device).map(_ => DeviceRepository.Created)
+      case true => // Update Device and Ecus
+        for {
+          currentEcus <- Schema.allEcus.filter(_.namespace === ns).filter(_.deviceId === device.id).result
+          newEcus <- replaceDeviceEcus(ecuRepository)(ns, device, ecus)
+          former = currentEcus.filterNot(e => newEcus.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
+          current = newEcus.filterNot(e => currentEcus.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
+        } yield DeviceRepository.Updated(deviceId, former, current, Instant.now)
     }
 
     db.run(io.transactionally)
   }
 
-  def exists(deviceId: DeviceId): Future[Boolean] = db.run {
+  private def existsIO(deviceId: DeviceId): DBIO[Boolean] =
     Schema.allDevices.filter(_.id === deviceId).exists.result
-  }
+
+  def exists(deviceId: DeviceId): Future[Boolean] =
+    db.run(existsIO(deviceId))
 
   def markDeleted(namespace: Namespace, deviceId: DeviceId): Future[Unit] = db.run {
     Schema.allDevices
@@ -95,7 +99,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
       .paginateAndSortResult(_._1.desc, offset = offset, limit = limit)
   }
 
-  private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Unit] = {
+  private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Seq[Ecu]] = {
     val ensureNoAssignments = Schema.assignments.filter(_.deviceId === device.id).exists.result.flatMap  {
       case true => DBIO.failed(Errors.AssignmentExistsError(device.id))
       case false => DBIO.successful(())
@@ -113,7 +117,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
 
     val setActive = ecuRepository.setActiveEcus(ns, device.id, ecus.map(_.ecuSerial).toSet)
 
-    DBIO.seq(ensureNoAssignments, ensureNotReplacingDeleted, insertEcus, insertDevice, setActive)
+    DBIO.seq(ensureNoAssignments, ensureNotReplacingDeleted, insertEcus, insertDevice, setActive).map(_ => ecus)
   }
 
   protected [db] def setMetadataOutdatedAction(deviceIds: Set[DeviceId], outdated: Boolean): DBIO[Unit] = DBIO.seq {
@@ -335,7 +339,7 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
   }
 
   def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, EcuTarget)]] = db.run {
-    Schema.activeEcus.filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
+    Schema.activeEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {

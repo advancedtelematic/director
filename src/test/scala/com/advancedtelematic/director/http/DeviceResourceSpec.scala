@@ -94,6 +94,89 @@ class DeviceResourceSpec extends DirectorSpec
     ecuReplaced.current shouldBe EcuAndHardwareId(primaryEcu2, ecus2.hardware_identifier.value)
   }
 
+  testWithRepo("a device can replace its primary ecu and one secondary ecu") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val (primary, secondary) = (GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val (primary2, secondary2) = (GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val req = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary))
+    val req2 = RegisterDevice(deviceId.some, primary2.ecu_serial, Seq(primary2, secondary2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val secondaryReplacement :: primaryReplacement :: _ = msgPub.findReceivedAll[EcuReplaced](deviceId.uuid.toString)
+    primaryReplacement.former shouldBe EcuAndHardwareId(primary.ecu_serial, primary.hardware_identifier.value)
+    primaryReplacement.current shouldBe EcuAndHardwareId(primary2.ecu_serial, primary2.hardware_identifier.value)
+    secondaryReplacement.former shouldBe EcuAndHardwareId(secondary.ecu_serial, secondary.hardware_identifier.value)
+    secondaryReplacement.current shouldBe EcuAndHardwareId(secondary2.ecu_serial, secondary2.hardware_identifier.value)
+  }
+
+  testWithRepo("a device can replace multiple secondary ecus") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val primary = GenRegisterEcu.generate
+    val (secondary, otherSecondary) = (GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val (secondary2, otherSecondary2) = (GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val req = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary, otherSecondary))
+    val req2 = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary2, otherSecondary2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    val secondaryReplacement :: otherSecondaryReplacement :: _ = msgPub.findReceivedAll[EcuReplaced](deviceId.uuid.toString)
+    Seq(secondaryReplacement.former, otherSecondaryReplacement.former) should contain only (
+      EcuAndHardwareId(secondary.ecu_serial, secondary.hardware_identifier.value),
+      EcuAndHardwareId(otherSecondary.ecu_serial, otherSecondary.hardware_identifier.value)
+    )
+    Seq(secondaryReplacement.current, otherSecondaryReplacement.current) should contain only (
+      EcuAndHardwareId(secondary2.ecu_serial, secondary2.hardware_identifier.value),
+      EcuAndHardwareId(otherSecondary2.ecu_serial, otherSecondary2.hardware_identifier.value)
+    )
+  }
+
+  testWithRepo("*only* adding ecus registers no replacement") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val (primary, secondary, secondary2) = (GenRegisterEcu.generate, GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val req = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary))
+    val req2 = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary, secondary2))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+  }
+
+  testWithRepo("*only* removing ecus registers no replacement") { implicit ns =>
+    val deviceId = DeviceId.generate()
+    val (primary, secondary, secondary2) = (GenRegisterEcu.generate, GenRegisterEcu.generate, GenRegisterEcu.generate)
+    val req = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary, secondary2))
+    val req2 = RegisterDevice(deviceId.some, primary.ecu_serial, Seq(primary, secondary))
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri(s"device/${deviceId.show}/ecus"), req2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+  }
+
   testWithRepo("a device ecu replacement is rejected if disabled") { implicit ns =>
     lazy val ecuReplacementDisabledRoutes = new DirectorRoutes(keyserverClient, allowEcuReplacement = false).routes
 

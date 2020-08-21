@@ -70,10 +70,8 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
             .register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
             .map {
               case DeviceRepository.Created => StatusCodes.Created
-              case DeviceRepository.Updated(deviceId, replaced, replacements, when) =>
-                (replaced zip replacements)
-                  .map { case (oldEcu, newEcu) => EcuReplaced(deviceId, oldEcu, newEcu, when) }
-                  .foreach(messageBusPublisher.publishSafe(_))
+              case event: DeviceRepository.Updated =>
+                event.asEcuReplacedSeq.map(messageBusPublisher.publishSafe(_))
                 StatusCodes.OK
             }
           complete(f)
@@ -90,28 +88,28 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
           }
         }
        } ~
-        get {
-          path(IntNumber ~ ".root.json") { version =>
-            logDevice(ns, device) {
-              complete(fetchRoot(ns, version.some))
-            }
-          } ~
-            path(JsonRoleTypeMetaPath) {
-              case RoleType.ROOT =>
-                logDevice(ns, device) {
-                  complete(fetchRoot(ns, version = None))
-                }
-              case RoleType.TARGETS =>
-                val f = deviceRoleGeneration.findFreshTargets(ns, repoId, device)
-                complete(f)
-              case RoleType.SNAPSHOT =>
-                val f = deviceRoleGeneration.findFreshDeviceRole[SnapshotRole](ns, repoId, device)
-                complete(f)
-              case RoleType.TIMESTAMP =>
-                val f = deviceRoleGeneration.findFreshDeviceRole[TimestampRole](ns, repoId, device)
-                complete(f)
-            }
-        }
+      get {
+        path(IntNumber ~ ".root.json") { version =>
+          logDevice(ns, device) {
+            complete(fetchRoot(ns, version.some))
+          }
+        } ~
+          path(JsonRoleTypeMetaPath) {
+            case RoleType.ROOT =>
+              logDevice(ns, device) {
+                complete(fetchRoot(ns, version = None))
+              }
+            case RoleType.TARGETS =>
+              val f = deviceRoleGeneration.findFreshTargets(ns, repoId, device)
+              complete(f)
+            case RoleType.SNAPSHOT =>
+              val f = deviceRoleGeneration.findFreshDeviceRole[SnapshotRole](ns, repoId, device)
+              complete(f)
+            case RoleType.TIMESTAMP =>
+              val f = deviceRoleGeneration.findFreshDeviceRole[TimestampRole](ns, repoId, device)
+              complete(f)
+          }
+      }
     }
   }
 

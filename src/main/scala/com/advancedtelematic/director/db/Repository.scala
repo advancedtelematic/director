@@ -20,7 +20,7 @@ import akka.NotUsed
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import com.advancedtelematic.director.http.Errors
-import com.advancedtelematic.libats.messaging_datatype.Messages.EcuAndHardwareId
+import com.advancedtelematic.libats.messaging_datatype.Messages.{EcuAndHardwareId, EcuReplaced}
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
@@ -45,7 +45,18 @@ trait DeviceRepositorySupport extends DatabaseSupport {
 object DeviceRepository {
   sealed trait DeviceCreateResult
   case object Created extends DeviceCreateResult
-  case class Updated(deviceId: DeviceId, former: Seq[EcuAndHardwareId], current: Seq[EcuAndHardwareId], when: Instant) extends DeviceCreateResult
+  case class Updated(deviceId: DeviceId, replacedPrimary: Option[(EcuAndHardwareId, EcuAndHardwareId)], removedSecondaries: Seq[EcuAndHardwareId], addedSecondaries: Seq[EcuAndHardwareId], when: Instant) extends DeviceCreateResult
+
+  implicit class DeviceUpdateResultCreatedOps(updated: Updated) {
+    def asEcuReplacedSeq: Seq[EcuReplaced] = {
+      val primaryReplacement =
+        updated.replacedPrimary.map { case (oldEcu, newEcu) => EcuReplaced(updated.deviceId, oldEcu, newEcu, updated.when) }
+      // Non-deterministic multiple secondary replacements: if there's more than one replacement, there's no way of knowing which secondary replaced which.
+      val secondaryReplacements =
+        (updated.removedSecondaries zip updated.addedSecondaries).map { case (oldEcu, newEcu) => EcuReplaced(updated.deviceId, oldEcu, newEcu, updated.when) }
+      primaryReplacement.fold(secondaryReplacements)(_ +: secondaryReplacements)
+    }
+  }
 }
 
 protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionContext) {
@@ -56,13 +67,8 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     val io = existsIO(deviceId).flatMap {
       case false => // New Device and Ecus
         (Schema.allEcus ++= ecus).andThen(Schema.allDevices += device).map(_ => DeviceRepository.Created)
-      case true => // Update Device and Ecus
-        for {
-          currentEcus <- Schema.allEcus.filter(_.namespace === ns).filter(_.deviceId === device.id).result
-          newEcus <- replaceDeviceEcus(ecuRepository)(ns, device, ecus)
-          former = currentEcus.filterNot(e => newEcus.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
-          current = newEcus.filterNot(e => currentEcus.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
-        } yield DeviceRepository.Updated(deviceId, former, current, Instant.now)
+      case true => // Update Device and Ecus, potentially replace Ecus
+        replaceEcusAndIdentifyReplacements(ecuRepository)(ns, device, ecus)
     }
 
     db.run(io.transactionally)
@@ -97,6 +103,28 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
       .map(_._1)
       .map(r => r.createdAt -> r)
       .paginateAndSortResult(_._1.desc, offset = offset, limit = limit)
+  }
+
+  private def replaceEcusAndIdentifyReplacements(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[DeviceRepository.Updated] = {
+    val beforeReplacement = for {
+      ecus <- Schema.activeEcus.filter(_.namespace === ns).filter(_.deviceId === device.id).result
+      primary <- ecuRepository.findDevicePrimaryAction(ns, device.id)
+      secondaries = ecus.filterNot(_.ecuSerial == primary.ecuSerial)
+    } yield primary -> secondaries
+
+    val afterReplacement = for {
+      ecus <- replaceDeviceEcus(ecuRepository)(ns, device, ecus)
+      primary <- ecuRepository.findDevicePrimaryAction(ns, device.id)
+      secondaries = ecus.filterNot(_.ecuSerial == primary.ecuSerial)
+    } yield primary -> secondaries
+
+    for {
+      (beforePrimary, beforeSecondaries) <- beforeReplacement
+      (afterPrimary, afterSecondaries) <- afterReplacement
+      replacedPrimary = if (beforePrimary == afterPrimary) None else Some(beforePrimary.asEcuAndHardwareId -> afterPrimary.asEcuAndHardwareId)
+      removed = beforeSecondaries.filterNot(e => afterSecondaries.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
+      added = afterSecondaries.filterNot(e => beforeSecondaries.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
+    } yield DeviceRepository.Updated(device.id, replacedPrimary, removed, added, Instant.now)
   }
 
   private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Seq[Ecu]] = {
@@ -371,11 +399,17 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
       .joinLeft(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
-  def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] = db.run {
-    Schema.allDevices.filter(_.id === deviceId).filter(_.namespace === ns)
-      .join(Schema.activeEcus).on { case (d, e) => d.id === e.deviceId && d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
-      .map(_._2).resultHead(Errors.DeviceMissingPrimaryEcu(deviceId))
-  }
+  private[db] def findDevicePrimaryAction(ns: Namespace, deviceId: DeviceId): DBIO[Ecu] =
+    Schema.allDevices
+      .filter(_.namespace === ns)
+      .filter(_.id === deviceId)
+      .join(Schema.activeEcus)
+      .on { case (d, e) => d.id === e.deviceId && d.primaryEcu === e.ecuSerial && d.namespace === e.namespace }
+      .map(_._2)
+      .resultHead(Errors.DeviceMissingPrimaryEcu(deviceId))
+
+  def findDevicePrimary(ns: Namespace, deviceId: DeviceId): Future[Ecu] =
+    db.run(findDevicePrimaryAction(ns, deviceId))
 
   protected[db] def setActiveEcus(ns: Namespace, deviceId: DeviceId, ecus: Set[EcuIdentifier]): DBIO[Unit] = {
     val ecuQuery = Schema.allEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId)

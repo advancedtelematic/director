@@ -137,10 +137,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                       .register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
                       .map {
                         case DeviceRepository.Created => StatusCodes.Created
-                        case DeviceRepository.Updated(deviceId, replaced, replacements, when) =>
-                          (replaced zip replacements)
-                            .map { case (oldEcu, newEcu) => EcuReplaced(deviceId, oldEcu, newEcu, when) }
-                            .foreach(messageBusPublisher.publishSafe(_))
+                        case event: DeviceRepository.Updated =>
+                          event.asEcuReplacedSeq.map(messageBusPublisher.publishSafe(_))
                           StatusCodes.OK
                       }
                     complete(f)

@@ -121,7 +121,8 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
     for {
       (beforePrimary, beforeSecondaries) <- beforeReplacement
       (afterPrimary, afterSecondaries) <- afterReplacement
-      replacedPrimary = if (beforePrimary == afterPrimary) None else Some(beforePrimary.asEcuAndHardwareId -> afterPrimary.asEcuAndHardwareId)
+      replacedPrimary = if (beforePrimary.ecuSerial == afterPrimary.ecuSerial) None
+                        else Some(beforePrimary.asEcuAndHardwareId -> afterPrimary.asEcuAndHardwareId)
       removed = beforeSecondaries.filterNot(e => afterSecondaries.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
       added = afterSecondaries.filterNot(e => beforeSecondaries.map(_.ecuSerial).contains(e.ecuSerial)).map(_.asEcuAndHardwareId)
     } yield DeviceRepository.Updated(device.id, replacedPrimary, removed, added, Instant.now)

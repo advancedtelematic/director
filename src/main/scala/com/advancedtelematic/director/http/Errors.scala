@@ -2,13 +2,9 @@ package com.advancedtelematic.director.http
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Show
-import cats.syntax.show
-import com.advancedtelematic.director.data.AdminDataType.MultiTargetUpdate
-import com.advancedtelematic.director.data.DataType.DeviceUpdateTarget
-import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.{EcuIdentifier, ErrorCode}
-import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId, RawError}
+import com.advancedtelematic.libats.http.Errors.{Error, MissingEntityId, RawError}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -35,7 +31,7 @@ object Errors {
 
   def DeviceMissingPrimaryEcu(deviceId: DeviceId) = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, s"This server does not have a primary ecu for $deviceId")
 
-  def AssignmentExistsError(deviceId: DeviceId) = RawError(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
+  case class AssignmentExistsError(deviceId: DeviceId) extends Error(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
 
   def EcuReplacementDisabled(deviceId: DeviceId) =
     RawError(ErrorCodes.EcuReplacementDisabled, StatusCodes.Conflict, s"Device $deviceId is trying to register again but ecu replacement is disabled on this instance")

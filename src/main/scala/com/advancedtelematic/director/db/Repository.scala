@@ -20,7 +20,7 @@ import akka.NotUsed
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import com.advancedtelematic.director.http.Errors
-import com.advancedtelematic.libats.messaging_datatype.Messages.{EcuAndHardwareId, EcuReplaced}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{EcuAndHardwareId, EcuReplaced, EcuReplacement}
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
 import com.advancedtelematic.libtuf.data.ClientDataType.TufRole
@@ -48,7 +48,7 @@ object DeviceRepository {
   case class Updated(deviceId: DeviceId, replacedPrimary: Option[(EcuAndHardwareId, EcuAndHardwareId)], removedSecondaries: Seq[EcuAndHardwareId], addedSecondaries: Seq[EcuAndHardwareId], when: Instant) extends DeviceCreateResult
 
   implicit class DeviceUpdateResultCreatedOps(updated: Updated) {
-    def asEcuReplacedSeq: Seq[EcuReplaced] = {
+    def asEcuReplacedSeq: Seq[EcuReplacement] = {
       val primaryReplacement =
         updated.replacedPrimary.map { case (oldEcu, newEcu) => EcuReplaced(updated.deviceId, oldEcu, newEcu, updated.when) }
       // Non-deterministic multiple secondary replacements: if there's more than one replacement, there's no way of knowing which secondary replaced which.

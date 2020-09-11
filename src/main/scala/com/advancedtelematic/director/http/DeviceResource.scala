@@ -10,13 +10,13 @@ import com.advancedtelematic.director.data.AdminDataType.RegisterDevice
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.Messages.{DeviceManifestReported, _}
 import com.advancedtelematic.director.db._
-import com.advancedtelematic.director.manifest.{DeviceManifestProcess, ManifestCompiler, ManifestReportMessages}
+import com.advancedtelematic.director.manifest.{DeviceManifestProcess, ManifestCompiler}
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
-import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateEvent, EcuReplaced}
+import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateEvent}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{SnapshotRole, TimestampRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
@@ -66,15 +66,13 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
     pathPrefix("device" / DeviceId.Path) { device =>
       post {
         (path("ecus") & entity(as[RegisterDevice]) & deviceRegisterAllowed(device)) { regDev =>
-          val f = deviceRegistration
-            .register(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
-            .map {
-              case DeviceRepository.Created => StatusCodes.Created
-              case event: DeviceRepository.Updated =>
-                event.asEcuReplacedSeq.map(messageBusPublisher.publishSafe(_))
-                StatusCodes.OK
-            }
-          complete(f)
+          complete {
+            deviceRegistration.registerAndPublish(ns, repoId, device, regDev.primary_ecu_serial, regDev.ecus)
+              .map {
+                case DeviceRepository.Created => StatusCodes.Created
+                case _: DeviceRepository.Updated => StatusCodes.OK
+              }
+          }
         }
       } ~
       put {

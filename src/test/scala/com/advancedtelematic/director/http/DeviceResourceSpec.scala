@@ -27,6 +27,7 @@ import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import org.scalatest.Inspectors
+import org.scalatest.LoneElement._
 import org.scalatest.OptionValues._
 import io.circe.syntax._
 
@@ -38,7 +39,7 @@ class DeviceResourceSpec extends DirectorSpec
 
   def forceRoleExpire[T](deviceId: DeviceId)(implicit tufRole: TufRole[T]): Unit = {
     import slick.jdbc.MySQLProfile.api._
-    val sql = sql"update signed_roles set expires_at = '1970-01-01 00:00:00' where device_id = '#${deviceId.uuid.toString}' and role = '#${tufRole.typeStr}'"
+    val sql = sql"update signed_roles set expires_at = '1970-01-01 00:00:00' where device_id = '#${deviceId.show}' and role = '#${tufRole.typeStr}'"
     db.run(sql.asUpdate).futureValue
   }
 
@@ -65,7 +66,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    val ecuReplaced = msgPub.findReceived[EcuReplaced](deviceId.uuid.toString).value
+    val ecuReplaced = msgPub.findReceived[EcuReplacement](deviceId.show).value.asInstanceOf[EcuReplaced]
     ecuReplaced.former shouldBe EcuAndHardwareId(primaryEcu, ecus.hardware_identifier.value)
     ecuReplaced.current shouldBe EcuAndHardwareId(primaryEcu2, ecus2.hardware_identifier.value)
   }
@@ -89,7 +90,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    val ecuReplaced = msgPub.findReceived[EcuReplaced](deviceId.uuid.toString).value
+    val ecuReplaced = msgPub.findReceived[EcuReplacement](deviceId.show).value.asInstanceOf[EcuReplaced]
     ecuReplaced.former shouldBe EcuAndHardwareId(primaryEcu, ecus.hardware_identifier.value)
     ecuReplaced.current shouldBe EcuAndHardwareId(primaryEcu2, ecus2.hardware_identifier.value)
   }
@@ -109,7 +110,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    val secondaryReplacement :: primaryReplacement :: _ = msgPub.findReceivedAll[EcuReplaced](deviceId.uuid.toString)
+    val secondaryReplacement :: primaryReplacement :: _ = msgPub.findReceivedAll[EcuReplacement](deviceId.show).map(_.asInstanceOf[EcuReplaced])
     primaryReplacement.former shouldBe EcuAndHardwareId(primary.ecu_serial, primary.hardware_identifier.value)
     primaryReplacement.current shouldBe EcuAndHardwareId(primary2.ecu_serial, primary2.hardware_identifier.value)
     secondaryReplacement.former shouldBe EcuAndHardwareId(secondary.ecu_serial, secondary.hardware_identifier.value)
@@ -132,7 +133,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    val secondaryReplacement :: otherSecondaryReplacement :: _ = msgPub.findReceivedAll[EcuReplaced](deviceId.uuid.toString)
+    val secondaryReplacement :: otherSecondaryReplacement :: _ = msgPub.findReceivedAll[EcuReplacement](deviceId.show).map(_.asInstanceOf[EcuReplaced])
     Seq(secondaryReplacement.former, otherSecondaryReplacement.former) should contain only (
       EcuAndHardwareId(secondary.ecu_serial, secondary.hardware_identifier.value),
       EcuAndHardwareId(otherSecondary.ecu_serial, otherSecondary.hardware_identifier.value)
@@ -157,7 +158,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+    msgPub.findReceived[EcuReplacement](deviceId.show) shouldBe None
   }
 
   testWithRepo("*only* removing ecus registers no replacement") { implicit ns =>
@@ -174,7 +175,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+    msgPub.findReceived[EcuReplacement](deviceId.show) shouldBe None
   }
 
   testWithRepo("a device ecu replacement is rejected if disabled") { implicit ns =>
@@ -196,7 +197,7 @@ class DeviceResourceSpec extends DirectorSpec
       responseAs[ErrorRepresentation].code shouldBe ErrorCodes.EcuReplacementDisabled
     }
 
-    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+    msgPub.findReceived[EcuReplacement](deviceId.show) shouldBe None
   }
 
   testWithRepo("registering the same device id with different ecus works when using the same primary ecu") { implicit ns =>
@@ -216,7 +217,7 @@ class DeviceResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
     }
 
-    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+    msgPub.findReceived[EcuReplacement](deviceId.show) shouldBe None
   }
 
   testWithRepo("a device can replace a secondary and POST manifests for the new ECUs") { implicit ns =>
@@ -270,7 +271,8 @@ class DeviceResourceSpec extends DirectorSpec
       resp.code shouldBe ErrorCodes.ReplaceEcuAssignmentExists
     }
 
-    msgPub.findReceived[EcuReplaced](deviceId.uuid.toString) shouldBe None
+    val replacements = msgPub.findReceivedAll[EcuReplacement](deviceId.show)
+    replacements.loneElement.asInstanceOf[EcuReplacementFailed].deviceUuid shouldBe deviceId
   }
 
   testWithRepo("Previously used *secondary* ecus cannot be reused when replacing ecus") { implicit ns =>
@@ -297,7 +299,7 @@ class DeviceResourceSpec extends DirectorSpec
 
     val deviceEcus = ecuRepository.findBy(deviceId).futureValue
 
-    deviceEcus.map(_.ecuSerial) should contain only(primaryEcu)
+    deviceEcus.map(_.ecuSerial) should contain only primaryEcu
   }
 
   testWithRepo("fails when primary ecu is not defined in ecus") { implicit ns =>

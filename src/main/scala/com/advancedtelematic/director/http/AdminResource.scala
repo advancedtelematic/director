@@ -24,7 +24,6 @@ import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
-import com.advancedtelematic.libats.messaging_datatype.Messages.EcuReplaced
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 
 import scala.concurrent.ExecutionContext
@@ -133,15 +132,13 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                   if (regDev.deviceId.isEmpty)
                     reject(ValidationRejection("deviceId is required to register a device"))
                   else {
-                    val f = deviceRegistration
-                      .register(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
-                      .map {
-                        case DeviceRepository.Created => StatusCodes.Created
-                        case event: DeviceRepository.Updated =>
-                          event.asEcuReplacedSeq.map(messageBusPublisher.publishSafe(_))
-                          StatusCodes.OK
-                      }
-                    complete(f)
+                    complete {
+                      deviceRegistration.registerAndPublish(ns, repoId, regDev.deviceId.get, regDev.primary_ecu_serial, regDev.ecus)
+                        .map {
+                          case DeviceRepository.Created => StatusCodes.Created
+                          case _: DeviceRepository.Updated => StatusCodes.OK
+                        }
+                    }
                   }
                 }
               },

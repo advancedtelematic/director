@@ -5,17 +5,20 @@ import com.advancedtelematic.director.data.AdminDataType.{EcuInfoImage, EcuInfoR
 import com.advancedtelematic.director.data.UptaneDataType.Hashes
 import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.director.http.Errors
+import com.advancedtelematic.director.http.Errors.AssignmentExistsError
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.{EcuReplacement, EcuReplacementFailed}
 import com.advancedtelematic.libtuf.data.TufDataType.RepoId
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
-
-import scala.concurrent.{ExecutionContext, Future}
 import slick.jdbc.MySQLProfile.api._
 
 import scala.async.Async._
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Database, val ec: ExecutionContext) extends DeviceRepositorySupport
   with EcuRepositorySupport  {
@@ -31,7 +34,7 @@ class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Data
     }.toVector
   }
 
-  def register(ns: Namespace, repoId: RepoId, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[DeviceCreateResult] = {
+  private def register(ns: Namespace, repoId: RepoId, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[RegisterEcu]): Future[DeviceCreateResult] = {
     if (ecus.exists(_.ecu_serial == primaryEcuId)) {
       val _ecus = ecus.map(_.toEcu(ns, deviceId))
 
@@ -42,4 +45,14 @@ class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Data
     } else
       FastFuture.failed(Errors.PrimaryIsNotListedForDevice)
   }
+
+  def registerAndPublish(ns: Namespace, repoId: RepoId, deviceId: DeviceId, primaryEcuId: EcuIdentifier, ecus: Seq[RegisterEcu])
+                        (implicit messageBusPublisher: MessageBusPublisher): Future[DeviceCreateResult] =
+    register(ns, repoId, deviceId, primaryEcuId, ecus).andThen {
+      case Success(event: DeviceRepository.Updated) =>
+        event.asEcuReplacedSeq.foreach(messageBusPublisher.publishSafe(_))
+      case Failure(AssignmentExistsError(deviceId)) =>
+        val failedReplacement: EcuReplacement = EcuReplacementFailed(deviceId)
+        messageBusPublisher.publishSafe(failedReplacement)
+    }
 }

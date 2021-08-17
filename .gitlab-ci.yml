@@ -15,6 +15,7 @@ variables:
   SERVICE_IMAGE: "advancedtelematic/director"
   # The same image have to be used by test and code coverage jobs:
   TEST_IMAGE: advancedtelematic/gitlab-jobs:0.2.5
+  SETUP_CMD: sh license_setup.sh
 
 default:
   services:

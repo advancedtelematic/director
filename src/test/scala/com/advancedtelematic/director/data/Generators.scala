@@ -59,11 +59,10 @@ trait Generators {
     name <- Gen.containerOfN[Seq, Char](size, Gen.alphaNumChar)
   } yield name.mkString
 
-  def GenInstallReportEntity(primaryEcu: EcuIdentifier, success: Boolean) = for {
+  def GenInstallReportEntity(primaryEcu: EcuIdentifier, success: Boolean, correlationId: CorrelationId) = for {
     code <- Gen.alphaNumStr.map(ResultCode.apply)
     desc <- Gen.alphaNumStr.map(ResultDescription.apply)
     installItem = InstallationItem(primaryEcu, InstallationResult(success, code, desc))
-    correlationId <- GenCorrelationId
     installationReport = InstallationReport(correlationId, InstallationResult(success, code, desc), Seq(installItem), raw_report = None)
   } yield DeviceRequest.InstallationReportEntity("application/vnd.com.here.otac.installationReport.v1", installationReport)
 

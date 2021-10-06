@@ -47,7 +47,7 @@ object ManifestCompiler {
         }
       }
 
-      val msgs = ManifestReportMessages(ns, beforeState.deviceId, manifest, correlationIdProcessedInManifest).toList
+      val msgs = ManifestReportMessages(ns, beforeState, manifest, correlationIdProcessedInManifest).toList
 
       ManifestCompileResult(nextStatus, msgs)
     }

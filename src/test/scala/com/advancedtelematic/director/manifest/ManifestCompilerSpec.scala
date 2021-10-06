@@ -3,7 +3,7 @@ package com.advancedtelematic.director.manifest
 import cats.syntax.option._
 import com.advancedtelematic.director.data.AdminDataType.TargetUpdate
 import com.advancedtelematic.director.data.Codecs._
-import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownState, EcuTarget, EcuTargetId}
+import com.advancedtelematic.director.data.DbDataType.{Assignment, DeviceKnownState, EcuTarget, EcuTargetId, ProcessedAssignment}
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest}
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
@@ -11,6 +11,7 @@ import com.advancedtelematic.director.data.UptaneDataType._
 import com.advancedtelematic.director.util.DirectorSpec
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.messaging_datatype.Messages.DeviceUpdateCompleted
 import com.advancedtelematic.libtuf.data.TufDataType.SignedPayload
 import io.circe.syntax._
 import org.scalatest.LoneElement._
@@ -22,6 +23,9 @@ class ManifestCompilerSpec extends DirectorSpec {
   implicit class TargetUpdateToImage(value: TargetUpdate) {
     def toImage: Image =
       Image(value.target, FileInfo(Hashes(value.checksum.hash), value.targetLength))
+
+    def toTarget(ns: Namespace, targetId: EcuTargetId = EcuTargetId.generate()): EcuTarget =
+      EcuTarget(ns, targetId, value.target, value.targetLength, value.checksum, value.checksum.hash, value.uri)
   }
 
   val ns = Namespace("ns-ManifestCompilerSpec")
@@ -105,7 +109,7 @@ class ManifestCompilerSpec extends DirectorSpec {
     val ecuManifest = EcuManifest(targetUpdate.toImage, primary, "")
     val ecuVersionManifest = Map(primary -> SignedPayload(Seq.empty, ecuManifest, ecuManifest.asJson))
 
-    val installationReportEntity = GenInstallReportEntity(primary, success = false).generate
+    val installationReportEntity = GenInstallReportEntity(primary, success = false, assignment.correlationId).generate
 
     val manifest = DeviceManifest(primary, ecuVersionManifest, installationReportEntity.some)
     val otherAssignment = Assignment(ns, deviceId, secondary, ecuTarget.id, GenCorrelationId.generate, inFlight = true)
@@ -121,21 +125,39 @@ class ManifestCompilerSpec extends DirectorSpec {
   }
 
   test("assignment is completed if target was not installed and report is not successful") {
-    val ecuManifest = EcuManifest(targetUpdate.toImage, primary, "")
+    val installedOnEcuUpdate = GenTargetUpdate.generate
+    val installedOnEcuTarget = installedOnEcuUpdate.toTarget(ns)
+
+    val ecuManifest = EcuManifest(installedOnEcuUpdate.toImage, primary, "")
     val ecuVersionManifest = Map(primary -> SignedPayload(Seq.empty, ecuManifest, ecuManifest.asJson))
 
-    val installationReportEntity = GenInstallReportEntity(primary, success = false).generate
+    val installationReportEntity = GenInstallReportEntity(primary, success = false, assignment.correlationId).generate
 
     val manifest = DeviceManifest(primary, ecuVersionManifest, installationReportEntity.some)
 
-    val currentStatus = DeviceKnownState(deviceId, primary, Map(primary -> None), Map(ecuTarget.id -> ecuTarget), Set(assignment), Set.empty, generatedMetadataOutdated = false)
+    val currentStatus =
+      DeviceKnownState(
+        deviceId,
+        primary,
+        Map(primary -> installedOnEcuTarget.id.some),
+        Map(installedOnEcuTarget.id -> installedOnEcuTarget, ecuTarget.id -> ecuTarget),
+        Set(assignment),
+        Set(ProcessedAssignment(ns, deviceId, primary, installedOnEcuTarget.id, GenCorrelationId.generate, successful = true, None, canceled = false)),
+        generatedMetadataOutdated = false
+      )
 
-    val resultStatus = ManifestCompiler(ns, manifest).apply(currentStatus).get.knownState
+    val compiledManifest = ManifestCompiler(ns, manifest).apply(currentStatus).get
+    val resultStatus = compiledManifest.knownState
 
     resultStatus.currentAssignments shouldBe empty
-    resultStatus.processedAssignments.loneElement.copy(result = None) shouldBe assignment.toProcessedAssignment(successful = false)
-    resultStatus.ecuStatus(primary) should contain(ecuTarget.id)
+    resultStatus.processedAssignments.map(_.copy(result = None)) should contain theSameElementsAs (currentStatus.processedAssignments + assignment.toProcessedAssignment(successful = false))
+    resultStatus.ecuStatus(primary) should contain(installedOnEcuTarget.id)
     resultStatus.ecuTargets shouldBe currentStatus.ecuTargets
+
+    compiledManifest.messages
+      .collect { case e: DeviceUpdateCompleted => e.ecuReports }
+      .loneElement
+      .apply(primary).target should contain (targetUpdate.target.value)
   }
 
   test("Ecu.installed_target for device gets updated with new target id if target was not known") {

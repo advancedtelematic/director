@@ -367,8 +367,8 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
     Schema.activeEcus.filter(_.deviceId === deviceId).filter(_.namespace === ns).filter(_.ecuSerial === ecuSerial).result.failIfNotSingle(MissingEntity[Ecu]())
   }
 
-  def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, EcuTarget)]] = db.run {
-    Schema.activeEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId).join(Schema.ecuTargets).on(_.installedTarget === _.id).result
+  def findTargets(ns: Namespace, deviceId: DeviceId): Future[Seq[(Ecu, Option[EcuTarget])]] = db.run {
+    Schema.activeEcus.filter(_.namespace === ns).filter(_.deviceId === deviceId).joinLeft(Schema.ecuTargets).on(_.installedTarget === _.id).result
   }
 
   def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.run {

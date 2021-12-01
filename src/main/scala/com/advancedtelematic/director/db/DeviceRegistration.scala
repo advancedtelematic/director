@@ -28,8 +28,8 @@ class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Data
     val primary = await(ecuRepository.findDevicePrimary(ns, deviceId)).ecuSerial
     val ecus = await(ecuRepository.findTargets(ns, deviceId))
 
-    ecus.map { case (ecu, target) =>
-      val img = EcuInfoImage(target.filename, target.length, Hashes(target.checksum))
+    ecus.map { case (ecu, maybeTarget) =>
+      val img = maybeTarget.fold(EcuInfoImage.Unknown)(target => EcuInfoImage(target.filename, target.length, Hashes(target.checksum)))
       EcuInfoResponse(ecu.ecuSerial, ecu.hardwareId, ecu.ecuSerial == primary, img)
     }.toVector
   }

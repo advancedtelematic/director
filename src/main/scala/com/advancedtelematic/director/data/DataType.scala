@@ -18,7 +18,7 @@ import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.ClientDataType.{ClientHashes, TufRole}
 import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
-import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey}
+import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, JsonSignedPayload, KeyType, SignedPayload, TargetFilename, TargetName, TufKey, ValidTargetFilename}
 import com.advancedtelematic.libtuf_server.crypto.Sha256Digest
 import com.advancedtelematic.libtuf_server.repo.server.DataType.SignedRole
 import eu.timepit.refined.api.Refined
@@ -102,6 +102,10 @@ object DbDataType {
 
 object AdminDataType {
   final case class EcuInfoImage(filepath: TargetFilename, size: Long, hash: Hashes)
+  object EcuInfoImage {
+    import eu.timepit.refined.auto._
+    val Unknown: EcuInfoImage = EcuInfoImage(filepath = "unknown", size = 0, hash = Hashes(Sha256Digest.digest(Array.empty[Byte])))
+  }
   final case class EcuInfoResponse(id: EcuIdentifier, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
 
   final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate)

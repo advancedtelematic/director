@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.ClientDataType
-import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, FindImageCount, RegisterDevice}
+import com.advancedtelematic.director.data.AdminDataType.{EcuInfoImage, EcuInfoResponse, FindImageCount, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DbDataType.Ecu
 import com.advancedtelematic.director.data.GeneratorOps._
@@ -25,7 +25,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, SignedPayload, TargetFilename, TufKey, TufKeyPair}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import org.scalactic.source.Position
-import org.scalatest.Assertion
+import org.scalatest.{Assertion, LoneElement}
 import io.circe.syntax._
 
 object AdminResources {
@@ -97,12 +97,41 @@ trait AdminResources {
 class AdminResourceSpec extends DirectorSpec
   with RouteResourceSpec
   with RepoNamespaceRepositorySupport
-  with DbSignedRoleRepositorySupport with AdminResources with RepositorySpec with DeviceResources with DeviceManifestSpec {
+  with DbSignedRoleRepositorySupport
+  with AdminResources
+  with RepositorySpec
+  with DeviceResources
+  with DeviceManifestSpec
+  with LoneElement {
 
   testWithNamespace("can register a device") { implicit ns =>
     createRepoOk()
 
     registerAdminDeviceOk()
+  }
+
+  testWithNamespace("can get ECUs of registered device") { implicit ns =>
+    createRepoOk()
+    val device = registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices/${device.deviceId.uuid}")).namespaced ~> routes ~> check {
+      response.status shouldBe StatusCodes.OK
+      val rs = responseAs[Seq[EcuInfoResponse]].loneElement
+      rs.hardwareId shouldBe device.primary.hardwareId
+      rs.image shouldBe EcuInfoImage.Unknown
+    }
+
+    val targetUpdate = GenTargetUpdate.generate
+    putManifestOk(device.deviceId, buildPrimaryManifest(device.primary, device.primaryKey, targetUpdate))
+
+    Get(apiUri(s"admin/devices/${device.deviceId.uuid}")).namespaced ~> routes ~> check {
+      response.status shouldBe StatusCodes.OK
+      val rs = responseAs[Seq[EcuInfoResponse]].loneElement
+      rs.hardwareId shouldBe device.primary.hardwareId
+      rs.image.filepath shouldBe targetUpdate.target
+      rs.image.size shouldBe targetUpdate.targetLength
+      rs.image.hash.sha256 shouldBe targetUpdate.checksum.hash
+    }
   }
 
   testWithNamespace("can fetch root for a namespace") { implicit ns =>

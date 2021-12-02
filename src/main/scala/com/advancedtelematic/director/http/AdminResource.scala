@@ -103,8 +103,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
             }
         }
       } ~
-      get {
-        val f = deviceRegistration.findDeviceEcuInfo(ns, device)
+      (get & parameter('includeReplaced.as[Boolean].?(false))) { includeReplaced =>
+        val f = deviceRegistration.findDeviceEcuInfo(ns, device, includeReplaced)
         complete(f)
       } ~
       (path("targets.json") & put) {

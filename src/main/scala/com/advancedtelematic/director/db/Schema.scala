@@ -58,7 +58,7 @@ object Schema {
 
     def primKey = primaryKey("ecus_pk", (deviceId, ecuSerial))
 
-    override def * = (ecuSerial, deviceId, namespace, hardwareId, publicKey, installedTarget) <> ((Ecu.apply _).tupled, Ecu.unapply)
+    override def * = (ecuSerial, deviceId, namespace, hardwareId, publicKey, installedTarget, deleted) <> ((Ecu.apply _).tupled, Ecu.unapply)
   }
 
   protected [db] val allEcus = TableQuery[EcusTable]

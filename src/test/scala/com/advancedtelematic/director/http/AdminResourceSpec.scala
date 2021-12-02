@@ -134,6 +134,58 @@ class AdminResourceSpec extends DirectorSpec
     }
   }
 
+  testWithNamespace("should not return replaced ecu when includeReplaced parameter is false") { implicit ns =>
+    createRepoOk()
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val reg = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+
+    val ecus2 = GenRegisterEcu.generate
+    val primaryEcu2 = ecus2.ecu_serial
+    val reg2 = RegisterDevice(deviceId.some, primaryEcu2, Seq(ecus2))
+
+    Post(apiUri("admin/devices"), reg).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri("admin/devices"), reg2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    Get(apiUri(s"admin/devices/${deviceId.show}?includeReplaced=false")).namespaced ~> routes ~> check {
+      response.status shouldBe StatusCodes.OK
+      val rs = responseAs[Seq[EcuInfoResponse]].loneElement
+      rs.id shouldBe reg2.primary_ecu_serial
+    }
+  }
+
+  testWithNamespace("should return replaced ecu when includeReplaced parameter is true") { implicit ns =>
+    createRepoOk()
+    val deviceId = DeviceId.generate()
+    val ecus = GenRegisterEcu.generate
+    val primaryEcu = ecus.ecu_serial
+    val reg = RegisterDevice(deviceId.some, primaryEcu, Seq(ecus))
+
+    val ecus2 = GenRegisterEcu.generate
+    val primaryEcu2 = ecus2.ecu_serial
+    val reg2 = RegisterDevice(deviceId.some, primaryEcu2, Seq(ecus2))
+
+    Post(apiUri("admin/devices"), reg).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+    }
+
+    Post(apiUri("admin/devices"), reg2).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+    }
+
+    Get(apiUri(s"admin/devices/${deviceId.show}?includeReplaced=true")).namespaced ~> routes ~> check {
+      response.status shouldBe StatusCodes.OK
+      val rs = responseAs[Seq[EcuInfoResponse]]
+      rs.map(_.id) should contain theSameElementsAs Seq[EcuIdentifier](reg.primary_ecu_serial, reg2.primary_ecu_serial)
+    }
+  }
+
   testWithNamespace("can fetch root for a namespace") { implicit ns =>
     createRepoOk()
     registerAdminDeviceOk()

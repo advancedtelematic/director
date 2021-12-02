@@ -24,13 +24,13 @@ class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Data
   with EcuRepositorySupport  {
   val roleGeneration = new DeviceRoleGeneration(keyserverClient)
 
-  def findDeviceEcuInfo(ns: Namespace, deviceId: DeviceId): Future[Vector[EcuInfoResponse]] = async {
+  def findDeviceEcuInfo(ns: Namespace, deviceId: DeviceId, includeReplaced: Boolean): Future[Vector[EcuInfoResponse]] = async {
     val primary = await(ecuRepository.findDevicePrimary(ns, deviceId)).ecuSerial
-    val ecus = await(ecuRepository.findTargets(ns, deviceId))
+    val ecus = await(ecuRepository.findTargets(ns, deviceId, includeReplaced))
 
     ecus.map { case (ecu, maybeTarget) =>
       val img = maybeTarget.fold(EcuInfoImage.Unknown)(target => EcuInfoImage(target.filename, target.length, Hashes(target.checksum)))
-      EcuInfoResponse(ecu.ecuSerial, ecu.hardwareId, ecu.ecuSerial == primary, img)
+      EcuInfoResponse(ecu.ecuSerial, ecu.hardwareId, ecu.ecuSerial == primary, img, ecu.deleted)
     }.toVector
   }
 

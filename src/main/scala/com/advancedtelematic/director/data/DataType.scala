@@ -43,7 +43,8 @@ object DbDataType {
                           generatedMetadataOutdated: Boolean, deleted: Boolean)
 
   final case class Ecu(ecuSerial: EcuIdentifier, deviceId: DeviceId, namespace: Namespace,
-                       hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId]) {
+                       hardwareId: HardwareIdentifier, publicKey: TufKey, installedTarget: Option[EcuTargetId],
+                       deleted: Boolean = false) {
     def asEcuAndHardwareId: EcuAndHardwareId = EcuAndHardwareId(ecuSerial, hardwareId.value)
   }
 
@@ -106,7 +107,7 @@ object AdminDataType {
     import eu.timepit.refined.auto._
     val Unknown: EcuInfoImage = EcuInfoImage(filepath = "unknown", size = 0, hash = Hashes(Sha256Digest.digest(Array.empty[Byte])))
   }
-  final case class EcuInfoResponse(id: EcuIdentifier, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage)
+  final case class EcuInfoResponse(id: EcuIdentifier, hardwareId: HardwareIdentifier, primary: Boolean, image: EcuInfoImage, isReplaced: Boolean)
 
   final case class TargetUpdateRequest(from: Option[TargetUpdate], to: TargetUpdate)
 

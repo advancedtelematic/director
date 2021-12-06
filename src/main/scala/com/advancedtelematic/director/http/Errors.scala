@@ -24,6 +24,8 @@ object ErrorCodes {
   val ReplaceEcuAssignmentExists = ErrorCode("replace_ecu_assignment_exists")
   val EcuReuseError = ErrorCode("ecu_reuse_not_allowed")
   val EcuReplacementDisabled = ErrorCode("ecu_replacement_disabled")
+
+  val InvalidPaginationParameters = ErrorCode("invalid_pagination_parameters")
 }
 
 object Errors {
@@ -55,4 +57,6 @@ object Errors {
 
     def SignatureNotValid(err: String) = RawError(ErrorCodes.Manifest.SignatureNotValid, StatusCodes.BadRequest, s"The given signature is not valid: $err")
   }
+
+  def InvalidPaginationParameters = RawError(ErrorCodes.InvalidPaginationParameters, StatusCodes.BadRequest, "Limit and/or offset parameters are not valid")
 }

@@ -90,4 +90,12 @@ class LegacyApiResourceSpec extends DirectorSpec
       devices.values.loneElement shouldBe regDev.deviceId
     }
   }
+
+  testWithRepo("get admin devices should return BadRequest when limit and/or offset parameters are not valid") { implicit ns =>
+    val regDev = registerAdminDeviceOk()
+
+    Get(apiUri("admin/devices?limit=-1&offset=-1")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+    }
+  }
 }

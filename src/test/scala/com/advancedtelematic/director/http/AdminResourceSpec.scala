@@ -220,6 +220,14 @@ class AdminResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("devices/hardware_identifiers should return BadRequest when limit and/or offset parameters are not valid") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices/hardware_identifiers?limit=-1&offset=-1")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
+    }
+  }
+
   testWithRepo("devices/id/ecus/public_key can get public key") { implicit ns =>
     val dev = registerAdminDeviceOk()
 
@@ -353,6 +361,16 @@ class AdminResourceSpec extends DirectorSpec
       val page = responseAs[PaginationResult[ClientDataType.Device]]
       page.values.length shouldBe 2
       page.values.head.id shouldBe regDev1.deviceId
+    }
+  }
+
+  testWithRepo("devices?primaryHardwareId=<id> should return BadRequest when limit and/or offset parameters are not valid") { implicit ns =>
+    val dev = registerAdminDeviceOk()
+    val hardwareId = dev.ecus.values.head.hardwareId
+    registerAdminDeviceOk()
+
+    Get(apiUri(s"admin/devices?primaryHardwareId=${hardwareId.value}&limit=-1&offset=-1")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.BadRequest
     }
   }
 }

@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
 import com.advancedtelematic.director.data.AdminDataType
-import com.advancedtelematic.director.data.AdminDataType.{EcuInfoResponse, QueueResponse, RegisterDevice}
+import com.advancedtelematic.director.data.AdminDataType.{AssignUpdateRequest, EcuInfoResponse, MultiTargetUpdate, QueueResponse, RegisterDevice}
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.DataType._
 import com.advancedtelematic.director.data.DeviceRequest.{DeviceManifest, EcuManifest, EcuManifestCustom, OperationResult}
@@ -17,7 +17,7 @@ import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.data.DataType.{ResultCode, ResultDescription}
 import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.messaging.test.MockMessageBus
-import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult}
+import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, InstallationResult, UpdateId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId._
 import com.advancedtelematic.libats.messaging_datatype.Messages.{DeviceSeen, DeviceUpdateCompleted, _}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
@@ -584,8 +584,14 @@ class DeviceResourceSpec extends DirectorSpec
     val (secondaryEcuSerial, secondaryEcu) = (regDev.ecus - regDev.primary.ecuSerial).head
     val deviceId = regDev.deviceId
     val correlationId = GenCorrelationId.generate
-    createDeviceAssignmentOk(deviceId, regDev.primary.hardwareId, targetUpdate.some, correlationId.some)
-    createDeviceAssignmentOk(deviceId, secondaryEcu.hardwareId, targetUpdate.some, correlationId.some)
+
+    val mtu = MultiTargetUpdate(Map(regDev.primary.hardwareId -> targetUpdate, secondaryEcu.hardwareId -> targetUpdate))
+    val mtuId = Post(apiUri("multi_target_updates"), mtu).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
+    }
+    val assignment = AssignUpdateRequest(correlationId, Seq(deviceId), mtuId)
+    Post(apiUri("assignments"), assignment).namespaced ~> routes ~> check(status shouldBe StatusCodes.Created)
 
     Get(apiUri(s"device/${deviceId.show}/targets.json")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK

@@ -145,6 +145,43 @@ class AssignmentsResourceSpec extends DirectorSpec
     }
   }
 
+  testWithRepo("device is not affected by assignment if already exists assignment for same ECU") { implicit ns =>
+    val device = registerAdminDeviceOk()
+    createDeviceAssignmentOk(device.deviceId, device.primary.hardwareId)
+
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val mtu = MultiTargetUpdate(Map(device.primary.hardwareId -> targetUpdate))
+
+    val mtuId = Post(apiUri("multi_target_updates"), mtu).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
+    }
+
+    Get(apiUri(s"assignments/devices?mtuId=${mtuId.show}&ids=${device.deviceId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[DeviceId]] shouldBe empty
+    }
+  }
+
+  testWithRepo("device is not affected by assignment if already exists assignment for another ECU") { implicit ns =>
+    val device = registerAdminDeviceWithSecondariesOk()
+    createDeviceAssignmentOk(device.deviceId, device.primary.hardwareId)
+
+    val secondaryHwId = device.secondaries.head._2.hardwareId
+    val targetUpdate = GenTargetUpdateRequest.generate
+    val mtu = MultiTargetUpdate(Map(secondaryHwId -> targetUpdate))
+
+    val mtuId = Post(apiUri("multi_target_updates"), mtu).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.Created
+      responseAs[UpdateId]
+    }
+
+    Get(apiUri(s"assignments/devices?mtuId=${mtuId.show}&ids=${device.deviceId.show}")).namespaced ~> routes ~> check {
+      status shouldBe StatusCodes.OK
+      responseAs[Seq[DeviceId]] shouldBe empty
+    }
+  }
+
   testWithRepo("can GET devices affected by assignment using legacy API") { implicit ns =>
     val regDev0 = registerAdminDeviceOk()
     val regDev1 = registerAdminDeviceOk()
@@ -207,6 +244,27 @@ class AssignmentsResourceSpec extends DirectorSpec
 
     queue.head.targets.get(regDev.primary.ecuSerial) should be(empty)
     queue.head.targets.get(regDev.secondaries.keys.head) should be(defined)
+  }
+
+  testWithRepo("don't create new assignment if already exists assignment for same ECU") { implicit ns =>
+    val device = registerAdminDeviceOk()
+    val assignment1 = createDeviceAssignmentOk(device.deviceId, device.primary.hardwareId)
+    val assignment2 = createAssignment(Seq(device.deviceId), device.primary.hardwareId)(status shouldBe StatusCodes.OK)
+
+    val deviceAssignmentsCorrelationIds = getDeviceAssignmentOk(device.deviceId).map(_.correlationId)
+    deviceAssignmentsCorrelationIds should contain (assignment1.correlationId)
+    deviceAssignmentsCorrelationIds should not contain (assignment2.correlationId)
+  }
+
+  testWithRepo("don't create new assignment if already exists assignment for another ECU") { implicit ns =>
+    val device = registerAdminDeviceWithSecondariesOk()
+    val assignment1 = createDeviceAssignmentOk(device.deviceId, device.primary.hardwareId)
+    val secondaryHwId = device.secondaries.head._2.hardwareId
+    val assignment2 =  createAssignment(Seq(device.deviceId), secondaryHwId)(status shouldBe StatusCodes.OK)
+
+    val deviceAssignmentsCorrelationIds = getDeviceAssignmentOk(device.deviceId).map(_.correlationId)
+    deviceAssignmentsCorrelationIds should contain (assignment1.correlationId)
+    deviceAssignmentsCorrelationIds should not contain (assignment2.correlationId)
   }
 
   // TODO: director should return 4xx and campaigner should handle that

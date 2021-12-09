@@ -294,23 +294,8 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
       .map { existing => deviceIds.map(_ -> false).toMap ++ existing.toMap }
   }
 
-  def withAssignments(ids: Set[(DeviceId, EcuIdentifier)]): Future[Set[(DeviceId, EcuIdentifier)]] =
-    if (ids.isEmpty) {
-      FastFuture.successful(Set.empty)
-    } else {
-      // raw sql is workaround for https://github.com/slick/slick/pull/995
-      implicit val getResult = GetResult { r =>
-        DeviceId(UUID.fromString(r.nextString)) -> EcuIdentifier(r.nextString()).valueOr(throw _)
-      }
-
-      val elems = ids.map { case (d, e) => "('" + d.uuid.toString + "','" + e.value + "')" }.mkString("(", ",", ")")
-
-      db.run {
-        sql"select device_id, ecu_serial from assignments where (device_id, ecu_serial) in #$elems"
-          .as[(DeviceId, EcuIdentifier)]
-          .map(_.toSet)
-      }
-    }
+  def withAssignments(ids: Set[DeviceId]): Future[Set[DeviceId]] =
+    db.run(Schema.assignments.filter(_.deviceId.inSet(ids)).map(_.deviceId).result).map(_.toSet)
 
   def findLastCreated(deviceId: DeviceId): Future[Option[Instant]] = db.run {
     Schema.assignments.filter(_.deviceId === deviceId).sortBy(_.createdAt.reverse).map(_.createdAt).result.headOption

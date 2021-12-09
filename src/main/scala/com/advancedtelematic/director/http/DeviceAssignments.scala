@@ -77,12 +77,12 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       }
     }
 
-    val ecuIds = ecus.map { case (ecu, _) => ecu.deviceId -> ecu.ecuSerial }.toSet
-    val ecusWithAssignments = await(assignmentsRepository.withAssignments(ecuIds))
+    val deviceIds = ecus.map { case (ecu, _) => ecu.deviceId }.toSet
+    val devicesWithAssignments = await(assignmentsRepository.withAssignments(deviceIds))
 
     ecus.flatMap {
-      case (ecu, _) if ecusWithAssignments.contains(ecu.deviceId -> ecu.ecuSerial) =>
-        _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} not affected because ecu has a running assignment")
+      case (ecu, _) if devicesWithAssignments.contains(ecu.deviceId) =>
+        _log.info(s"${ecu.deviceId}/${ecu.ecuSerial} not affected because device has a running assignment")
         None
       case other =>
         Some(other)
@@ -102,8 +102,8 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) ext
       _log.warn(s"No devices affected for this assignment: $ns, $correlationId, $devices, $mtuId")
       Seq.empty[Assignment]
     } else {
-      val assignments = ecus.foldLeft(List.empty[Assignment]) { case (acc, (ecu, toTargetId)) =>
-        Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false) :: acc
+      val assignments = ecus.map { case (ecu, toTargetId) =>
+        Assignment(ns, ecu.deviceId, ecu.ecuSerial, toTargetId, correlationId, inFlight = false)
       }
 
       await(assignmentsRepository.persistMany(deviceRepository)(assignments))

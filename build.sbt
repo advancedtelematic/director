@@ -13,8 +13,8 @@ libraryDependencies ++= {
   val akkaHttpV = "10.1.12"
   val scalaTestV = "3.0.8"
   val bouncyCastleV = "1.59"
-  val tufV = "0.7.1-6-gd36661d"
-  val libatsV = "0.4.0-8-g8c1c7f3"
+  val tufV = "0.7.4-21-g94b8744"
+  val libatsV = "0.4.1-2-gf689d68"
 
   Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaV,
@@ -106,7 +106,7 @@ sonarProperties ++= Map(
   "sonar.links.issue" -> "https://saeljira.it.here.com/projects/OTA/issues",
   "sonar.links.scm" -> "https://main.gitlab.in.here.com/olp/edge/ota/connect/back-end/director",
   "sonar.links.ci" -> "https://main.gitlab.in.here.com/olp/edge/ota/connect/back-end/director/pipelines",
-  "sonar.java.binaries" -> "./target/scala-*/classes", 
+  "sonar.java.binaries" -> "./target/scala-*/classes",
   "sonar.scala.coverage.reportPaths"->"target/scala-2.12/scoverage-report/scoverage.xml",
   "sonar.projectVersion" -> version.value,
   "sonar.language" -> "scala")

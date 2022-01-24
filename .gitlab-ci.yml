@@ -72,15 +72,18 @@ build docker image:
     refs:
       - master
       - /^deploy/.*$/
-  tags:
-    - docker-sock
-    - vault-token
-  image: advancedtelematic/gitlab-jobs:0.2.5
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+  image: advancedtelematic/gitlab-jobs:0.3.3
+  services:
+    - docker:19.03.12-dind
   script:
     - env | sort
-    - export VAULT_TOKEN=$(cat /opt/vault/token)
     - gitlab-docker-login $VAULT_ADDR
     - sbt -x -sbt-dir ./.sbt -ivy ./.ivy2 -batch docker:publish
+    - docker tag advancedtelematic/director-v2:${CI_COMMIT_SHA} hcr.data.here.com/ota_saas/director-v2:${CI_COMMIT_SHA}
+    - docker push hcr.data.here.com/ota_saas/director-v2:${CI_COMMIT_SHA}
   cache:
     paths:
       - .ivy2/

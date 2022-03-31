@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.manifest
 
+import akka.actor.Scheduler
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, ValidatedNel}
 import com.advancedtelematic.director.data.Codecs._
@@ -71,7 +72,7 @@ object DeviceManifestProcess {
   }
 }
 
-class DeviceManifestProcess()(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport {
+class DeviceManifestProcess()(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler) extends EcuRepositorySupport {
   import cats.implicits._
 
   import com.advancedtelematic.libtuf.crypt.SignedPayloadSignatureOps._

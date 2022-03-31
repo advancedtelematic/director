@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.daemon
 
+import akka.actor.Scheduler
 import com.advancedtelematic.director.db.DeviceRepositorySupport
 import com.advancedtelematic.libats.http.Errors.MissingEntity
 import com.advancedtelematic.libats.messaging.MsgOperation.MsgOperation
@@ -9,7 +10,7 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class DeleteDeviceRequestListener()(implicit val db: Database, val ec: ExecutionContext)
+class DeleteDeviceRequestListener()(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
                                             extends MsgOperation[DeleteDeviceRequest]  with DeviceRepositorySupport {
 
   val log = LoggerFactory.getLogger(this.getClass)

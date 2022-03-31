@@ -22,6 +22,7 @@ import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
 import PaginationParametersDirectives._
+import akka.actor.Scheduler
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
@@ -29,7 +30,7 @@ import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 import scala.concurrent.ExecutionContext
 
 class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient: KeyserverClient)
-                   (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+                   (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler, messageBusPublisher: MessageBusPublisher)
   extends NamespaceRepoId
     with RepoNamespaceRepositorySupport
     with RootFetching

@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.repo
 
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import cats.implicits._
@@ -22,7 +23,9 @@ import slick.jdbc.MySQLProfile.api._
 import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 
-protected [repo] class DeviceSignedRoleProvider(ns: Namespace, deviceId: DeviceId)(implicit val db: Database, val ec: ExecutionContext) extends SignedRoleProvider
+protected [repo] class DeviceSignedRoleProvider(ns: Namespace, deviceId: DeviceId)
+                                               (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
+  extends SignedRoleProvider
   with DbSignedRoleRepositorySupport {
 
   override def find[T](repoId: RepoId)(implicit evidence$1: TufRole[T]): Future[SignedRole[T]] =
@@ -33,7 +36,8 @@ protected [repo] class DeviceSignedRoleProvider(ns: Namespace, deviceId: DeviceI
 }
 
 
-protected [repo] class DeviceTargetProvider(ns: Namespace, deviceId: DeviceId)(implicit val db: Database, val ec: ExecutionContext)
+protected [repo] class DeviceTargetProvider(ns: Namespace, deviceId: DeviceId)
+                                           (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
   extends TargetsItemsProvider[DeviceTargetsCustom]
   with AssignmentsRepositorySupport
   with EcuTargetsRepositorySupport with EcuRepositorySupport {

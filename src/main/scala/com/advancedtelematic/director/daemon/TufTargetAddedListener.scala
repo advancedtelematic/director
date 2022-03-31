@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.daemon
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, EcuTarget, EcuTargetId}
@@ -12,7 +13,7 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class TufTargetAddedListener()(implicit val db: Database, val ec: ExecutionContext)
+class TufTargetAddedListener()(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
   extends MsgOperation[TufTargetAdded]
     with AutoUpdateDefinitionRepositorySupport
     with AssignmentsRepositorySupport

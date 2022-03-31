@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.repo
 
+import akka.actor.Scheduler
 import com.advancedtelematic.director.db.{AssignmentsRepositorySupport, DbSignedRoleRepositorySupport, DeviceRepositorySupport, EcuTargetsRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -12,7 +13,8 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class DeviceRoleGeneration(keyserverClient: KeyserverClient)(implicit val db: Database, val ec: ExecutionContext)
+class DeviceRoleGeneration(keyserverClient: KeyserverClient)
+                          (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
   extends AssignmentsRepositorySupport with DbSignedRoleRepositorySupport with EcuTargetsRepositorySupport with DeviceRepositorySupport {
 
   import scala.async.Async._

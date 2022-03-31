@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.daemon
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.server.Directives
 import com.advancedtelematic.director.db.SignedRoleMigration
 import com.advancedtelematic.director.{Settings, VersionInfo}
@@ -17,6 +18,7 @@ object SignedRolesMigrationBoot extends BootApp
   with DatabaseConfig {
 
   implicit val _db = db
+  implicit val scheduler: Scheduler = system.scheduler
 
   val migrationF = new SignedRoleMigration().run.map { res =>
     log.info(s"Migration finished $res")

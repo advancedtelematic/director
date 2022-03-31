@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.http
 
-import java.time.Instant
+import akka.actor.Scheduler
 
+import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive1, Route}
@@ -18,7 +19,8 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 
 // Implements routes provided by old director that ota-web-app still uses
-class LegacyRoutes(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher)
+class LegacyRoutes(extractNamespace: Directive1[Namespace])
+                  (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler, messageBusPublisher: MessageBusPublisher)
   extends EcuRepositorySupport with DeviceRepositorySupport {
 
   private val deviceAssignments = new DeviceAssignments()

@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.http
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.server.{Directives, _}
 import com.advancedtelematic.libats.auth.NamespaceDirectives
 import com.advancedtelematic.libats.http.DefaultRejectionHandler.rejectionHandler
@@ -12,7 +13,7 @@ import scala.concurrent.ExecutionContext
 
 
 class DirectorRoutes(keyserverClient: KeyserverClient, allowEcuReplacement: Boolean)
-                    (implicit val db: Database, ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
+                    (implicit val db: Database, ec: ExecutionContext, scheduler: Scheduler, messageBusPublisher: MessageBusPublisher) {
   import Directives._
 
   val extractNamespace = NamespaceDirectives.defaultNamespaceExtractor.map(_.namespace)

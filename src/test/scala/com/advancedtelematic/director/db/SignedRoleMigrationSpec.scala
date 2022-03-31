@@ -1,8 +1,7 @@
 package com.advancedtelematic.director.db
 
 import java.util.UUID
-
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Scheduler}
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
 import com.advancedtelematic.libats.test.DatabaseSpec
 import com.advancedtelematic.libtuf.data.ClientDataType.SnapshotRole
@@ -16,6 +15,7 @@ class SignedRoleMigrationSpec extends AsyncFunSuite with DatabaseSpec {
   implicit val system: ActorSystem = ActorSystem(this.getClass.getSimpleName)
 
   implicit val ec = ExecutionContext.Implicits.global
+  implicit val scheduler: Scheduler = system.scheduler
 
   val subject = new SignedRoleMigration("director1_test")
 

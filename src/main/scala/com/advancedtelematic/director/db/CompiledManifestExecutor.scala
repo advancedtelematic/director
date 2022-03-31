@@ -1,9 +1,11 @@
 package com.advancedtelematic.director.db
 
+import akka.actor.Scheduler
 import com.advancedtelematic.director.data.DbDataType.{DeviceKnownState, EcuTargetId}
 import com.advancedtelematic.director.manifest.ManifestCompiler.ManifestCompileResult
 import com.advancedtelematic.libats.data.EcuIdentifier
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.slick.db.DatabaseHelper.DatabaseWithRetry
 import com.advancedtelematic.libats.slick.db.SlickAnyVal._
 import com.advancedtelematic.libats.slick.db.SlickUUIDKey._
 import com.advancedtelematic.libats.slick.db.SlickValidatedGeneric._
@@ -13,7 +15,7 @@ import slick.jdbc.MySQLProfile.api._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
-class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionContext) {
+class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler) {
 
   private val _log = LoggerFactory.getLogger(this.getClass)
 
@@ -75,6 +77,6 @@ class CompiledManifestExecutor()(implicit val db: Database, val ec: ExecutionCon
       _ <- updateStatusAction(deviceId, initialStatus, manifestCompileResult.knownState)
     } yield manifestCompileResult
 
-    db.run(io.transactionally)
+    db.runWithRetry(io.transactionally)
   }
 }

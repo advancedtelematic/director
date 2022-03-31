@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.http
 
+import akka.actor.Scheduler
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libtuf.data.TufDataType.{Ed25519KeyType, RepoId}
@@ -9,7 +10,8 @@ import com.advancedtelematic.libats.http.UUIDKeyAkka._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RepositoryCreation(keyserverClient: KeyserverClient)(implicit val db: Database, val ec: ExecutionContext)
+class RepositoryCreation(keyserverClient: KeyserverClient)
+                        (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
   extends DeviceRepositorySupport with RepoNamespaceRepositorySupport {
 
   def create(ns: Namespace): Future[Unit] = {

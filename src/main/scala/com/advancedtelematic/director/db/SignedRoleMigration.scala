@@ -1,9 +1,10 @@
 package com.advancedtelematic.director.db
 
+import akka.actor.Scheduler
+
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Sink, Source}
@@ -11,6 +12,7 @@ import akka.{Done, NotUsed}
 import com.advancedtelematic.libats.codecs.CirceCodecs.checkSumCodec
 import com.advancedtelematic.libats.data.DataType.Checksum
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
+import com.advancedtelematic.libats.slick.db.DatabaseHelper.DatabaseWithRetry
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType
 import com.advancedtelematic.libtuf.data.TufDataType.RoleType.RoleType
@@ -26,7 +28,7 @@ import scala.concurrent.{ExecutionContext, Future}
 // migrate director.file_cache to director2.signed_roles
 // (director2.checksum can only be created in Scala.)
 class SignedRoleMigration(old_director_schema: String = "director")
-                         (implicit val db: Database, val mat: Materializer, val ec: ExecutionContext) {
+                         (implicit val db: Database, val mat: Materializer, val ec: ExecutionContext, val scheduler: Scheduler) {
 
   private case class Row(role: RoleType, version: Int, deviceId: DeviceId, content: String, createdAt: Instant, updatedAt: Instant, expiresAt: Instant)
 
@@ -49,7 +51,7 @@ class SignedRoleMigration(old_director_schema: String = "director")
 
   private def exists(schema: String, table: String): Future[Boolean] = {
     val sql = sql"SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema = $schema AND table_name = $table)".as[Boolean]
-    db.run(sql).map(_.head)
+    db.runWithRetry(sql).map(_.head)
   }
 
   private def fileCache: Source[Row, NotUsed] = {
@@ -80,7 +82,7 @@ class SignedRoleMigration(old_director_schema: String = "director")
         """
     })
 
-    db.run(sql).map { _ =>
+    db.runWithRetry(sql).map { _ =>
       _log.debug(s"Wrote ${rows.size} rows (first: ${rows.headOption})")
       Done
     }

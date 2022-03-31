@@ -1,15 +1,17 @@
 package com.advancedtelematic.director.db
 
+import akka.actor.Scheduler
 import com.advancedtelematic.director.data.AdminDataType.{MultiTargetUpdate, TargetUpdate, TargetUpdateRequest}
 import com.advancedtelematic.director.data.DbDataType.{EcuTarget, EcuTargetId, HardwareUpdate}
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.messaging_datatype.DataType.UpdateId
+import com.advancedtelematic.libats.slick.db.DatabaseHelper.DatabaseWithRetry
 import com.advancedtelematic.libtuf.data.TufDataType.HardwareIdentifier
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class MultiTargetUpdates(implicit val db: Database, val ec: ExecutionContext)
+class MultiTargetUpdates(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler)
   extends HardwareUpdateRepositorySupport with EcuTargetsRepositorySupport {
 
   def create(ns: Namespace, multiTargetUpdate: MultiTargetUpdate): Future[UpdateId] = {
@@ -33,7 +35,7 @@ class MultiTargetUpdates(implicit val db: Database, val ec: ExecutionContext)
       } yield ()
     }.toVector
 
-    db.run(DBIO.sequence(hardwareUpdates).transactionally).map(_ => updateId)
+    db.runWithRetry(DBIO.sequence(hardwareUpdates).transactionally).map(_ => updateId)
   }
 
   def find(ns: Namespace, updateId: UpdateId): Future[MultiTargetUpdate] =

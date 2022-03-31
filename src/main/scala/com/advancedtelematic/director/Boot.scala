@@ -1,8 +1,9 @@
 package com.advancedtelematic.director
 
 
-import java.security.Security
+import akka.actor.Scheduler
 
+import java.security.Security
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.{Directives, Route}
 import com.advancedtelematic.director.http.DirectorRoutes
@@ -34,6 +35,7 @@ object Boot extends BootApp
   with CheckMigrations {
 
   implicit val _db = db
+  implicit val scheduler: Scheduler = system.scheduler
 
   log.info(s"Starting $version on http://$host:$port")
 

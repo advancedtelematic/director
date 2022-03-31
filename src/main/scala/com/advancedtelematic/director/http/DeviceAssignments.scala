@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.http
 
-import java.time.Instant
+import akka.actor.Scheduler
 
+import java.time.Instant
 import cats.implicits._
 import com.advancedtelematic.director.data.AdminDataType.QueueResponse
 import com.advancedtelematic.director.data.DbDataType.Assignment
@@ -16,7 +17,7 @@ import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext) extends EcuRepositorySupport
+class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler) extends EcuRepositorySupport
   with HardwareUpdateRepositorySupport with AssignmentsRepositorySupport with EcuTargetsRepositorySupport with DeviceRepositorySupport {
 
   private val _log = LoggerFactory.getLogger(this.getClass)

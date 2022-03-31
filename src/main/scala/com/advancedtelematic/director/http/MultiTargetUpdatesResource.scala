@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.http
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import com.advancedtelematic.director.data.AdminDataType.MultiTargetUpdate
@@ -10,10 +11,12 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.db.MultiTargetUpdates
 import com.advancedtelematic.libats.data.DataType.Namespace
+
 import scala.concurrent.ExecutionContext
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 
-class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])(implicit val db: Database, val ec: ExecutionContext) {
+class MultiTargetUpdatesResource(extractNamespace: Directive1[Namespace])
+                                (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler) {
   import Directives._
 
   val multiTargetUpdates = new MultiTargetUpdates()

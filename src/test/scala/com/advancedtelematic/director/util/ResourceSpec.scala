@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.util
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.advancedtelematic.director.client.FakeKeyserverClient
 import com.advancedtelematic.director.http.DirectorRoutes
@@ -34,6 +35,8 @@ trait ResourceSpec extends ScalatestRouteTest with DatabaseSpec with Settings {
 
 trait RouteResourceSpec extends ResourceSpec {
   self: Suite =>
+
+  implicit val scheduler: Scheduler = system.scheduler
 
   val keyserverClient = new FakeKeyserverClient
 

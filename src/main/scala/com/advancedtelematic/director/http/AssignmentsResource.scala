@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.http
 
-import java.time.Instant
+import akka.actor.Scheduler
 
+import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling.PredefinedFromStringUnmarshallers.CsvSeq
@@ -20,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import cats.implicits._
 
 class AssignmentsResource(extractNamespace: Directive1[Namespace])
-                         (implicit val db: Database, val ec: ExecutionContext, messageBusPublisher: MessageBusPublisher) {
+                         (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler, messageBusPublisher: MessageBusPublisher) {
 
   import Directives._
 

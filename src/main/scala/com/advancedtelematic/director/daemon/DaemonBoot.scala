@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.daemon
 
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives
 import com.advancedtelematic.director.{Settings, VersionInfo}
@@ -24,6 +25,7 @@ object DaemonBoot extends BootApp
   with PrometheusMetricsSupport {
 
   implicit val _db = db
+  implicit val scheduler: Scheduler = system.scheduler
 
   import com.advancedtelematic.libats.http.VersionDirectives._
 

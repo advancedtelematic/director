@@ -1,5 +1,6 @@
 package com.advancedtelematic.director.db
 
+import akka.actor.Scheduler
 import akka.http.scaladsl.util.FastFuture
 import com.advancedtelematic.director.data.AdminDataType.{EcuInfoImage, EcuInfoResponse, RegisterEcu}
 import com.advancedtelematic.director.data.UptaneDataType.Hashes
@@ -20,7 +21,8 @@ import scala.async.Async._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-class DeviceRegistration(keyserverClient: KeyserverClient)(implicit val db: Database, val ec: ExecutionContext) extends DeviceRepositorySupport
+class DeviceRegistration(keyserverClient: KeyserverClient)
+                        (implicit val db: Database, val ec: ExecutionContext, val scheduler: Scheduler) extends DeviceRepositorySupport
   with EcuRepositorySupport  {
   val roleGeneration = new DeviceRoleGeneration(keyserverClient)
 

@@ -1,7 +1,8 @@
 package com.advancedtelematic.director.daemon
 
-import java.time.Instant
+import akka.actor.{ActorSystem, Scheduler}
 
+import java.time.Instant
 import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Generators._
@@ -25,6 +26,8 @@ class DeviceManifestReportedListenerSpec extends DirectorSpec
   val defaultNs = DataType.Namespace(this.getClass.getName)
 
   implicit lazy val ec = ExecutionContext.global
+  implicit val system: ActorSystem = ActorSystem(this.getClass.getSimpleName)
+  implicit val scheduler: Scheduler = system.scheduler
 
   lazy val listener = new DeviceManifestReportedListener()
 

@@ -6,7 +6,7 @@ import cats.Show
 import com.advancedtelematic.director.data.DbDataType.{Assignment, AutoUpdateDefinition, AutoUpdateDefinitionId, DbSignedRole, Device, Ecu, EcuTarget, EcuTargetId, HardwareUpdate, ProcessedAssignment}
 import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.data.{EcuIdentifier, Limit, Offset, PaginationResult}
 import com.advancedtelematic.libats.http.Errors.{EntityAlreadyExists, MissingEntity, MissingEntityId}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import cats.syntax.either._
@@ -90,7 +90,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
       .handleSingleUpdateError(MissingEntity[Device]())
   }
 
-  def findAllDeviceIds(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[DeviceId]] = db.runWithRetry {
+  def findAllDeviceIds(ns: Namespace, offset: Offset, limit: Limit): Future[PaginationResult[DeviceId]] = db.runWithRetry {
     Schema.activeDevices
       .filter(_.namespace === ns)
       .map(d => (d.id, d.createdAt))
@@ -98,7 +98,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
       .map(_.map(_._1))
   }
 
-  def findDevices(ns: Namespace, hardwareIdentifier: HardwareIdentifier, offset: Long, limit: Long): Future[PaginationResult[(Instant,Device)]] = db.runWithRetry {
+  def findDevices(ns: Namespace, hardwareIdentifier: HardwareIdentifier, offset: Offset, limit: Limit): Future[PaginationResult[(Instant,Device)]] = db.runWithRetry {
     Schema.activeDevices
       .filter(_.namespace === ns)
       .join(Schema.activeEcus.filter(_.hardwareId === hardwareIdentifier)).on { case (d, e) => d.primaryEcu === e.ecuSerial }
@@ -371,7 +371,7 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
       }
   }
 
-  def findAllHardwareIdentifiers(ns: Namespace, offset: Long, limit: Long): Future[PaginationResult[HardwareIdentifier]] = db.runWithRetry {
+  def findAllHardwareIdentifiers(ns: Namespace, offset: Offset, limit: Limit): Future[PaginationResult[HardwareIdentifier]] = db.runWithRetry {
     Schema.activeEcus
       .filter(_.namespace === ns)
       .map(_.hardwareId)

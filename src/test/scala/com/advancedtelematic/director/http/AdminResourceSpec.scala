@@ -2,7 +2,6 @@ package com.advancedtelematic.director.http
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.syntax.option._
 import cats.syntax.show._
@@ -17,7 +16,7 @@ import com.advancedtelematic.director.http.AdminResources.RegisterDeviceResult
 import com.advancedtelematic.director.util._
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.{EcuIdentifier, PaginationResult}
+import com.advancedtelematic.libats.data.{EcuIdentifier, Limit, Offset, PaginationResult}
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
 import com.advancedtelematic.libtuf.data.ClientCodecs._
 import com.advancedtelematic.libtuf.data.ClientDataType.{RootRole, TargetsRole}
@@ -333,7 +332,7 @@ class AdminResourceSpec extends DirectorSpec
     Get(apiUri(s"admin/devices?primaryHardwareId=foo")).namespaced ~> routes ~> check {
       status shouldBe StatusCodes.OK
       val page = responseAs[PaginationResult[DeviceId]]
-      page shouldBe PaginationResult(Seq.empty, 0, 0, 50)
+      page shouldBe PaginationResult(Seq.empty, 0, Offset(0), Limit(50))
     }
   }
 

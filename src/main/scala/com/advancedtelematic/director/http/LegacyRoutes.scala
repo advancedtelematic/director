@@ -6,9 +6,11 @@ import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive1, Route}
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, EcuRepositorySupport}
-import com.advancedtelematic.director.http.PaginationParametersDirectives._
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
+import com.advancedtelematic.libats.data.{Limit, Offset}
+import com.advancedtelematic.libats.http.FromLongUnmarshallers._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.{DeviceId, UpdateId}
@@ -24,6 +26,8 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])
   extends EcuRepositorySupport with DeviceRepositorySupport {
 
   private val deviceAssignments = new DeviceAssignments()
+
+  implicit val limitUnmarshaller: Unmarshaller[String, Limit] = getLimitUnmarshaller()
 
   private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Unit] = {
     val correlationId = MultiTargetUpdateId(mtuId.uuid)
@@ -50,9 +54,11 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])
             complete(a.map(_.map(_.deviceId)))
           }
         },
-        (path("admin" / "devices") & PaginationParameters) { (limit, offset) =>
-          get {
-            complete(deviceRepository.findAllDeviceIds(ns, offset, limit))
+        path("admin" / "devices") {
+          parameters('offset.as[Offset].?(Offset(0)), 'limit.as[Limit].?(Limit(50))) { (offset, limit) =>
+            get {
+              complete(deviceRepository.findAllDeviceIds(ns, offset, limit))
+            }
           }
         }
       )

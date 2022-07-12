@@ -10,7 +10,7 @@ import com.advancedtelematic.director.data.GeneratorOps._
 import com.advancedtelematic.director.data.Codecs._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import cats.syntax.show._
-import com.advancedtelematic.libats.data.PaginationResult
+import com.advancedtelematic.libats.data.{Limit, Offset, PaginationResult}
 import com.advancedtelematic.libats.messaging.test.MockMessageBus
 import org.scalatest.OptionValues._
 import com.advancedtelematic.libats.messaging_datatype.Messages._
@@ -85,8 +85,8 @@ class LegacyApiResourceSpec extends DirectorSpec
       status shouldBe StatusCodes.OK
       val devices = responseAs[PaginationResult[DeviceId]]
       devices.total shouldBe 1
-      devices.offset shouldBe 0
-      devices.limit shouldBe 50
+      devices.offset shouldBe Offset(0)
+      devices.limit shouldBe Limit(50)
       devices.values.loneElement shouldBe regDev.deviceId
     }
   }

@@ -10,7 +10,7 @@ import com.advancedtelematic.director.data.Codecs._
 import com.advancedtelematic.director.db.{AutoUpdateDefinitionRepositorySupport, DeviceRegistration, DeviceRepository, DeviceRepositorySupport, EcuRepositorySupport, RepoNamespaceRepositorySupport}
 import com.advancedtelematic.libats.codecs.CirceCodecs._
 import com.advancedtelematic.libats.data.DataType.Namespace
-import com.advancedtelematic.libats.data.EcuIdentifier
+import com.advancedtelematic.libats.data.{EcuIdentifier, Limit, Offset}
 import com.advancedtelematic.libats.http.RefinedMarshallingSupport._
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
@@ -21,10 +21,11 @@ import com.advancedtelematic.libtuf.data.TufDataType.{HardwareIdentifier, Signed
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
-import PaginationParametersDirectives._
 import akka.actor.Scheduler
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.RefinedUtils.RefineTry
+import com.advancedtelematic.libats.http.FromLongUnmarshallers._
 import com.advancedtelematic.libtuf.data.ClientDataType.RootRole
 
 import scala.concurrent.ExecutionContext
@@ -45,6 +46,8 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
   val deviceRegistration = new DeviceRegistration(keyserverClient)
   val repositoryCreation = new RepositoryCreation(keyserverClient)
   val deviceRoleGeneration = new DeviceRoleGeneration(keyserverClient)
+
+  implicit val limitUnmarshaller: Unmarshaller[String, Limit] = getLimitUnmarshaller()
 
   def repoRoute(ns: Namespace): Route =
     pathPrefix("repo") {
@@ -147,15 +150,14 @@ class AdminResource(extractNamespace: Directive1[Namespace], val keyserverClient
                 concat(
                   pathEnd {
                     /** if you leave this parameter (or misspell it) out you'll land in [[LegacyRoutes.route]] */
-                    parameter('primaryHardwareId.as[HardwareIdentifier]) { hardwareId =>
-                      PaginationParameters { (limit, offset) =>
+                    parameters('primaryHardwareId.as[HardwareIdentifier], 'offset.as[Offset].?(Offset(0)), 'limit.as[Limit].?(Limit(50))) {
+                      (hardwareId, offset, limit) =>
                         val f = deviceRepository.findDevices(ns, hardwareId, offset, limit).map(_.toClient)
                         complete(f)
-                      }
                     }
                   },
                   path("hardware_identifiers") {
-                    PaginationParameters { (limit, offset) =>
+                    parameters('offset.as[Offset].?(Offset(0)), 'limit.as[Limit].?(Limit(50))) { (offset, limit) =>
                       val f = ecuRepository.findAllHardwareIdentifiers(ns, offset, limit)
                       complete(f)
                     }

@@ -1,6 +1,7 @@
 package com.advancedtelematic.director.http
 
 import akka.actor.Scheduler
+import akka.http.scaladsl.marshalling.ToResponseMarshallable
 
 import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
@@ -14,6 +15,7 @@ import com.advancedtelematic.director.db._
 import com.advancedtelematic.director.manifest.{DeviceManifestProcess, ManifestCompiler}
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.DataType.Namespace
+import com.advancedtelematic.libats.data.ErrorRepresentation
 import com.advancedtelematic.libats.http.UUIDKeyAkka._
 import com.advancedtelematic.libats.messaging.MessageBusPublisher
 import com.advancedtelematic.libats.messaging_datatype.DataType.DeviceId
@@ -24,6 +26,7 @@ import com.advancedtelematic.libtuf.data.TufCodecs._
 import com.advancedtelematic.libtuf.data.TufDataType.{RoleType, SignedPayload}
 import com.advancedtelematic.libtuf_server.data.Marshalling.JsonRoleTypeMetaPath
 import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient
+import com.advancedtelematic.libtuf_server.keyserver.KeyserverClient.RootRoleNotFound
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.Json
 import slick.jdbc.MySQLProfile.api._
@@ -90,7 +93,12 @@ class DeviceResource(extractNamespace: Directive1[Namespace], val keyserverClien
       get {
         path(IntNumber ~ ".root.json") { version =>
           logDevice(ns, device) {
-            complete(fetchRoot(ns, version.some))
+            val f = fetchRoot(ns, version.some)
+              .map[ToResponseMarshallable](root => StatusCodes.OK -> root)
+              .recover[ToResponseMarshallable] {
+                case e@RootRoleNotFound => e.responseCode -> ErrorRepresentation(e.code, e.desc, None, Some(e.errorId))
+              }
+            complete(f)
           }
         } ~
           path(JsonRoleTypeMetaPath) {

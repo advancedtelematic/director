@@ -22,6 +22,7 @@ object ErrorCodes {
   }
 
   val ReplaceEcuAssignmentExists = ErrorCode("replace_ecu_assignment_exists")
+  val AssignmentAlreadyExists = ErrorCode("assignment_already_exists")
   val EcuReuseError = ErrorCode("ecu_reuse_not_allowed")
   val EcuReplacementDisabled = ErrorCode("ecu_replacement_disabled")
 }
@@ -31,7 +32,9 @@ object Errors {
 
   def DeviceMissingPrimaryEcu(deviceId: DeviceId) = RawError(ErrorCodes.DeviceMissingPrimaryEcu, StatusCodes.NotFound, s"This server does not have a primary ecu for $deviceId")
 
-  case class AssignmentExistsError(deviceId: DeviceId) extends Error(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
+  case class ReplaceEcuAssignmentExistsError(deviceId: DeviceId) extends Error(ErrorCodes.ReplaceEcuAssignmentExists, StatusCodes.PreconditionFailed, s"Cannot replace ecus for $deviceId, the device has running assignments")
+
+  case object AssignmentAlreadyExistsError extends Error(ErrorCodes.AssignmentAlreadyExists, StatusCodes.Conflict, "Update assignments for one or a few of the requested devices already exist")
 
   def EcuReplacementDisabled(deviceId: DeviceId) =
     RawError(ErrorCodes.EcuReplacementDisabled, StatusCodes.Conflict, s"Device $deviceId is trying to register again but ecu replacement is disabled on this instance")

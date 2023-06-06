@@ -6,7 +6,7 @@ import com.advancedtelematic.director.data.AdminDataType.{EcuInfoImage, EcuInfoR
 import com.advancedtelematic.director.data.UptaneDataType.Hashes
 import com.advancedtelematic.director.db.DeviceRepository.DeviceCreateResult
 import com.advancedtelematic.director.http.Errors
-import com.advancedtelematic.director.http.Errors.AssignmentExistsError
+import com.advancedtelematic.director.http.Errors.ReplaceEcuAssignmentExistsError
 import com.advancedtelematic.director.repo.DeviceRoleGeneration
 import com.advancedtelematic.libats.data.DataType.Namespace
 import com.advancedtelematic.libats.data.EcuIdentifier
@@ -53,7 +53,7 @@ class DeviceRegistration(keyserverClient: KeyserverClient)
     register(ns, repoId, deviceId, primaryEcuId, ecus).andThen {
       case Success(event: DeviceRepository.Updated) =>
         event.asEcuReplacedSeq.foreach(messageBusPublisher.publishSafe(_))
-      case Failure(AssignmentExistsError(deviceId)) =>
+      case Failure(ReplaceEcuAssignmentExistsError(deviceId)) =>
         val failedReplacement: EcuReplacement = EcuReplacementFailed(deviceId)
         messageBusPublisher.publishSafe(failedReplacement)
     }

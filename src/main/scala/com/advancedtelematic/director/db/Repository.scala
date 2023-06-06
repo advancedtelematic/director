@@ -32,6 +32,7 @@ import io.circe.Json
 import com.advancedtelematic.libtuf.crypt.CanonicalJson._
 import slick.jdbc.GetResult
 
+import java.sql.BatchUpdateException
 import scala.concurrent.{ExecutionContext, Future}
 
 protected trait DatabaseSupport {
@@ -132,7 +133,7 @@ protected class DeviceRepository()(implicit val db: Database, val ec: ExecutionC
 
   private def replaceDeviceEcus(ecuRepository: EcuRepository)(ns: Namespace, device: Device, ecus: Seq[Ecu]): DBIO[Seq[Ecu]] = {
     val ensureNoAssignments = Schema.assignments.filter(_.deviceId === device.id).exists.result.flatMap  {
-      case true => DBIO.failed(Errors.AssignmentExistsError(device.id))
+      case true => DBIO.failed(Errors.ReplaceEcuAssignmentExistsError(device.id))
       case false => DBIO.successful(())
     }
 
@@ -282,6 +283,9 @@ protected class AssignmentsRepository()(implicit val db: Database, val ec: Execu
     (Schema.assignments ++= assignments)
       .andThen { deviceRepository.setMetadataOutdatedAction(assignments.map(_.deviceId).toSet, outdated = true) }
       .transactionally
+      .mapError {
+        case e: BatchUpdateException if e.getErrorCode == 1062 => Errors.AssignmentAlreadyExistsError
+      }
   }
 
   def findBy(deviceId: DeviceId): Future[Seq[Assignment]] = db.runWithRetry {

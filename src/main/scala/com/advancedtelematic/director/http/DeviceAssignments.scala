@@ -90,8 +90,8 @@ class DeviceAssignments(implicit val db: Database, val ec: ExecutionContext, val
     }
   }
 
-  def createForDevice(ns: Namespace, correlationId: CorrelationId, deviceId: DeviceId, mtuId: UpdateId): Future[Assignment] = {
-    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.head) // TODO: This HEAD is problematic
+  def createForDevice(ns: Namespace, correlationId: CorrelationId, deviceId: DeviceId, mtuId: UpdateId): Future[Option[Assignment]] = {
+    createForDevices(ns, correlationId, List(deviceId), mtuId).map(_.headOption)
   }
 
   def createForDevices(ns: Namespace, correlationId: CorrelationId, devices: Seq[DeviceId], mtuId: UpdateId): Future[Seq[Assignment]] = async {

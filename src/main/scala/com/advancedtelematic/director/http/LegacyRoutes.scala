@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.unmarshalling.Unmarshaller
+import com.advancedtelematic.director.data.DbDataType.Assignment
 import com.advancedtelematic.director.db.{DeviceRepositorySupport, EcuRepositorySupport}
 import com.advancedtelematic.libats.data.DataType.{MultiTargetUpdateId, Namespace}
 import com.advancedtelematic.libats.data.{Limit, Offset}
@@ -19,6 +20,7 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import slick.jdbc.MySQLProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
 
 // Implements routes provided by old director that ota-web-app still uses
 class LegacyRoutes(extractNamespace: Directive1[Namespace])
@@ -29,14 +31,15 @@ class LegacyRoutes(extractNamespace: Directive1[Namespace])
 
   implicit val limitUnmarshaller: Unmarshaller[String, Limit] = getLimitUnmarshaller()
 
-  private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Unit] = {
+  private def createDeviceAssignment(ns: Namespace, deviceId: DeviceId, mtuId: UpdateId): Future[Option[Assignment]] = {
     val correlationId = MultiTargetUpdateId(mtuId.uuid)
-    val assignment = deviceAssignments.createForDevice(ns, correlationId, deviceId, mtuId)
 
-    assignment.map { a =>
-      val msg: DeviceUpdateEvent = DeviceUpdateAssigned(ns, Instant.now(), correlationId, a.deviceId)
-      messageBusPublisher.publishSafe(msg)
-    }
+    deviceAssignments.createForDevice(ns, correlationId, deviceId, mtuId)
+      .andThen {
+        case Success(Some(a)) =>
+          val msg: DeviceUpdateEvent = DeviceUpdateAssigned(ns, Instant.now(), correlationId, a.deviceId)
+          messageBusPublisher.publishSafe(msg)
+      }
   }
 
   val route: Route =

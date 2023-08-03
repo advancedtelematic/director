@@ -365,14 +365,11 @@ protected class EcuRepository()(implicit val db: Database, val ec: ExecutionCont
 
   def countEcusWithImages(ns: Namespace, targets: Set[TargetFilename]): Future[Map[TargetFilename, Int]] = db.runWithRetry {
     Schema.activeEcus.filter(_.namespace === ns)
-      .join(Schema.ecuTargets.filter(_.filename.inSet(targets)).filter(_.namespace === ns)).on(_.installedTarget === _.id)
-      .map { case (ecu, ecuTarget) => ecu.ecuSerial -> ecuTarget.filename }
+      .join(Schema.ecuTargets.filter(_.filename.inSet(targets))).on(_.installedTarget === _.id)
+      .map { case (_, ecuTarget) => ecuTarget.filename }
+      .groupBy(identity).map { case (filename, filenames) => filename -> filenames.length }
       .result
-      .map { targetByEcu =>
-        targetByEcu
-          .groupBy { case (_, filename) => filename }
-          .mapValues(_.size)
-      }
+      .map(_.toMap)
   }
 
   def findAllHardwareIdentifiers(ns: Namespace, offset: Offset, limit: Limit): Future[PaginationResult[HardwareIdentifier]] = db.runWithRetry {

@@ -21,7 +21,7 @@ docker run -d \
   -e MYSQL_ROOT_PASSWORD=root \
   -e MYSQL_USER=director_v2 \
   -e MYSQL_PASSWORD=director_v2 \
-  mariadb:10.3.13 \
+  mariadb:10.4.31 \
   --character-set-server=utf8 --collation-server=utf8_unicode_ci \
   --max_connections=1000
 
@@ -29,7 +29,7 @@ function mysqladmin_alive {
     docker run \
            --rm \
            --link director-mariadb \
-           mariadb:10.1 \
+           mariadb:10.4.31 \
            mysqladmin ping --protocol=TCP -h director-mariadb -P 3306 -u root -proot
 }
 
